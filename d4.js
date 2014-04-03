@@ -55,7 +55,7 @@
     this.elements = new Array();
     
     this.fallback_element = new Element();
-  };
+  }
   
   // Set element properties
   Graphic.prototype.element = function(param) {
@@ -88,7 +88,7 @@
     }
     
     this.elements.push(circle);
-    //console.log(circle);
+    console.log(circle);
     return this;
   }
   
@@ -101,7 +101,7 @@
   
   
   // Private : compute some stats (min and max only for now)
-  function computeStat(dataset, column, critera) {
+  function computeStat(dataset, critera) {
     var f;
     
     if(typeof critera === 'function') {
@@ -110,6 +110,8 @@
     else { // critera is a column / variable / aestetic
       f = function (d) {return d[critera];}
     }
+    
+    
     
     var min = f(dataset[0]),
         max = min;
@@ -231,9 +233,17 @@
                                .rangePoints([lim[attr].min, lim[attr].max], ordinal_scale_padding);
             }
             
-            this.elements[i][attr] = function (d) {
-              return scales[attr](d[column]);
-            }
+            var Closure = function (s) {
+                this.scale = s;
+                // capture du contexte
+                var me = this;
+                return {
+                    action:function (d) {
+                        return me.scale(d[column]);
+                    }
+                }
+            };
+            this.elements[i][attr] = (new Closure(scales[attr])).action;
           }
           else { // bind to an aestetic but not a dimentions
             this.elements[i][attr] = function (d) {
@@ -254,6 +264,7 @@
               scales[attr] = d3.scale.linear()
                                .domain([stats[func].min, stats[func].max])
                                .range([lim[attr].min, lim[attr].max]);
+              
             }
             else {
               var domain = new Array();
@@ -271,18 +282,23 @@
                                .rangePoints([lim[attr].min, lim[attr].max], ordinal_scale_padding);
             }
             
-            this.elements[i][attr] = function (d) {
-              console.log(this.scale);
-              return this.scales(func(d));
-            }
-            this.elements[i][attr].scale = scales[attr];
-            
-            console.log(this.elements[i][attr]);
+            var Closure = function (s) {
+                this.scale = s;
+                // capture du contexte
+                var me = this;
+                return {
+                    action:function (d) {
+                        return me.scale(func(d));
+                    }
+                }
+            };
+            this.elements[i][attr] = (new Closure(scales[attr])).action;
           }
           // If the value of the attribute is computed by a function and
           // is not a dimention, nothing to do (no scaling)
         }
         else { // If the value of the attribute is constant
+          alert("constant : "+attr+" = "+attr_val);
           if(attr == 'x' || attr == 'y') {
             // Computing the scale
             if(typeof attr_val == 'number') {
@@ -306,16 +322,27 @@
             }
           }
           
-          this.elements[i][attr] = function (d) {
-            return attr_val;
-          }
+          var Closure = function (v) {
+              this.value = v;
+              // capture du contexte
+              var me = this;
+              return {
+                  action:function (d) {
+                      return me.value;
+                  }
+              }
+          };
+          this.elements[i][attr] = (new Closure(attr_val)).action;
         }
       }
       
       //*
       if(this.elements[i] instanceof Circle) {
+        console.log(this.elements[i].radius);
+        console.log(this.elements[i].radius({col1:1,col2:2,col3:3}));
+        
         svg.selectAll("circle")
-           .data(dataset)
+           .data(this.dataset)
            .enter()
            .append("circle")
            .attr("cx", this.elements[i].x)

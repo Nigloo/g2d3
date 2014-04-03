@@ -9,6 +9,7 @@
   var data_binding_prefix = 'data:';
   var id_name = "num_row";
   var ordinal_scale_padding = 0.2;
+  var linear_scale_padding = 0.1
   
   
   // definiting the base constructor for all classes, which will execute the final class prototype's initialize method if exists
@@ -88,7 +89,7 @@
     }
     
     this.elements.push(circle);
-    console.log(circle);
+    
     return this;
   }
   
@@ -97,6 +98,11 @@
     this.dataset = data;
     
     return this;
+  }
+  
+  function addPadding(interval, padding) {
+    return [interval[0] - (interval[1] - interval[0]) * padding,
+            interval[1] + (interval[1] - interval[0]) * padding];
   }
   
   
@@ -113,11 +119,11 @@
     
     
     
-    var min = f(dataset[0]),
+    var min = f(dataset[0], 0),
         max = min;
     
     for(var i = 1 ; i < dataset.length ; i++){
-      var val = f(dataset[i]);
+      var val = f(dataset[i], i);
       
       if(val < min) {
         min = val;
@@ -177,8 +183,8 @@
     // values limits
     var lim = {x:{min:margin.left,
                   max:width - margin.right},
-               y:{min:margin.bottom,
-                  max:height - margin.top}}
+               y:{min:height - margin.bottom,
+                  max:margin.top}}
 
 
     /*
@@ -216,8 +222,9 @@
               }
                 
               scales[attr] = d3.scale.linear()
-                               .domain([stats[column].min, stats[column].max])
-                               .range([lim[attr].min, lim[attr].max]);
+                               .domain(addPadding([stats[column].min, stats[column].max], linear_scale_padding))
+                               .range([lim[attr].min, lim[attr].max])
+                               .nice();
             }
             else { // bind attribute on x or y but not number
               var domain = new Array();
@@ -262,8 +269,9 @@
               }
               
               scales[attr] = d3.scale.linear()
-                               .domain([stats[func].min, stats[func].max])
-                               .range([lim[attr].min, lim[attr].max]);
+                               .domain(addPadding([stats[func].min, stats[func].max], linear_scale_padding))
+                               .range([lim[attr].min, lim[attr].max])
+                               .nice();
               
             }
             else {
@@ -298,7 +306,6 @@
           // is not a dimention, nothing to do (no scaling)
         }
         else { // If the value of the attribute is constant
-          alert("constant : "+attr+" = "+attr_val);
           if(attr == 'x' || attr == 'y') {
             // Computing the scale
             if(typeof attr_val == 'number') {
@@ -336,11 +343,8 @@
         }
       }
       
-      //*
+      
       if(this.elements[i] instanceof Circle) {
-        console.log(this.elements[i].radius);
-        console.log(this.elements[i].radius({col1:1,col2:2,col3:3}));
-        
         svg.selectAll("circle")
            .data(this.dataset)
            .enter()
@@ -349,8 +353,30 @@
            .attr("cy", this.elements[i].y)
            .attr("r", this.elements[i].radius);
       }
-      //*/
     }
+    
+    // X axis
+    var xAxis = d3.svg.axis()
+                  .scale(scales.x)
+                  .orient("bottom")
+                  .ticks(5);
+    
+    svg.append("g")
+      .attr("class", "axis")
+      .attr("transform", "translate(0," + (height - margin.bottom) + ")")
+      .call(xAxis);
+      
+    // Y axis
+    var yAxis = d3.svg.axis()
+                  .scale(scales.y)
+                  .orient("left")
+                  .ticks(5);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(" + margin.left + ",0)")
+        .call(yAxis);
+
   }
   
   

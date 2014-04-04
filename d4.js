@@ -374,6 +374,9 @@
     else if(interval[0] != 0) {
       return [0, interval[0] * 2];
     }
+    else {
+      return [-1, 1];
+    }
   }
   
   

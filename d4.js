@@ -14,7 +14,7 @@
   
   // Definiting the base constructor for all classes, which will execute the final class prototype's initialize method if exists
   var Class = function() {
-    this.initialize && this.initialize.apply(this, arguments);
+      this.initialize && this.initialize.apply(this, arguments);
   };
   Class.extend = function(childPrototype) { // Defining a static method 'extend'
     var parent = this;
@@ -26,28 +26,34 @@
     Surrogate.prototype = parent.prototype;
     child.prototype = new Surrogate;
     for(var key in childPrototype){
-        child.prototype[key] = childPrototype[key];
+      child.prototype[key] = childPrototype[key];
     }
     return child; // Returning the child class
   };
   
-  // TODO : x, y -> position (array of dimentions)m,
+  // TODO : x, y -> position (array of dimentions),
   
   // Elements definition
   // Remark: dimention can be both numerical value or string (discrete value)
   var Element = Class.extend({
     initialize : function() {
       this.name = 'Element';
-      this.x = {type:'dimention',
-                value:0};
-      this.y = {type:'dimention',
-                value:0};
-      this.fill = {type:'color',
-                    value:'white'};
-      this.stroke_width = {type:'number',
-                           value:1};
-      this.stroke = {type:'color',
-                           value:'black'};
+      this.x = {  type:'dimention',
+                  value:0};
+      this.y = {  type:'dimention',
+                  value:0};
+      this.fill = { type:'color',
+                    value:'none'};
+      this.fill_opacity = { type:'number',
+                            value:1};
+      this.stroke_width = { type:'number',
+                            value:1};
+      this.stroke = { type:'color',
+                      value:'black'};
+      this.stroke_dasharray = { type:'string',
+                                value:'0'};
+      this.stroke_opacity = { type:'number',
+                              value:1};
      }
   });
     
@@ -56,6 +62,36 @@
       this.name = 'Circle';
       this.radius = {type:'number',
                      value:5};
+     }
+  });
+  
+  var Line = Element.extend({
+    initialize : function() {
+      this.name = 'Line';
+      this.interpolation = {type:'string',
+                            value:'linear'};
+    /* Possible values :
+     * linear - piecewise linear segments, as in a polyline.
+     * linear-closed - close the linear segments to form a polygon.
+     * step - alternate between horizontal and vertical segments, as in a step function.
+     * step-before - alternate between vertical and horizontal segments, as in a step function.
+     * step-after - alternate between horizontal and vertical segments, as in a step function.
+     * basis - a B-spline, with control point duplication on the ends.
+     * basis-open - an open B-spline; may not intersect the start or end.
+     * basis-closed - a closed B-spline, as in a loop.
+     * bundle - equivalent to basis, except the tension parameter is used to straighten the spline.
+     * cardinal - a Cardinal spline, with control point duplication on the ends.
+     * cardinal-open - an open Cardinal spline; may not intersect the start or end, but will intersect other control points.
+     * cardinal-closed - a closed Cardinal spline, as in a loop.
+     * monotone - cubic interpolation that preserves monotonicity in y.
+     */
+      this.stroke_linecap = {type:'string',
+                             value:'butt'};
+    /* Possible values :
+     * butt
+     * round
+     * square
+     */  
      }
   });
   
@@ -83,27 +119,21 @@
     return this;
   }
   
+  
+  
+  
+  
   // Add circles
   Graphic.prototype.circle = function(param) {
-    var circle = new Circle();
+    addElement(this, Circle, param);
     
-    // copying attributes' values from the fallback element
-    for(var attr in this.fallback_element) {
-      if(typeof this.fallback_element[attr].type != 'undefined') {
-        circle[attr] = this.fallback_element[attr];
-      }
-    }
-    
-    if(typeof param != 'undefined') {
-      for(var attr in circle) {
-        if(typeof param[attr] != 'undefined' &&
-           typeof circle[attr] != 'undefined' && typeof circle[attr].type != 'undefined') {
-          circle[attr].value = param[attr];
-        }
-      }
-    }
-    
-    this.elements.push(circle);
+    return this;
+  }
+  
+  
+  // Add lines
+  Graphic.prototype.line = function(param) {
+    addElement(this, Line, param);
     
     return this;
   }
@@ -192,12 +222,22 @@
           var column = attr_val.substring(data_binding_prefix.length);
           
           // We convert it into a fonction
-          this.elements[i][attr].value = function (d, i) {return d[column]}
+          var Closure = function (col) {
+            this.c = col;
+            var me = this;
+            return {
+              action:function (d) {
+                return d[me.c];
+              }
+            }
+          };
+          this.elements[i][attr].value = (new Closure(column)).action;
         }
         // If the value of the attribute is constant
         else if(typeof attr_val === 'number' || typeof attr_val === 'string') {
           // Computing the scale
           if(attr_type === 'dimention' && typeof scales[attr] === 'undefined') {
+            
             if(typeof attr_val === 'number') {
               var domain;
               
@@ -224,7 +264,7 @@
             this.value = v;
             var me = this;
             return {
-              action:function (d, i) {
+              action:function () {
                 return me.value;
               }
             }
@@ -318,21 +358,47 @@
               throw errorMessage(this.elements[i].name, attr, (typeof attr_val), '\'number\'');
             }
             break;
+          case 'string':
+            if(func_ret_type != 'string') {
+              throw errorMessage(this.elements[i].name, attr, (typeof attr_val), '\'string\'');
+            }
+            break;
         }
       }
       
       
       if(this.elements[i] instanceof Circle) {
-        svg.selectAll("circle")
+        svg.selectAll('.etl'+i)
            .data(this.dataset)
            .enter()
-           .append("circle")
-           .attr("cx", this.elements[i].x.value)
-           .attr("cy", this.elements[i].y.value)
-           .attr("r", this.elements[i].radius.value)
-           .attr("stroke-width", this.elements[i].stroke_width.value)
-           .attr("stroke", this.elements[i].stroke.value)
-           .attr("fill", this.elements[i].fill.value);
+           .append('circle')
+           .attr('class', 'etl'+i)
+           .attr('cx', this.elements[i].x.value)
+           .attr('cy', this.elements[i].y.value)
+           .attr('r', this.elements[i].radius.value)
+           .attr('stroke-width', this.elements[i].stroke_width.value)
+           .attr('stroke', this.elements[i].stroke.value)
+           .attr('stroke-dasharray', this.elements[i].stroke_dasharray.value)
+           .attr('stroke-opacity', this.elements[i].stroke_opacity.value)
+           .attr('fill', this.elements[i].fill.value)
+           .attr('fill-opacity', this.elements[i].fill_opacity.value);
+      }
+      else if(this.elements[i] instanceof Line) {
+        var lineFunction = d3.svg.line()
+                             .x(this.elements[i].x.value)
+                             .y(this.elements[i].y.value)
+                             .interpolate(this.elements[i].interpolation.value());
+        
+        svg.append('path')
+           .attr('class', 'etl'+i)
+           .attr("d", lineFunction(this.dataset))
+           .attr('stroke-width', this.elements[i].stroke_width.value)
+           .attr('stroke', this.elements[i].stroke.value)
+           .attr('stroke-dasharray', this.elements[i].stroke_dasharray.value)
+           .attr('stroke-opacity', this.elements[i].stroke_opacity.value)
+           .attr('stroke-linecap', this.elements[i].stroke_linecap.value)
+           .attr('fill', this.elements[i].fill.value)
+           .attr('fill-opacity', this.elements[i].fill_opacity.value);
       }
     }
     
@@ -340,23 +406,23 @@
     // X axis
     var xAxis = d3.svg.axis()
                   .scale(scales.x)
-                  .orient("bottom")
+                  .orient('bottom')
                   .ticks(5);
     
-    svg.append("g")
-      .attr("class", "axis")
-      .attr("transform", "translate(0," + (height - margin.bottom) + ")")
+    svg.append('g')
+      .attr('class', 'axis')
+      .attr('transform', 'translate(0,' + (height - margin.bottom) + ')')
       .call(xAxis);
       
     // Y axis
     var yAxis = d3.svg.axis()
                   .scale(scales.y)
-                  .orient("left")
+                  .orient('left')
                   .ticks(5);
 
-    svg.append("g")
-        .attr("class", "axis")
-        .attr("transform", "translate(" + margin.left + ",0)")
+    svg.append('g')
+        .attr('class', 'axis')
+        .attr('transform', 'translate(' + margin.left + ',0)')
         .call(yAxis);
 
   }
@@ -365,6 +431,30 @@
   ///////////////////////
   // Private functions //
   ///////////////////////
+  
+  // Add an element to the graphic
+  function addElement(g, Type, param) {
+    var elt = new Type();
+    
+    // copying attributes' values from the fallback element
+    for(var attr in g.fallback_element) {
+      if(typeof g.fallback_element[attr].type != 'undefined') {
+        elt[attr] = {type:g.fallback_element[attr].type,
+                     value:g.fallback_element[attr].value};
+      }
+    }
+    
+    if(typeof param != 'undefined') {
+      for(var attr in elt) {
+        if(typeof param[attr] != 'undefined' &&
+           typeof elt[attr] != 'undefined' && typeof elt[attr].type != 'undefined') {
+          elt[attr].value = param[attr];
+        }
+      }
+    }
+    g.elements.push(elt);
+  }
+  
 
   function addPadding(interval, padding) {
     if(interval[0] != interval[1]) {
@@ -380,14 +470,14 @@
   }
   
   
-  // Private : compute some stats (min and max only for now)
+  // Compute some stats (min and max only for now)
   function computeStat(dataset, critera) {
     var f;
     
     if(typeof critera === 'function') {
       f = critera;
     }
-    else { // critera is a column / variable / aestetic
+    else {
       f = function (d) {return d[critera];}
     }
     

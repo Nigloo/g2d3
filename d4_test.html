@@ -23,31 +23,36 @@
             function main() {
                 "use strict";
                 var dataset = [
-                    {col1:5, col2:5, col3:3},
-                    {col1:10, col2:20, col3:13},
-                    {col1:20, col2:15, col3:23},
-                    {col1:40, col2:3, col3:33}];
+                    {col1:5, col2:5, col3:10},
+                    {col1:10, col2:20, col3:20},
+                    {col1:20, col2:3, col3:32},
+                    {col1:40, col2:17, col3:44}];
                 
-                /*
-                var s = d3.scale.category10()
-                               .domain([0, 100]);
-                               
-                for(var i=0;i<100;i++)
-                    console.log(s(i));
-                    
-                return;
-                //*/
                 
                 var g = new Graphic();
                 
                 g.element({ x:function(d){return d.col1;},
-                            y:"data:col2",
+                            y:'data:col2',
                             stroke_width:function(d,i){return i+1;},
                             stroke:function(d,i){return i;},
-                            fill:"yellow"/*"#FFCC00"*/})
-                 .circle({radius:function(d,i){return 5*(i+1);}})
-                 .data(dataset)
-                 .render({selector:"#graph", width:1024, height:768, margin:50});
+                            fill:"yellow"})
+                .line({     stroke_width:3,
+                            stroke:function(){return 'blue';},
+                            fill:'none',
+                            interpolation:'cardinal',
+                            stroke_linecap:'round'})
+                .circle({   radius:function(d,i){return 5*(i+1)+5;},
+                            fill_opacity:0.5})
+                .circle({   x:10,
+                            y:10,
+                            stroke_width:function(d,i){return i%2==0?10:3;},
+                            stroke:function(d,i){return Math.exp(i);},
+                            stroke_opacity:function(d,i){return (i+1)/4;},
+                            fill:'none',
+                            radius:'data:col3',
+                            stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
+                .data(dataset)
+                .render({selector:"#graph", width:1024, height:768, margin:50});
             }
             
             window.onload = main;

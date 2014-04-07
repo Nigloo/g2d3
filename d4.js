@@ -37,31 +37,31 @@
   // Remark: dimention can be both numerical value or string (discrete value)
   var Element = Class.extend({
     initialize : function() {
-      this.name = 'Element';
-      this.x = {  type:'dimention',
-                  value:0};
-      this.y = {  type:'dimention',
-                  value:0};
-      this.fill = { type:'color',
-                    value:'none'};
-      this.fill_opacity = { type:'number',
-                            value:1};
-      this.stroke_width = { type:'number',
-                            value:1};
-      this.stroke = { type:'color',
-                      value:'black'};
+      this.name =             'Element';
+      this.x =                { type:'dimention',
+                                value:null};
+      this.y =                { type:'dimention',
+                                value:null};
+      this.fill =             { type:'color',
+                                value:null};
+      this.fill_opacity =     { type:'number',
+                                value:null};
+      this.stroke_width =     { type:'number',
+                                value:null};
+      this.stroke =           { type:'color',
+                                value:null};
       this.stroke_dasharray = { type:'string',
-                                value:'0'};
-      this.stroke_opacity = { type:'number',
-                              value:1};
+                                value:null};
+      this.stroke_opacity =   { type:'number',
+                                value:null};
      }
   });
     
   var Circle = Element.extend({
     initialize : function() {
-      this.name = 'Circle';
-      this.radius = {type:'number',
-                     value:5};
+      this.name =   'Circle';
+      this.radius = { type:'number',
+                      value:null};
      }
   });
   
@@ -209,8 +209,9 @@
     
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
-        // Uninteresting attributes (initialise, name, ...)
-        if(typeof this.elements[i][attr].type === 'undefined') {
+        // Uninteresting attributes and non-set attributes
+        if(typeof this.elements[i][attr].type === 'undefined' ||
+           this.elements[i][attr].value === null) {
           continue;
         }
         
@@ -368,20 +369,18 @@
       
       
       if(this.elements[i] instanceof Circle) {
-        svg.selectAll('.etl'+i)
-           .data(this.dataset)
-           .enter()
-           .append('circle')
-           .attr('class', 'etl'+i)
-           .attr('cx', this.elements[i].x.value)
-           .attr('cy', this.elements[i].y.value)
-           .attr('r', this.elements[i].radius.value)
-           .attr('stroke-width', this.elements[i].stroke_width.value)
-           .attr('stroke', this.elements[i].stroke.value)
-           .attr('stroke-dasharray', this.elements[i].stroke_dasharray.value)
-           .attr('stroke-opacity', this.elements[i].stroke_opacity.value)
-           .attr('fill', this.elements[i].fill.value)
-           .attr('fill-opacity', this.elements[i].fill_opacity.value);
+        var node = svg.selectAll('.etl'+i)
+                      .data(this.dataset)
+                      .enter()
+                      .append('circle')
+                      .attr('class', 'etl'+i);
+        
+        svgSetCommonAttributes(node, this.elements[i]);
+                      
+        svgSetAttribute(node, 'cx', this.elements[i], 'x');
+        svgSetAttribute(node, 'cy', this.elements[i], 'y');
+        svgSetAttribute(node, 'r' , this.elements[i], 'radius');
+        
       }
       else if(this.elements[i] instanceof Line) {
         var lineFunction = d3.svg.line()
@@ -389,16 +388,13 @@
                              .y(this.elements[i].y.value)
                              .interpolate(this.elements[i].interpolation.value());
         
-        svg.append('path')
-           .attr('class', 'etl'+i)
-           .attr("d", lineFunction(this.dataset))
-           .attr('stroke-width', this.elements[i].stroke_width.value)
-           .attr('stroke', this.elements[i].stroke.value)
-           .attr('stroke-dasharray', this.elements[i].stroke_dasharray.value)
-           .attr('stroke-opacity', this.elements[i].stroke_opacity.value)
-           .attr('stroke-linecap', this.elements[i].stroke_linecap.value)
-           .attr('fill', this.elements[i].fill.value)
-           .attr('fill-opacity', this.elements[i].fill_opacity.value);
+        var node = svg.append('path')
+                      .attr('class', 'etl'+i)
+                      .attr("d", lineFunction(this.dataset));
+           
+        svgSetCommonAttributes(node, this.elements[i]);
+        
+        svgSetAttribute(node, 'stroke-linecap', this.elements[i], 'stroke_linecap');
       }
     }
     
@@ -424,7 +420,6 @@
         .attr('class', 'axis')
         .attr('transform', 'translate(' + margin.left + ',0)')
         .call(yAxis);
-
   }
   
   
@@ -453,6 +448,25 @@
       }
     }
     g.elements.push(elt);
+  }
+  
+  // Set an svg attribute
+  function svgSetAttribute(node, svgAttr, elt, attr) {
+    var value = elt[attr].value;
+    
+    if(value != null) {
+      node.attr(svgAttr, value);
+    }
+  }
+  
+  //
+  function svgSetCommonAttributes(node, elt) {
+    svgSetAttribute(node, 'stroke-width',     elt, 'stroke_width');
+    svgSetAttribute(node, 'stroke',           elt, 'stroke');
+    svgSetAttribute(node, 'stroke-dasharray', elt, 'stroke_dasharray');
+    svgSetAttribute(node, 'stroke-opacity',   elt, 'stroke_opacity');
+    svgSetAttribute(node, 'fill',             elt, 'fill');
+    svgSetAttribute(node, 'fill-opacity',     elt, 'fill_opacity');
   }
   
 

@@ -876,4 +876,48 @@
     return id;
   }
   
+  var ASSERT = function(condition, msg) {
+    if(!condition) {
+      throw 'ASSERTION false: '.concat(msg)
+    }
+  }
+  
+  var LOG = function(msg) {
+    if ( window.console && window.console.log ) {
+      console.log(msg)
+    }
+  }
+  
+  /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
+  String.prototype.format = function() {
+    var formatted = this;
+    for (var i = 0; i < arguments.length; i++) {
+        var regexp = new RegExp('\\{'+i+'\\}', 'gi');
+        formatted = formatted.replace(regexp, arguments[i]);
+    }
+    return formatted;
+  };
+  
+  /* The function to render the plot                     */
+  /* Automatically attaches itself to the window.onLoad  */
+  /* Options are: width (optional), height (optional), margin (margin), selector (mandatory) */
+  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
+  Graphic.prototype.plot = function(param) {
+    var renderParams = {};
+    renderParams.selector = param && param.selector
+    ASSERT(renderParams.selector, "Please specify the selector in plot()")
+    renderParams.width    = (param && param.width ) || 640;
+    renderParams.height   = (param && param.heigth) || 480; 
+    renderParams.margin   = (param && param.margin) || 50 ;
+    LOG("Ready to plot: width={0}, height={1}, margin={2}, selector={3}".format(
+          renderParams.width,
+          renderParams.height,
+          renderParams.margin,
+          renderParams.selector))
+    ASSERT(this.render, "No function render in this; how am I  supposed to render ??")
+    // debugger
+    var theGraphic = this;
+    window.addEventListener("load", function() { theGraphic.render(renderParams); }, true)
+  };
 }();
+

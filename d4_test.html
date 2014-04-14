@@ -20,79 +20,77 @@
         <script type="text/javascript" src="d4.js"></script></script>
         <script type="text/javascript">
             
-            function main() {
-                "use strict";
-                
-                var g = new Graphic();
-                
-                /*
-                var dataset = [
-                    {col1:'A', col2:10, col3:1,   col4:1,   col5:1},
-                    {col1:'A', col2:10, col3:2,   col4:3,   col5:2},
-                    {col1:'A', col2:10, col3:3,   col4:2,   col5:3},
-                    
-                    {col1:'B', col2:10, col3:3,   col4:2,   col5:4},
-                    {col1:'B', col2:10, col3:2,   col4:3,   col5:5},
-                    {col1:'B', col2:10, col3:1,   col4:1,   col5:6},
-                    
-                    {col1:'A', col2:20, col3:1.5, col4:1.1, col5:7},
-                    {col1:'A', col2:20, col3:2.5, col4:2.2, col5:8},
-                    {col1:'A', col2:20, col3:3.3, col4:3.3, col5:9},
-                    
-                    {col1:'B', col2:20, col3:3,   col4:3,   col5:10},
-                    {col1:'B', col2:20, col3:2,   col4:2,   col5:11},
-                    {col1:'B', col2:20, col3:1,   col4:1,   col5:12}];
-                    
-                
-                g.coord(new Rect({  x:1,
-                                    y:2,
-                                    subSys: new Rect({  x:3,
-                                                        y:4})
-                                }))
-                .element({  position:[  'data:col1',
-                                        'data:col2',
-                                        'data:col3',
-                                        'data:col4'],
-                            stroke_width:3})
-                .circle({   radius:3})
-                */
-                /*
-                .line(  {   fill:'none',
-                            stroke:'black'})
-                //*/
-                //*/
-                //*
-                var dataset = [
-                    {col1:5, col2:5, col3:10},
-                    {col1:10, col2:20, col3:20},
-                    {col1:20, col2:3, col3:32},
-                    {col1:40, col2:17, col3:44}];
-                
-                g.element({ position:[  function(d){return d.col1;},
-                                        'data:col2'],
-                            stroke_width:function(d,i){return i+1;},
-                            stroke:function(d,i){return i;},
-                            fill:"yellow"})
-                .line({     stroke_width:3,
-                            stroke:function(){return 'blue';},
-                            fill:'none',
-                            interpolation:'cardinal',
-                            stroke_linecap:'round'})
-                .circle({   radius:function(d,i){return 5*(i+1)+5;},
-                            fill_opacity:0.5})
-                .circle({   position:[10, 10],
-                            stroke_width:function(d,i){return i%2==0?10:3;},
-                            stroke:function(d,i){return Math.exp(i);},
-                            stroke_opacity:function(d,i){return (i+1)/4;},
-                            fill:'none',
-                            radius:'data:col3',
-                            stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
-                //*/
-                .data(dataset)
-                .render({selector:"#graph", width:1024, height:768, margin:50});
-            }
+            "use strict";
             
-            window.onload = main;
+            var g = new Graphic();
+                
+            //*
+            var dataset = [
+                {col1:'A', col2:10, col3:1,   col4:1,   col5:1},
+                {col1:'A', col2:10, col3:2,   col4:3,   col5:2},
+                {col1:'A', col2:10, col3:3,   col4:2,   col5:3},
+                
+                {col1:'B', col2:10, col3:3,   col4:2,   col5:4},
+                {col1:'B', col2:10, col3:2,   col4:3,   col5:5},
+                {col1:'B', col2:10, col3:1,   col4:1,   col5:6},
+                
+                {col1:'A', col2:20, col3:1.5, col4:1.1, col5:7},
+                {col1:'A', col2:20, col3:2.5, col4:2.2, col5:8},
+                {col1:'A', col2:20, col3:3.3, col4:3.3, col5:9},
+                
+                {col1:'B', col2:20, col3:3,   col4:3,   col5:10},
+                {col1:'B', col2:20, col3:2,   col4:2,   col5:11},
+                {col1:'B', col2:20, col3:1,   col4:1,   col5:12}];
+                
+            
+            g.coord(new Rect({  x:1,
+                                y:2,
+                                subSys: new Rect({  x:3,
+                                                    y:4})
+                            }))
+            .element({  position:[  'data:col1',
+                                    'data:col2',
+                                    'data:col3',
+                                    'data:col4'],
+                        stroke_width:3})
+            .circle({   radius:5,
+                        fill:'data:col5'})
+            //*/
+            /*
+            .line(  {   fill:'none',
+                        stroke:'black'})
+            //*/
+                
+                
+            /*
+            var dataset = [
+                {col1:5, col2:5, col3:10},
+                {col1:10, col2:20, col3:20},
+                {col1:20, col2:3, col3:32},
+                {col1:40, col2:17, col3:44}];
+            
+            g.element({ position:[  function(d){return d.col1;},
+                                    'data:col2'],
+                        stroke_width:function(d,i){return i+1;},
+                        stroke:function(d,i){return i;},
+                        fill:"yellow"})
+            .line({     stroke_width:3,
+                        stroke:function(){return 'blue';},
+                        fill:'none',
+                        interpolation:'cardinal',
+                        stroke_linecap:'round'})
+            .circle({   radius:function(d,i){return 5*(i+1)+5;},
+                        fill_opacity:0.5})
+            .circle({   position:[10, 10],
+                        stroke_width:function(d,i){return i%2==0?10:3;},
+                        stroke:function(d,i){return Math.exp(i);},
+                        stroke_opacity:function(d,i){return (i+1)/4;},
+                        fill:'none',
+                        radius:'data:col3',
+                        stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
+            //*/
+            .data(dataset)
+            .plot({selector:"#graph", width:1024, height:768, margin:50});
         </script>
     </head>
     <body>

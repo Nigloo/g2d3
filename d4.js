@@ -7,7 +7,6 @@
   
   // Some constants
   var data_binding_prefix = 'data:';
-  var id_name = "num_row";
   var ordinal_scale_padding = 0.2;
   var linear_scale_padding = 0.1;
   var coordSysMargin = 0.2;
@@ -233,26 +232,54 @@
         var attr_type = this.elements[i][attr].type;
         var attr_val = this.elements[i][attr].value;
         
-        // Positions are bound with several aesthetics (one per dimention) 
-        if(attr_type === 'position') {
+        if(attr_type == 'position') {
+          // Positions are bound with several aesthetics (one per dimention) 
           if(!attr_val instanceof Array)
             throw errorMessage(this.elements[i].name, attr, typeof attr_val, '\'Array\'');
           
           this.elements[i][attr].aes = new Array(attr_val.length);
           for(var j = 0 ; j < attr_val.length ; j++) {
+            // Get the aestetic id
             var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val[j]);
-            this.elements[i][attr].aes[j] = aes[aesId];
             
+            // Check data type return by this aesthetic
+            var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+            if(aes_ret_type != 'number' && aes_ret_type != 'string')
+              throw errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\'');
+            
+            this.elements[i][attr].aes[j] = aes[aesId];
             if(typeof dim[j].aes === 'undefined')
               dim[j].aes = [];
               
             dim[j].aes.push(aes[aesId]);
           }
         }
-        else
-          this.elements[i][attr].aes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val)];
+        else {
+          // Get the aestetic id
+          var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val);
           
-        // TODO: delete attr_val = this.elements[i][attr].value ?
+          // Check data type return by this aesthetic
+          var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+          switch(attr_type) {
+            case 'color':
+              if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+                throw errorMessage(this.elements[i].name, attr, aes_ret_type, 'color (\'number\' or \'string\')');
+              }
+              break;
+            case 'string':
+              if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+                throw errorMessage(this.elements[i].name, attr, aes_ret_type, '\'string\' (\'number\' accepted)');
+              }
+              break;
+            case 'number':
+              if(aes_ret_type != 'number') {
+                throw errorMessage(this.elements[i].name, attr, aes_ret_type, '\'number\'');
+              }
+              break;
+          }
+          
+          this.elements[i][attr].aes = aes[aesId];
+        }
       }
     }
     
@@ -338,7 +365,7 @@
           if(dom[1] > domain[1])
             domain[1] = dom[1];
         }
-        addPadding(domain, linear_scale_padding);
+        domain = addPadding(domain, linear_scale_padding);
       }
       
       dim[i].domain = domain;
@@ -353,8 +380,86 @@
     this.coordSys.computeScale(dim, width - margin.left - margin.right, height - margin.top - margin.bottom);
     
     // For other attributes
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i]) {
+        // Skip uninteresting attributes and non-set attributes
+        if(typeof this.elements[i][attr].type === 'undefined' ||
+           this.elements[i][attr].value === null ||
+           this.elements[i][attr].type === 'position') {
+          continue;
+        }
+        
+        var attr_type = this.elements[i][attr].type;
+        var attr_aes = this.elements[i][attr].aes;
+        var aes_ret_type = typeof attr_aes.func(this.dataset[0], 0);
+        
+        switch(attr_type) {
+          case 'color':
+            if(aes_ret_type === 'string') {
+              // No scaling
+              this.elements[i][attr].func = attr_aes.func;
+            }
+            else {
+              // Compute continuous domain
+              var dom;
+              if(typeof attr_aes.continuousDomain === 'undefined') {
+                // Compute continuous domain from ordinal one
+                if(typeof attr_aes.ordinalDomain != 'undefined') {
+                  var ordDom = attr_aes.ordinalDomain;
+                  dom = [ordDom[0], ordDom[ordDom.length-1]];
+                }
+                else {
+                  var stat = computeStat(this.dataset, attr_aes.func);
+                  dom = [stat.min, stat.max];
+                }
+                attr_aes.continuousDomain = dom;
+              }
+              else
+                dom = attr_aes.continuousDomain;
+              
+              // Scaling
+              var scale = d3.scale.category10().domain(dom);
+              var Closure = function (scale, func) {
+              this.s = scale;
+              this.f = func;
+              var me = this;
+                return {
+                  action:function (d, i) {
+                    return me.s(me.f(d, i));
+                  }
+                }
+              };
+              this.elements[i][attr].func = (new Closure(scale, attr_aes.func)).action;
+            }
+            break;
+          
+          case 'string':
+            // No scaling
+            if(aes_ret_type === 'string') {
+              this.elements[i][attr].func = attr_aes.func;
+            }
+            else { // Just apply toString
+              var Closure = function (func) {
+                this.f = func;
+                var me = this;
+                return {
+                  action:function (d, i) {
+                    return me.f(d, i).toString();
+                  }
+                }
+              };
+              this.elements[i][attr].func = (new Closure(attr_aes.func)).action;
+            }
+            break;
+          
+          case 'number':
+            // No scaling
+            this.elements[i][attr].func = attr_aes.func;
+            break;
+        }
+      }
+    }
     
-    //TODO
     
     /*                *\
      * Generating svg *
@@ -365,6 +470,12 @@
                 .append("svg")
                 .attr("width", width)
                 .attr("height", height);
+    
+    
+    // Add axis
+    this.coordSys.drawAxis( svg, dim, margin.left, margin.top,
+                            width-margin.left-margin.right,
+                            height-margin.top-margin.bottom);
     
     // Draw elements
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -427,9 +538,9 @@
       // Lines
       else if(this.elements[i] instanceof Line) {
         var lineFunction = d3.svg.line()
-                             .x(this.elements[i].x.value)
-                             .y(this.elements[i].y.value)
-                             .interpolate(this.elements[i].interpolation.value());
+                             .x(getX)
+                             .y(getY)
+                             .interpolate(this.elements[i].interpolation.value);
         
         var node = svg.append('path')
                       .attr('class', 'etl'+i)
@@ -441,10 +552,7 @@
       }
     }
     
-    // Add axis
-    this.coordSys.drawAxis( svg, dim, margin.left, margin.top,
-                            width-margin.left-margin.right,
-                            height-margin.top-margin.bottom);
+    
   }
   
   
@@ -473,7 +581,7 @@
   
   window.Rect = CoordSys.extend({
     initialize : function(param) {
-      this.x = {dim:null};
+      this.x = null
       this.y = null;
       this.subSys = null;
       this.scaleX = null;
@@ -516,10 +624,17 @@
     
     computeScale: function(dim, width, height) {
       // X scale
-      if(dim[this.x].ordinal)
+      var subWidth = null;
+      var subHeight = null;
+      
+      if(this.x === null)
+        subWidth = width;
+      else if(dim[this.x].ordinal) {
         this.scaleX = d3.scale.ordinal()
                         .domain(dim[this.x].domain)
                         .rangeRoundBands([0, width], coordSysMargin);
+        subWidth = this.scaleX.rangeBand();
+      }
       else
         this.scaleX = d3.scale.linear()
                         .domain(dim[this.x].domain)
@@ -527,10 +642,14 @@
                         .nice();
       
       // Y scale
-      if(dim[this.y].ordinal)
+      if(this.y === null)
+        subHeight = height;
+      else if(dim[this.y].ordinal) {
         this.scaleY = d3.scale.ordinal()
                         .domain(dim[this.y].domain)
                         .rangeRoundBands([height, 0], coordSysMargin);
+        subHeight = this.scaleY.rangeBand();
+      }
       else
         this.scaleY = d3.scale.linear()
                         .domain(dim[this.y].domain)
@@ -539,11 +658,11 @@
       
       // Sub coordonate system scale
       if(this.subSys != null)
-        this.subSys.computeScale(dim, this.scaleX.rangeBand(), this.scaleY.rangeBand());
+        this.subSys.computeScale(dim, subWidth, subHeight);
     },
     
     getX: function(pos, d, i) {
-      var X = this.scaleX(pos[this.x](d, i));
+      var X = (this.x != null) ? this.scaleX(pos[this.x](d, i)) : 0;
       
       if(this.subSys != null)
         X += this.subSys.getX(pos, d, i);
@@ -552,7 +671,7 @@
     },
     
     getY: function(pos, d, i) {
-      var Y = this.scaleY(pos[this.y](d, i));
+      var Y = (this.y != null) ? this.scaleY(pos[this.y](d, i)) : 0;
       
       if(this.subSys != null)
         Y += this.subSys.getY(pos, d, i);
@@ -561,6 +680,7 @@
     },
     
     drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
+      //*
       svgNode.append('g')
       .attr("transform", 'translate('+offsetX+','+offsetY+')')
       .append("rect")
@@ -568,47 +688,48 @@
       .attr("height", height)
       .attr("fill","orange")
       .attr("fill-opacity",0.3);
-      
-      var xAxis = d3.svg.axis()
-                  .scale(this.scaleX)
-                  .orient('bottom');
-      
-      if(!dim[this.x].ordinal)
-        xAxis.ticks(5);
-        
-      var yAxis = d3.svg.axis()
-                  .scale(this.scaleY)
-                  .orient('left');
-      
-      if(!dim[this.y].ordinal)
-        yAxis.ticks(5);
+      //*/
       
       // X axis
-      svgNode.append('g')
-             .attr('class', 'axis')
-             .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-             .call(xAxis);
+      if(this.x != null) {
+        var xAxis = d3.svg.axis()
+                    .scale(this.scaleX)
+                    .orient('bottom');
+        
+        if(!dim[this.x].ordinal)
+          xAxis.ticks(5);
+        
+        
+        svgNode.append('g')
+               .attr('class', 'axis')
+               .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
+               .call(xAxis);
+      }
                     
       // Y axis
-      svgNode.append('g')
-             .attr('class', 'axis')
-             .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-             .call(yAxis);
-      //*
-      console.log('domX',this.scaleX.domain());
-      console.log('X',this.scaleX.range());
-      console.log('domY',this.scaleY.domain());
-      console.log('Y',this.scaleY.range());
-      //*/
-      if(this.subSys != null) {
-        var rangeX = this.scaleX.range();
-        var rangeY = this.scaleY.range();
+      if(this.y != null) {
+        var yAxis = d3.svg.axis()
+                    .scale(this.scaleY)
+                    .orient('left');
         
-        for(var offX in rangeX) {
-          for(var offY in rangeY) {
-            console.log('offX offY ', offsetX+rangeX[offX], offsetY+rangeY[offY]);
-            this.subSys.drawAxis(svgNode, dim, offsetX+rangeX[offX], offsetY+rangeY[offY], this.scaleX.rangeBand(), this.scaleY.rangeBand());
-          }
+        if(!dim[this.y].ordinal)
+          yAxis.ticks(5);
+        
+        svgNode.append('g')
+               .attr('class', 'axis')
+               .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
+               .call(yAxis);
+      }
+      
+      if(this.subSys != null) {
+        var rangeX = (this.x != null) ? this.scaleX.range() : [0];
+        var rangeY = (this.y != null) ? this.scaleY.range() : [0];
+        var subWidth = (this.x != null) ? this.scaleX.rangeBand() : width;
+        var subHeight = (this.y != null) ? this.scaleY.rangeBand() : height;
+        
+        for(var i = 0 ; i < rangeX.length ; i++) {
+          for(var j = 0 ; j < rangeY.length ; j++)
+            this.subSys.drawAxis(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
         }
       }
     }
@@ -691,7 +812,7 @@
   // Set an svg attribute
   function svgSetAttribute(node, svgAttr, elt, attr) {
     if(elt[attr].value != null) {
-      node.attr(svgAttr, elt[attr].aes.func);
+      node.attr(svgAttr, elt[attr].func);
     }
   }
   
@@ -821,9 +942,7 @@
           }
         };
         
-        aes.push({func:(new Closure(column)).action
-                  ,data_col:column // TODO : remove
-                });
+        aes.push({func:(new Closure(column)).action});
         id = aes.length - 1;
         dataCol2Aes[column] = id;
       }
@@ -846,9 +965,7 @@
         
         aes.push({func:(new Closure(attr_val)).action,
                   // We set the domains while we know it's a constant value
-                  ordinalDomain:[attr_val]
-                  ,const_value:attr_val // TODO : remove
-                });
+                  ordinalDomain:[attr_val]});
         id = aes.length - 1;
         
         if(typeof attr_val === 'number')

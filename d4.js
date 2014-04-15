@@ -7,7 +7,7 @@
   
   // Some constants
   var data_binding_prefix = 'data:';
-  var ordinal_scale_padding = 0.2;
+  var ordinal_scale_padding = 1;
   var linear_scale_padding = 0.1;
   var coordSysMargin = 0.2;
   
@@ -204,6 +204,7 @@
       }
     }
     
+    console.log(margin);
     
     /*                                               *\
      * Standardization of aesthetics                 *
@@ -289,9 +290,6 @@
     func2Aes = undefined;
     const2Aes = undefined;
     
-    console.log('aes: ',aes);
-    //console.log('elements: ',this.elements);
-    console.log('dim: ',dim);
     
     /*                               *\
      * Computing dimentions' domains *
@@ -365,7 +363,10 @@
           if(dom[1] > domain[1])
             domain[1] = dom[1];
         }
-        domain = addPadding(domain, linear_scale_padding);
+        
+        if(domain[0] == domain[1]) {
+          domain = addPadding(domain, linear_scale_padding);
+        }
       }
       
       dim[i].domain = domain;
@@ -377,7 +378,9 @@
     \*                  */
     
     // For the coordonate system
-    this.coordSys.computeScale(dim, width - margin.left - margin.right, height - margin.top - margin.bottom);
+    this.coordSys.computeScale( dim, 
+                                width - margin.left - margin.right,
+                                height - margin.top - margin.bottom);
     
     // For other attributes
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -418,6 +421,7 @@
                 dom = attr_aes.continuousDomain;
               
               // Scaling
+              var scale = d3.scale.category10().domain(dom);
               var scale = d3.scale.category10().domain(dom);
               var Closure = function (scale, func) {
               this.s = scale;
@@ -627,45 +631,61 @@
       var subWidth = null;
       var subHeight = null;
       
-      if(this.x === null)
+      if(this.x === null) {
         subWidth = width;
-      else if(dim[this.x].ordinal) {
+      }
+      else if(this.subSys != null) {
         this.scaleX = d3.scale.ordinal()
                         .domain(dim[this.x].domain)
                         .rangeRoundBands([0, width], coordSysMargin);
         subWidth = this.scaleX.rangeBand();
       }
-      else
-        this.scaleX = d3.scale.linear()
+      else if(dim[this.x].ordinal) {
+        this.scaleX = d3.scale.ordinal()
                         .domain(dim[this.x].domain)
+                        .rangePoints([0, width], ordinal_scale_padding);
+      }
+      else {
+        this.scaleX = d3.scale.linear()
+                        .domain(addPadding(dim[this.x].domain, linear_scale_padding))
                         .range([0, width])
                         .nice();
+      }
       
       // Y scale
-      if(this.y === null)
+      if(this.y === null) {
         subHeight = height;
-      else if(dim[this.y].ordinal) {
+      }
+      else if(this.subSys != null) {
         this.scaleY = d3.scale.ordinal()
                         .domain(dim[this.y].domain)
                         .rangeRoundBands([height, 0], coordSysMargin);
         subHeight = this.scaleY.rangeBand();
       }
-      else
-        this.scaleY = d3.scale.linear()
+      else if(dim[this.y].ordinal) {
+        this.scaleY = d3.scale.ordinal()
                         .domain(dim[this.y].domain)
+                        .rangePoints([height, 0], ordinal_scale_padding);
+      }
+      else {
+        this.scaleY = d3.scale.linear()
+                        .domain(addPadding(dim[this.y].domain, linear_scale_padding))
                         .range([height, 0])
                         .nice();
+      }
       
       // Sub coordonate system scale
-      if(this.subSys != null)
+      if(this.subSys != null) {
         this.subSys.computeScale(dim, subWidth, subHeight);
+      }
     },
     
     getX: function(pos, d, i) {
       var X = (this.x != null) ? this.scaleX(pos[this.x](d, i)) : 0;
       
-      if(this.subSys != null)
+      if(this.subSys != null) {
         X += this.subSys.getX(pos, d, i);
+      }
       
       return X;
     },
@@ -673,14 +693,15 @@
     getY: function(pos, d, i) {
       var Y = (this.y != null) ? this.scaleY(pos[this.y](d, i)) : 0;
       
-      if(this.subSys != null)
+      if(this.subSys != null) {
         Y += this.subSys.getY(pos, d, i);
+      }
       
       return Y;
     },
     
     drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
-      //*
+      //*//TODO remove
       svgNode.append('g')
       .attr("transform", 'translate('+offsetX+','+offsetY+')')
       .append("rect")
@@ -696,8 +717,9 @@
                     .scale(this.scaleX)
                     .orient('bottom');
         
-        if(!dim[this.x].ordinal)
+        if(!dim[this.x].ordinal) {
           xAxis.ticks(5);
+        }
         
         
         svgNode.append('g')
@@ -712,8 +734,9 @@
                     .scale(this.scaleY)
                     .orient('left');
         
-        if(!dim[this.y].ordinal)
+        if(!dim[this.y].ordinal) {
           yAxis.ticks(5);
+        }
         
         svgNode.append('g')
                .attr('class', 'axis')
@@ -728,8 +751,9 @@
         var subHeight = (this.y != null) ? this.scaleY.rangeBand() : height;
         
         for(var i = 0 ; i < rangeX.length ; i++) {
-          for(var j = 0 ; j < rangeY.length ; j++)
+          for(var j = 0 ; j < rangeY.length ; j++) {
             this.subSys.drawAxis(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
+          }
         }
       }
     }
@@ -740,6 +764,10 @@
     initialize : function(param) {
       this.theta = null;
       this.r = null;
+      this.centerX = null;
+      this.centerY = null;
+      this.scaleT = null;
+      this.scaleR = null;
       this.subSys = null;
       
       if(typeof param === 'undefined') {
@@ -756,13 +784,13 @@
         }
       }
       
-      type = typeof param.r;
+      type = typeof param.radius;
       if(type != 'undefined') {
         if(type != 'number') {
-          throw errorMessage('Rect', 'r', type, '\'positive integer\'');
+          throw errorMessage('Rect', 'radius', type, '\'positive integer\'');
         }
         else {
-          this.r = param.r-1;
+          this.r = param.radius-1;
         }
       }
       
@@ -773,6 +801,133 @@
         }
         else {
           this.subSys = param.subSys;
+        }
+      }
+    },
+    
+    computeScale: function(dim, width, height) {
+      this.centerX = width / 2;
+      this.centerY = height / 2;
+      
+      // Theta
+      if(dim[this.theta].ordinal) {
+        this.scaleT = d3.scale.ordinal()
+                        .domain(dim[this.theta].domain)
+                        .rangePoints([0, 2 * Math.PI]);
+      }
+      else {
+        this.scaleT = d3.scale.linear()
+                        .domain(dim[this.theta].domain)
+                        .range([0, 2*Math.PI]);
+      }
+      
+      // Radius
+      var radiusMax = d3.min([width / 2, height / 2]);
+      if(dim[this.r].ordinal) {
+        this.scaleR = d3.scale.ordinal()
+                        .domain(dim[this.r].domain)
+                        .rangePoints([0, radiusMax], ordinal_scale_padding);
+      }
+      else {
+        this.scaleR = d3.scale.linear()
+                        .domain(dim[this.r].domain)
+                        .range([0, radiusMax])
+                        .nice();
+      }
+    },
+    
+    getX: function(pos, d, i) {
+      var theta = (this.theta != null) ? this.scaleT(pos[this.theta](d, i)) : 2*Math.PI;
+      var radius = (this.r != null) ? this.scaleR(pos[this.r](d, i)) : this.centerX / 2;
+      
+      return this.centerX + Math.cos(theta) * radius;
+    },
+    
+    getY: function(pos, d, i) {
+      var theta = (this.theta != null) ? this.scaleT(pos[this.theta](d, i)) : 2*Math.PI;
+      var radius = (this.r != null) ? this.scaleR(pos[this.r](d, i)) : this.centerX / 2;
+      
+      return this.centerY - Math.sin(theta) * radius;
+    },
+    
+    drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
+      var maxRadius = d3.min([width / 2, height / 2]);
+      
+      //*//TODO remove
+      svgNode.append('g')
+      .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
+      .append('circle')
+      .attr('r', maxRadius)
+      .attr('fill','orange')
+      .attr('fill-opacity',0.3);
+      //*/
+      
+      var axisNode = svgNode.append('g');
+      axisNode.attr('class', 'axis')
+              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
+      
+      // Radius 'axis'
+      if(this.r != null) {
+        var ticks;
+        
+        if(dim[this.r].ordinal) {
+          ticks = this.scaleR.domain();
+        }
+        else {
+          ticks = this.scaleR.ticks(5);
+          var dom = this.scaleR.domain();
+          ticks.push(dom[0]);
+          ticks.push(dom[1]);
+          RemoveDupArray(ticks);
+        }
+        
+        for(var i = 0 ; i < ticks.length ; i++) {
+          axisNode.append('circle')
+                  .attr('r', this.scaleR(ticks[i]) || 1)
+                  .attr('fill', 'none')
+                  .attr('stroke', 'black');
+          
+          axisNode.append('text')
+                  .text(ticks[i])
+                  .attr('x', this.scaleR(ticks[i]) + 5)
+                  .attr('y', -5)
+                  .attr('fill', 'black');
+        }
+      }
+      
+      // Theta axis
+      if(this.theta != null) {
+        var ticks;
+        
+        if(dim[this.theta].ordinal) {
+          ticks = this.scaleT.domain();
+        }
+        else {
+          ticks = this.scaleT.ticks(8);
+          var dom = this.scaleT.domain();
+          //ticks.push(dom[0]);
+          //ticks.push(dom[1]);
+          //RemoveDupArray(ticks);
+        }
+        
+        for(var i = 0 ; i < ticks.length ; i++) {
+          var x = Math.cos(this.scaleT(ticks[i])) * maxRadius;
+          var y = -Math.sin(this.scaleT(ticks[i])) * maxRadius;
+          axisNode.append('line')
+                  .attr('x1', 0)
+                  .attr('y1', 0)
+                  .attr('x2', x)
+                  .attr('y2', y)
+                  .attr('stroke', 'black');
+          
+          x = Math.cos(this.scaleT(ticks[i])) * (maxRadius + 20);
+          y = -Math.sin(this.scaleT(ticks[i])) * (maxRadius + 20);
+          axisNode.append('text')
+                  .text(ticks[i].toFixed(2))
+                  .attr('text-anchor', 'middle')
+                  .attr('x', x)
+                  .attr('y', y)
+                  .attr('fill', 'black');
         }
       }
     }
@@ -1023,9 +1178,6 @@
     var renderParams = {};
     renderParams.selector = param && param.selector
     ASSERT(renderParams.selector, "Please specify the selector in plot()")
-    renderParams.width    = (param && param.width ) || 640;
-    renderParams.height   = (param && param.height) || 480; 
-    renderParams.margin   = (param && param.margin) || 50 ;
     LOG("Ready to plot: width={0}, height={1}, margin={2}, selector={3}".format(
           renderParams.width,
           renderParams.height,
@@ -1034,7 +1186,7 @@
     ASSERT(this.render, "No function render in this; how am I  supposed to render ??")
     // debugger
     var theGraphic = this;
-    window.addEventListener("load", function() { theGraphic.render(renderParams); }, true)
+    window.addEventListener("load", function() { theGraphic.render(param); }, true)
   };
 }();
 

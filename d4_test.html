@@ -23,10 +23,43 @@
             "use strict";
             
             var g = new Graphic();
-                
-            //*
+            
             var dataset = [
-                {col1:'A', col2:10, col3:1,   col4:1,   col5:1},
+                {col1:5, col2:5, col3:10},
+                {col1:10, col2:20, col3:20},
+                {col1:20, col2:3, col3:32},
+                {col1:40, col2:17, col3:44}];
+            
+            g.element({ position:[  function(d){return d.col1;},
+                                    'data:col2'],
+                        stroke_width:function(d,i){return i+1;},
+                        stroke:function(d,i){return i;},
+                        fill:"yellow"})
+            .line({     stroke_width:3,
+                        stroke:function(){return 'blue';},
+                        fill:'none',
+                        interpolation:'cardinal',
+                        stroke_linecap:'round'})
+            .circle({   radius:function(d,i){return 5*(i+1)+5;},
+                        fill_opacity:0.5})
+            .circle({   position:[10, 10],
+                        stroke_width:function(d,i){return i%2==0?10:3;},
+                        stroke:function(d,i){return Math.exp(i);},
+                        stroke_opacity:function(d,i){return (i+1)/4;},
+                        fill:'none',
+                        radius:'data:col3',
+                        stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
+            .data(dataset)
+            .plot({selector:"#graph", width:1024, height:768, margin:50});
+            
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var g = new Graphic();
+            
+            var dataset = [
+                {col1:'A', col2:10, col3:'a',   col4:1,   col5:1},
                 {col1:'A', col2:10, col3:2,   col4:3,   col5:2},
                 {col1:'A', col2:10, col3:3,   col4:2,   col5:3},
                 
@@ -53,44 +86,66 @@
                                     'data:col3',
                                     'data:col4'],
                         stroke_width:3})
-            .circle({   radius:5,
-                        fill:'data:col5'})
-            //*/
             /*
             .line(  {   fill:'none',
                         stroke:'black'})
             //*/
-                
-                
-            /*
-            var dataset = [
-                {col1:5, col2:5, col3:10},
-                {col1:10, col2:20, col3:20},
-                {col1:20, col2:3, col3:32},
-                {col1:40, col2:17, col3:44}];
-            
-            g.element({ position:[  function(d){return d.col1;},
-                                    'data:col2'],
-                        stroke_width:function(d,i){return i+1;},
-                        stroke:function(d,i){return i;},
-                        fill:"yellow"})
-            .line({     stroke_width:3,
-                        stroke:function(){return 'blue';},
-                        fill:'none',
-                        interpolation:'cardinal',
-                        stroke_linecap:'round'})
-            .circle({   radius:function(d,i){return 5*(i+1)+5;},
-                        fill_opacity:0.5})
-            .circle({   position:[10, 10],
-                        stroke_width:function(d,i){return i%2==0?10:3;},
-                        stroke:function(d,i){return Math.exp(i);},
-                        stroke_opacity:function(d,i){return (i+1)/4;},
-                        fill:'none',
-                        radius:'data:col3',
-                        stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
-            //*/
+            .circle({   radius:5,
+                        fill:'data:col5'})
             .data(dataset)
             .plot({selector:"#graph", width:1024, height:768, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var g = new Graphic();
+            
+            var dataset = [];
+            for(var i = 0 ; i < 20 ; i++)
+                dataset.push({col1:i+1});
+            
+            g.coord(new Polar({ theta:1,
+                                radius:2}))
+            .circle({   position:['data:col1', 'data:col1'],
+                        radius:3})
+            .data(dataset)
+            .plot({selector:"#graph", width:1024, height:768, margin:50});
+        
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var g = new Graphic();
+            
+            var dataset = [];
+            
+            var ppsb = 10;
+            for(var i = 0 ; i < ppsb ; i++) {
+                dataset.push({col1:'increasing theta',col2:'increasing radius',col3:i,col4:i});
+            }
+            for(var i = 0 ; i < ppsb ; i++) {
+                dataset.push({col1:'decreasing theta',col2:'increasing radius',col3:ppsb-i-1,col4:i});
+            }
+            for(var i = 0 ; i < ppsb ; i++) {
+                dataset.push({col1:'increasing theta',col2:'decreasing radius',col3:i,col4:ppsb-i-1});
+            }
+            for(var i = 0 ; i < ppsb ; i++) {
+                dataset.push({col1:'decreasing theta',col2:'decreasing radius',col3:ppsb-i-1,col4:ppsb-i-1});
+            }
+            
+            g.coord(new Rect({  x:1,
+                                y:2,
+                                subSys: new Polar({ theta:3,
+                                                    radius:4})
+                            }))
+            .circle({   position:[  'data:col1',
+                                    'data:col2',
+                                    'data:col3',
+                                    'data:col4'],
+                        radius:3,
+                        fill:function(d,i){return i;},
+                        stroke:'black'})
+            .data(dataset)
+            .plot({selector:"#graph", width:1024, height:768, margin_left:150, margin_bottom:40});
         </script>
     </head>
     <body>

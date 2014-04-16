@@ -7,6 +7,7 @@
   
   // Some constants
   var data_binding_prefix = 'data:';
+  var temp_dim_attr_prefix = 't';
   var ordinal_scale_padding = 1;
   var linear_scale_padding = 0.1;
   var coordSysMargin = 0.2;
@@ -93,11 +94,19 @@
   
   // Graphic definition
   window.Graphic = function() {
-    this.coordSys = new Rect({x:1, y:2});
+    this.spacialCoord = new Rect({x:1, y:2});
+    this.temporalCoord = new Temp();
     this.dataset = null;
     this.elements = [];
-    
     this.fallback_element = new Element();
+    
+    // attribute non null only after render
+    this.margin = null;
+    this.svg = null;
+    this.currentTime = null;
+    this.splitTempDimId = null;
+    this.splitSpacialDimId = null;
+    this.dim = null;
   }
   
   // Set element properties
@@ -138,16 +147,16 @@
     return this;
   }
   
-  // Set coordonate system (Rect({x:1, y:2}) by default)
+  // Set spacial coordonate system (Rect({x:1, y:2}) by default)
   Graphic.prototype.coord = function(coordSys) {
     if(typeof coordSys === 'undefined') {
-      return this.coordSys;
+      this.spacialCoord = new Rect({x:1, y:2});
     }
     else if(!coordSys instanceof CoordSys) {
       throw errorMessage('Graphic', 'coord', typeof coordSys, '\'Rect\' or \'Polar\'');
     }
     else {
-      this.coordSys = coordSys;
+      this.spacialCoord = coordSys;
       
       while(coordSys != null) {
         if(coordSys instanceof Polar && coordSys.subSys != null) {
@@ -161,6 +170,51 @@
     
     return this;
   }
+  
+  // Set temporal coordonate system (none by default)
+  Graphic.prototype.time = function(temporalCoord) {
+    if(typeof temporalCoord === 'undefined') {
+      this.temporalCoord = new Temp();
+    }
+    else if(!temporalCoord instanceof CoordSys) {
+      throw errorMessage('Graphic', 'time', typeof temporalCoord, '\'Temp\'');
+    }
+    else {
+      this.temporalCoord = temporalCoord;
+    }
+    
+    return this;
+  }
+  
+  // Go to the next value of the specified time dimension
+  Graphic.prototype.nextStep = function(timeDimension) {
+    if(typeof timeDimension === 'undefined' || this.currentTime === null ||
+      timeDimension < 1 || timeDimension > this.currentTime.length) {
+      return this;
+    }
+    
+    if(this.currentTime[timeDimension-1] < this.dim[this.splitTempDimId[timeDimension-1]].domain.length-1){
+      this.currentTime[timeDimension-1]++;
+      this.update();
+    }
+    
+    return this;
+  }
+  
+  // Go to the previous value of the specified time dimension
+  Graphic.prototype.previousStep = function(timeDimension) {
+    if(typeof timeDimension === 'undefined' || this.currentTime === null ||
+      timeDimension < 1 || timeDimension > this.currentTime.length) {
+      return this;
+    }
+    
+    if(this.currentTime[timeDimension-1] > 0){
+      this.currentTime[timeDimension-1]--;
+      this.update();
+    }
+    
+    return this;
+  }
 
   // Render the graphic in svg
   Graphic.prototype.render = function(param) {
@@ -168,13 +222,13 @@
       throw 'No dataset';
     }
     
-    var selector = 'body',
-        width = 640,
-        height = 360,
-        margin = {left:10,
-                  top:10,
-                  right:10,
-                  bottom:10};
+    var selector = 'body';
+    var width = 640;
+    var height = 360;
+    this.margin = { left:10,
+                    top:10,
+                    right:10,
+                    bottom:10};
     
     // Check parameters
     if(typeof param != 'undefined') {
@@ -188,23 +242,31 @@
         height = param.height;
       }
       if(typeof param.margin != 'undefined') {
-        margin.left = margin.top = margin.right = margin.bottom = param.margin;
+        this.margin.left = this.margin.top = this.margin.right = this.margin.bottom = param.margin;
       }
       if(typeof param.margin_left != 'undefined') {
-        margin.left = param.margin_left;
+        this.margin.left = param.margin_left;
       }
       if(typeof param.margin_top != 'undefined') {
-        margin.top = param.margin_top;
+        this.margin.top = param.margin_top;
       }
       if(typeof param.margin_right != 'undefined') {
-        margin.right = param.margin_right;
+        this.margin.right = param.margin_right;
       }
       if(typeof param.margin_bottom != 'undefined') {
-        margin.bottom = param.margin_bottom;
+        this.margin.bottom = param.margin_bottom;
       }
     }
     
-    console.log(margin);
+    LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
+          selector,
+          width,
+          height));
+    LOG("Margin: left={0}, right={1}, top={2}, bottom={3}".format(
+          this.margin.left,
+          this.margin.right,
+          this.margin.top,
+          this.margin.bottom));
     
     /*                                               *\
      * Standardization of aesthetics                 *
@@ -212,7 +274,7 @@
     \*                                               */
     
     // Information on each dimention
-    var dim = getDimentionsInfo(this.coordSys);
+    this.dim = getDimentionsInfo(this.spacialCoord, this.temporalCoord);
     // Aesthetics
     var aes = [];
     // Map data column name -> aesthetic id
@@ -222,6 +284,7 @@
     // Map const value -> aesthetic id
     var const2Aes = {};
     
+    // Aesthetics of elements
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
         // Skip uninteresting attributes and non-set attributes
@@ -249,10 +312,10 @@
               throw errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\'');
             
             this.elements[i][attr].aes[j] = aes[aesId];
-            if(typeof dim[j].aes === 'undefined')
-              dim[j].aes = [];
+            if(typeof this.dim[j].aes === 'undefined')
+              this.dim[j].aes = [];
               
-            dim[j].aes.push(aes[aesId]);
+            this.dim[j].aes.push(aes[aesId]);
           }
         }
         else {
@@ -284,6 +347,20 @@
       }
     }
     
+    // Aesthetics of temporal dimensions
+    for(var i = 0 ; i < this.temporalCoord.value.length ; i++) {
+      // Get the aestetic id
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalCoord.value[i]);
+      
+      // Check data type return by this aesthetic
+      var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+      if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+        throw errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\'');
+      }
+      // There is one and only one aesthetic per temporal dimention
+      this.dim[this.temporalCoord.dimId[i]].aes = [aes[aesId]];
+    }
+    
     // We don't need those variables anymore
     // aes = undefined; TODO: uncomment
     dataCol2Aes = undefined;
@@ -294,20 +371,20 @@
     /*                               *\
      * Computing dimentions' domains *
     \*                               */
-    for(var i = 0 ; i < dim.length ; i++) {
-      if(typeof dim[i].aes === 'undefined')
+    for(var i = 0 ; i < this.dim.length ; i++) {
+      if(typeof this.dim[i].aes === 'undefined')
         throw 'Error: dimention '+(i+1)+' unused';
       
       var domain;
       var ordinal;
       
-      if(dim[i].forceOrdinal)
+      if(this.dim[i].forceOrdinal)
         ordinal = true;
       else {
         // Don't force ordinal (i.e. continue if only number values)
         var ordinal = false;
-        for(var j = 0 ; j < dim[i].aes.length ; j++) {
-          if(typeof dim[i].aes[j].func(this.dataset[0]) != 'number') {
+        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+          if(typeof this.dim[i].aes[j].func(this.dataset[0]) != 'number') {
             ordinal = true;
             break;
           }
@@ -317,20 +394,20 @@
       // Ordinal domain
       if(ordinal) {
         domain = [];
-        for(var j = 0 ; j < dim[i].aes.length ; j++) {
+        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
           // Compute ordinal domain
           var dom;
-          if(typeof dim[i].aes[j].ordinalDomain === 'undefined') {
-            var f = dim[i].aes[j].func;
+          if(typeof this.dim[i].aes[j].ordinalDomain === 'undefined') {
+            var f = this.dim[i].aes[j].func;
             dom = [];
             for(var k = 0 ; k < this.dataset.length ; k++) {
               dom.push(f(this.dataset[k]));
             }
             RemoveDupArray(dom);
-            dim[i].aes[j].ordinalDomain = dom;
+            this.dim[i].aes[j].ordinalDomain = dom;
           }
           else
-            dom = dim[i].aes[j].ordinalDomain;
+            dom = this.dim[i].aes[j].ordinalDomain;
           
           for(var k = 0 ; k < dom.length ; k++)
             domain.push(dom[k]);
@@ -340,23 +417,23 @@
       // Continue domain
       else {
         domain = [Infinity, -Infinity];
-        for(var j = 0 ; j < dim[i].aes.length ; j++) {
+        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
           // Compute continuous domain
           var dom;
-          if(typeof dim[i].aes[j].continuousDomain === 'undefined') {
+          if(typeof this.dim[i].aes[j].continuousDomain === 'undefined') {
             // Compute continuous domain from ordinal one
-            if(typeof dim[i].aes[j].ordinalDomain != 'undefined') {
+            if(typeof this.dim[i].aes[j].ordinalDomain != 'undefined') {
               var ordDom = dim[i].aes[j].ordinalDomain;
               dom = [ordDom[0], ordDom[ordDom.length-1]];
             }
             else {
-              var stat = computeStat(this.dataset, dim[i].aes[j].func);
+              var stat = computeStat(this.dataset, this.dim[i].aes[j].func);
               dom = [stat.min, stat.max];
             }
-            dim[i].aes[j].continuousDomain = dom;
+            this.dim[i].aes[j].continuousDomain = dom;
           }
           else
-            dom = dim[i].aes[j].continuousDomain;
+            dom = this.dim[i].aes[j].continuousDomain;
           
           if(dom[0] < domain[0])
             domain[0] = dom[0];
@@ -369,8 +446,8 @@
         }
       }
       
-      dim[i].domain = domain;
-      dim[i].ordinal = ordinal;
+      this.dim[i].domain = domain;
+      this.dim[i].ordinal = ordinal;
     }
     
     /*                  *\
@@ -378,9 +455,9 @@
     \*                  */
     
     // For the coordonate system
-    this.coordSys.computeScale( dim, 
-                                width - margin.left - margin.right,
-                                height - margin.top - margin.bottom);
+    this.spacialCoord.computeScale( this.dim, 
+                                    width - this.margin.left - this.margin.right,
+                                    height - this.margin.top - this.margin.bottom);
     
     // For other attributes
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -466,97 +543,222 @@
     
     
     /*                *\
+     * Splitting data *
+    \*                */
+    
+    // Sizes of each splits, sub-splits, etc
+    var splitSizes = [];
+    
+    // Splitting data according to temporal dimentions
+    this.splitTempDimId = [];
+    for(var i = 0 ; i < this.dim.length ; i++) {
+      // Split
+      if(!this.dim[i].isSpacial) {
+        this.splitTempDimId.push(i);
+        splitSizes.push(this.dim[i].domain.length);
+      }
+    }
+    
+    // Splitting data according to spacial dimentions
+    splitSizes.push(this.elements.length);
+    this.splitSpacialDimId = [];
+    for(var i = 0 ; i < this.dim.length ; i++) {
+      // Split
+      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
+        this.splitSpacialDimId.push(i);
+        splitSizes.push(this.dim[i].domain.length);
+      }
+    }
+    
+    var splitDataset = allocateSplitDataArray(splitSizes, 0);
+    
+    var values = [];
+    for(var i = 0 ; i < this.dataset.length ; i++) {
+      var dataTempSubset = splitDataset;
+      for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
+        // There is only one aesthetic per temporal dimension
+        var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i], i);
+        var id = this.dim[this.splitTempDimId[j]].domain.indexOf(value);
+        dataTempSubset = dataTempSubset[id];
+      }
+      
+      for(var j = 0 ; j < this.elements.length ; j++) {
+        var dataSpacialSubset = dataTempSubset[j];
+        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
+          // There is only one aesthetic per temporal dimension
+          var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i], i);
+          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
+          dataSpacialSubset = dataSpacialSubset[id];
+        }
+        
+        dataSpacialSubset.push(this.dataset[i]);
+      }
+    }
+    
+    this.dataset = splitDataset;
+    
+    // Initialising current 'time' (i.e. position in spacial dimensions)
+    this.currentTime = [];
+    for(var i = 0 ; i < this.splitTempDimId.length ; i++) {
+      this.currentTime.push(0);
+    }
+    
+    /*                *\
      * Generating svg *
     \*                */
     
     // add Canvas
-    var svg = d3.select(selector)
+    this.svg = d3.select(selector)
                 .append("svg")
                 .attr("width", width)
                 .attr("height", height);
     
     
     // Add axis
-    this.coordSys.drawAxis( svg, dim, margin.left, margin.top,
-                            width-margin.left-margin.right,
-                            height-margin.top-margin.bottom);
+    this.spacialCoord.drawAxis( this.svg,
+                                this.dim,
+                                this.margin.left,
+                                this.margin.top,
+                                width-this.margin.left-this.margin.right,
+                                height-this.margin.top-this.margin.bottom);
+                                
+    // Drawn elements
+    this.update();
     
-    // Draw elements
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      // Compute 'getX' and 'getY' functions
-      var pos;
-      if(typeof this.elements[i].position.value === null) {
-      
-      }
-      else {
-        pos = new Array(this.elements[i].position.aes.length);
-        for(var j = 0 ; j < pos.length ; j++)
-          pos[j] = this.elements[i].position.aes[j].func;
-      }
-      
-      // getX
-      var Closure = function (coordSys, pos, margin_left) {
-        this.cs = coordSys;
-        this.p = pos;
-        this.ml = margin_left;
-        var me = this;
-        return {
-          action:function (d, i) {
-            return me.ml + me.cs.getX(me.p, d, i);
-          }
-        }
-      };
-      var getX = (new Closure(this.coordSys, pos, margin.left)).action;
-      
-      // getY
-      Closure = function (coordSys, pos, margin_top) {
-        this.cs = coordSys;
-        this.p = pos;
-        this.mt = margin_top;
-        var me = this;
-        return {
-          action:function (d, i) {
-            return me.mt + me.cs.getY(me.p, d, i);
-          }
-        }
-      };
-      var getY = (new Closure(this.coordSys, pos, margin.top)).action;
-      
-      // TODO debug pos 
-      // Set attributes for each kind of elements
-      // Circle
-      if(this.elements[i] instanceof Circle) {
-        var node = svg.selectAll('.etl'+i)
-                      .data(this.dataset)
-                      .enter()
-                      .append('circle')
-                      .attr('class', 'etl'+i);
-        
-        svgSetCommonAttributes(node, this.elements[i]);
-        
-        node.attr('cx', getX);
-        node.attr('cy', getY);
-        svgSetAttribute(node, 'r' , this.elements[i], 'radius');
-        
-      }
-      // Lines
-      else if(this.elements[i] instanceof Line) {
-        var lineFunction = d3.svg.line()
-                             .x(getX)
-                             .y(getY)
-                             .interpolate(this.elements[i].interpolation.value);
-        
-        var node = svg.append('path')
-                      .attr('class', 'etl'+i)
-                      .attr("d", lineFunction(this.dataset));
-           
-        svgSetCommonAttributes(node, this.elements[i]);
-        
-        svgSetAttribute(node, 'stroke-linecap', this.elements[i], 'stroke_linecap');
-      }
+    return this;
+  }
+  
+  
+  // (Re)draw elements of the graphics
+  Graphic.prototype.update = function() {
+    // Data belonging to the current time
+    var dataToDisplay = this.dataset;
+    for(var i = 0 ; i < this.currentTime.length ; i++) {
+      dataToDisplay = dataToDisplay[this.currentTime[i]];
     }
     
     
+    
+    // Draw elements
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      // Initilasing current position
+      var currentPos = [];
+      for(var j = 0 ; j < this.splitSpacialDimId.length ; j++) {
+        currentPos.push(0);
+      }
+      
+      var complete = false;
+      
+      while(!complete) {
+        var dataSubset = dataToDisplay[i];
+        for(var j = 0 ; j < currentPos.length ; j++) {
+          dataSubset = dataSubset[currentPos[j]];
+        }
+        
+        // Compute 'getX' and 'getY' functions
+        var pos;
+        if(typeof this.elements[i].position.value === null) {
+         // TODO: default value (first value of discret domain or min of continue one)
+        }
+        else {
+          // TODO: optimize: some part of the position are already been computed
+          pos = new Array(this.elements[i].position.aes.length);
+          for(var j = 0 ; j < pos.length ; j++)
+            pos[j] = this.elements[i].position.aes[j].func;
+        }
+        
+        // getX
+        var Closure = function (coordSys, pos, margin_left) {
+          this.cs = coordSys;
+          this.p = pos;
+          this.ml = margin_left;
+          var me = this;
+          return {
+            action:function (d, i) {
+              return me.ml + me.cs.getX(me.p, d, i);
+            }
+          }
+        };
+        var getX = (new Closure(this.spacialCoord, pos, this.margin.left)).action;
+        
+        // getY
+        Closure = function (coordSys, pos, margin_top) {
+          this.cs = coordSys;
+          this.p = pos;
+          this.mt = margin_top;
+          var me = this;
+          return {
+            action:function (d, i) {
+              return me.mt + me.cs.getY(me.p, d, i);
+            }
+          }
+        };
+        var getY = (new Closure(this.spacialCoord, pos, this.margin.top)).action;
+        
+        var eltClass = 'etl'+i;
+        for(var j = 0 ; j < currentPos.length ; j++) {
+          eltClass += currentPos[j];
+        }
+        
+        // Set attributes for each kind of elements
+        // Circle
+        if(this.elements[i] instanceof Circle) {
+          var node = this.svg.selectAll('.'+eltClass)
+                         .data(dataSubset);
+           
+          node.enter().append('circle').attr('class', eltClass);
+          node.exit().remove();
+          
+          node = this.svg.selectAll('.'+eltClass).transition();
+          
+          svgSetCommonAttributes(node, this.elements[i]);
+          node.attr('cx', getX);
+          node.attr('cy', getY);
+          svgSetAttribute(node, 'r' , this.elements[i], 'radius');
+        }
+        // Lines
+        else if(this.elements[i] instanceof Line) {
+          var interpolation;
+          if(dataSubset.length > 0)
+            interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
+          else
+            interpolation = '';
+          
+          var lineFunction = d3.svg.line()
+                               .x(getX)
+                               .y(getY)
+                               .interpolate(interpolation);
+          
+          if(this.svg.selectAll('.'+eltClass).empty()) {
+            this.svg.append('path').attr('class', eltClass);
+          }
+          
+          var node = this.svg.selectAll('.'+eltClass).transition();
+          
+          node.attr("d", lineFunction(dataSubset)); 
+          svgSetCommonAttributes(node, this.elements[i]);
+          svgSetAttribute(node, 'stroke-linecap', this.elements[i], 'stroke_linecap');
+        }
+        
+        var j = 0;
+        while(true) {
+          if(j >= currentPos.length) {
+            complete = true;
+            break;
+          }
+          
+          currentPos[j]++;
+          if(currentPos[j] >= this.dim[this.splitSpacialDimId[j]].domain.length) {
+            currentPos[j] = 0;
+            j++;
+          }
+          else {
+            break;
+          }
+        }
+      }
+    }
+    return this;
   }
   
   
@@ -565,6 +767,11 @@
   ////////////////////////
   
   var CoordSys = Class.extend({
+    initialize : function(param) {
+      this.dimId = [];
+      this.subSys = null;
+    },
+    
     computeScale: function(dim, width, height) {
       throw 'CoordSys.computeScale(dimentions, width, height) is not overridden';
     },
@@ -582,11 +789,11 @@
     }
   });
   
-  
+  /////// CARTESIAN ///////
   window.Rect = CoordSys.extend({
     initialize : function(param) {
-      this.x = null
-      this.y = null;
+      this.dimId = [null,   // x
+                    null];  // y
       this.subSys = null;
       this.scaleX = null;
       this.scaleY = null;
@@ -601,7 +808,7 @@
           throw errorMessage('Rect', 'x', type, '\'positive integer\'');
         }
         else {
-          this.x = param.x-1;
+          this.dimId[0] = param.x-1;
         }
       }
       
@@ -611,7 +818,7 @@
           throw errorMessage('Rect', 'y', type, '\'positive integer\'');
         }
         else {
-          this.y = param.y-1;
+          this.dimId[1] = param.y-1;
         }
       }
       
@@ -631,45 +838,45 @@
       var subWidth = null;
       var subHeight = null;
       
-      if(this.x === null) {
+      if(this.dimId[0] === null) {
         subWidth = width;
       }
       else if(this.subSys != null) {
         this.scaleX = d3.scale.ordinal()
-                        .domain(dim[this.x].domain)
+                        .domain(dim[this.dimId[0]].domain)
                         .rangeRoundBands([0, width], coordSysMargin);
         subWidth = this.scaleX.rangeBand();
       }
-      else if(dim[this.x].ordinal) {
+      else if(dim[this.dimId[0]].ordinal) {
         this.scaleX = d3.scale.ordinal()
-                        .domain(dim[this.x].domain)
+                        .domain(dim[this.dimId[0]].domain)
                         .rangePoints([0, width], ordinal_scale_padding);
       }
       else {
         this.scaleX = d3.scale.linear()
-                        .domain(addPadding(dim[this.x].domain, linear_scale_padding))
+                        .domain(addPadding(dim[this.dimId[0]].domain, linear_scale_padding))
                         .range([0, width])
                         .nice();
       }
       
       // Y scale
-      if(this.y === null) {
+      if(this.dimId[1] === null) {
         subHeight = height;
       }
       else if(this.subSys != null) {
         this.scaleY = d3.scale.ordinal()
-                        .domain(dim[this.y].domain)
+                        .domain(dim[this.dimId[1]].domain)
                         .rangeRoundBands([height, 0], coordSysMargin);
         subHeight = this.scaleY.rangeBand();
       }
-      else if(dim[this.y].ordinal) {
+      else if(dim[this.dimId[1]].ordinal) {
         this.scaleY = d3.scale.ordinal()
-                        .domain(dim[this.y].domain)
+                        .domain(dim[this.dimId[1]].domain)
                         .rangePoints([height, 0], ordinal_scale_padding);
       }
       else {
         this.scaleY = d3.scale.linear()
-                        .domain(addPadding(dim[this.y].domain, linear_scale_padding))
+                        .domain(addPadding(dim[this.dimId[1]].domain, linear_scale_padding))
                         .range([height, 0])
                         .nice();
       }
@@ -681,7 +888,7 @@
     },
     
     getX: function(pos, d, i) {
-      var X = (this.x != null) ? this.scaleX(pos[this.x](d, i)) : 0;
+      var X = (this.dimId[0] != null) ? this.scaleX(pos[this.dimId[0]](d, i)) : 0;
       
       if(this.subSys != null) {
         X += this.subSys.getX(pos, d, i);
@@ -691,7 +898,7 @@
     },
     
     getY: function(pos, d, i) {
-      var Y = (this.y != null) ? this.scaleY(pos[this.y](d, i)) : 0;
+      var Y = (this.dimId[1] != null) ? this.scaleY(pos[this.dimId[1]](d, i)) : 0;
       
       if(this.subSys != null) {
         Y += this.subSys.getY(pos, d, i);
@@ -712,12 +919,12 @@
       //*/
       
       // X axis
-      if(this.x != null) {
+      if(this.dimId[0] != null) {
         var xAxis = d3.svg.axis()
                     .scale(this.scaleX)
                     .orient('bottom');
         
-        if(!dim[this.x].ordinal) {
+        if(!dim[this.dimId[0]].ordinal) {
           xAxis.ticks(5);
         }
         
@@ -729,12 +936,12 @@
       }
                     
       // Y axis
-      if(this.y != null) {
+      if(this.dimId[1] != null) {
         var yAxis = d3.svg.axis()
                     .scale(this.scaleY)
                     .orient('left');
         
-        if(!dim[this.y].ordinal) {
+        if(!dim[this.dimId[1]].ordinal) {
           yAxis.ticks(5);
         }
         
@@ -745,10 +952,10 @@
       }
       
       if(this.subSys != null) {
-        var rangeX = (this.x != null) ? this.scaleX.range() : [0];
-        var rangeY = (this.y != null) ? this.scaleY.range() : [0];
-        var subWidth = (this.x != null) ? this.scaleX.rangeBand() : width;
-        var subHeight = (this.y != null) ? this.scaleY.rangeBand() : height;
+        var rangeX = (this.dimId[0] != null) ? this.scaleX.range() : [0];
+        var rangeY = (this.dimId[1] != null) ? this.scaleY.range() : [0];
+        var subWidth = (this.dimId[0] != null) ? this.scaleX.rangeBand() : width;
+        var subHeight = (this.dimId[1] != null) ? this.scaleY.rangeBand() : height;
         
         for(var i = 0 ; i < rangeX.length ; i++) {
           for(var j = 0 ; j < rangeY.length ; j++) {
@@ -759,11 +966,11 @@
     }
   });
   
-  
+  /////// POLAR ///////
   window.Polar = CoordSys.extend({
     initialize : function(param) {
-      this.theta = null;
-      this.r = null;
+      this.dimId = [null,   // theta
+                  null];  // radius
       this.centerX = null;
       this.centerY = null;
       this.scaleT = null;
@@ -780,7 +987,7 @@
           throw errorMessage('Rect', 'theta', type, '\'positive integer\'');
         }
         else {
-          this.theta = param.theta-1;
+          this.dimId[0] = param.theta-1;
         }
       }
       
@@ -790,7 +997,7 @@
           throw errorMessage('Rect', 'radius', type, '\'positive integer\'');
         }
         else {
-          this.r = param.radius-1;
+          this.dimId[1] = param.radius-1;
         }
       }
       
@@ -810,42 +1017,42 @@
       this.centerY = height / 2;
       
       // Theta
-      if(dim[this.theta].ordinal) {
+      if(dim[this.dimId[0]].ordinal) {
         this.scaleT = d3.scale.ordinal()
-                        .domain(dim[this.theta].domain)
+                        .domain(dim[this.dimId[0]].domain)
                         .rangePoints([0, 2 * Math.PI]);
       }
       else {
         this.scaleT = d3.scale.linear()
-                        .domain(dim[this.theta].domain)
+                        .domain(dim[this.dimId[0]].domain)
                         .range([0, 2*Math.PI]);
       }
       
       // Radius
       var radiusMax = d3.min([width / 2, height / 2]);
-      if(dim[this.r].ordinal) {
+      if(dim[this.dimId[1]].ordinal) {
         this.scaleR = d3.scale.ordinal()
-                        .domain(dim[this.r].domain)
+                        .domain(dim[this.dimId[1]].domain)
                         .rangePoints([0, radiusMax], ordinal_scale_padding);
       }
       else {
         this.scaleR = d3.scale.linear()
-                        .domain(dim[this.r].domain)
+                        .domain(dim[this.dimId[1]].domain)
                         .range([0, radiusMax])
                         .nice();
       }
     },
     
     getX: function(pos, d, i) {
-      var theta = (this.theta != null) ? this.scaleT(pos[this.theta](d, i)) : 2*Math.PI;
-      var radius = (this.r != null) ? this.scaleR(pos[this.r](d, i)) : this.centerX / 2;
+      var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
+      var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
       
       return this.centerX + Math.cos(theta) * radius;
     },
     
     getY: function(pos, d, i) {
-      var theta = (this.theta != null) ? this.scaleT(pos[this.theta](d, i)) : 2*Math.PI;
-      var radius = (this.r != null) ? this.scaleR(pos[this.r](d, i)) : this.centerX / 2;
+      var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
+      var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
       
       return this.centerY - Math.sin(theta) * radius;
     },
@@ -867,10 +1074,10 @@
               .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
       
       // Radius 'axis'
-      if(this.r != null) {
+      if(this.dimId[1] != null) {
         var ticks;
         
-        if(dim[this.r].ordinal) {
+        if(dim[this.dimId[1]].ordinal) {
           ticks = this.scaleR.domain();
         }
         else {
@@ -896,10 +1103,10 @@
       }
       
       // Theta axis
-      if(this.theta != null) {
+      if(this.dimId[0] != null) {
         var ticks;
         
-        if(dim[this.theta].ordinal) {
+        if(dim[this.dimId[0]].ordinal) {
           ticks = this.scaleT.domain();
         }
         else {
@@ -932,6 +1139,31 @@
       }
     }
   });
+  
+  /////// TEMPORAL ///////
+    window.Temp = CoordSys.extend({
+    initialize : function(param) {
+      this.dimId = [];
+      this.value = [];
+      
+      if(typeof param === 'undefined') {
+        return;
+      }
+      
+      for(var attr in param) {
+        if(attr.indexOf(temp_dim_attr_prefix) != 0) {
+          continue;
+        }
+        var ind = parseInt(attr.substring(temp_dim_attr_prefix.length)) - 1;
+        if(isNaN(ind)) {
+          continue;
+        }
+        
+        this.value[ind] = param[attr];
+      }
+    }
+  });
+  
 
   
   ///////////////////////
@@ -1032,45 +1264,31 @@
   }
   
   // Determinate on which dimention we have to force to ordinal scale
-  function getDimentionsInfo(coordSystem) {
+  function getDimentionsInfo(coordSystem, tempCoord) {
     var dim = [];
     var cs = coordSystem;
     
     while(cs != null) {
-      // Force ordinal if the coordonate system have a sub coordonate system
-      if(cs.subSys != null) {
-        if(cs instanceof Rect) {
-          if(cs.x != null)
-            dim[cs.x] = {forceOrdinal:true};
-          
-          if(cs.y != null)
-            dim[cs.y] = {forceOrdinal:true};
-        }
-        else { // instanceof Polar
-          if(cs.theta != null)
-            dim[cs.theta] = {forceOrdinal:true};
-          
-          if(cs.r != null)
-            dim[cs.r] = {forceOrdinal:true};
-        }
-      }
-      else {
-        if(cs instanceof Rect) {
-          if(cs.x != null)
-            dim[cs.x] = {forceOrdinal:false};
-          
-          if(cs.y != null)
-            dim[cs.y] = {forceOrdinal:false};
-        }
-        else { // instanceof Polar
-          if(cs.theta != null)
-            dim[cs.theta] = {forceOrdinal:false};
-          
-          if(cs.r != null)
-            dim[cs.r] = {forceOrdinal:false};
+      for(var i = 0 ; i < cs.dimId.length ; i++) {
+        if(cs.dimId[i] != null) {
+          // Force ordinal if the coordonate system have a sub coordonate system
+          if(cs.subSys != null) {
+            dim[cs.dimId[i]] = {forceOrdinal:true,
+                              isSpacial:true};
+          }
+          else {
+            dim[cs.dimId[i]] = {forceOrdinal:false,
+                              isSpacial:true};
+          }
         }
       }
       cs = cs.subSys;
+    }
+    
+    for(var i = 0 ; i < tempCoord.value.length ; i++) {
+      dim.push({forceOrdinal:true,
+                isSpacial:false});
+      tempCoord.dimId.push(dim.length-1);
     }
     
     return dim;
@@ -1097,7 +1315,9 @@
           }
         };
         
-        aes.push({func:(new Closure(column)).action});
+        aes.push({func:(new Closure(column)).action,
+                  column:column // TODO : remove
+                  });
         id = aes.length - 1;
         dataCol2Aes[column] = id;
       }
@@ -1120,7 +1340,9 @@
         
         aes.push({func:(new Closure(attr_val)).action,
                   // We set the domains while we know it's a constant value
-                  ordinalDomain:[attr_val]});
+                  ordinalDomain:[attr_val],
+                  constant:attr_val // TODO : remove
+                  });
         id = aes.length - 1;
         
         if(typeof attr_val === 'number')
@@ -1147,6 +1369,22 @@
       
     return id;
   }
+  
+  // Allocate split data array
+  function allocateSplitDataArray(splitSizes, id) {
+    if(id == splitSizes.length) {
+      return [];
+    }
+    else {
+      var array = new Array(splitSizes[id]);
+      for(var i = 0 ; i < array.length ; i++) {
+        array[i] = allocateSplitDataArray(splitSizes, id+1);
+      }
+      return array;
+    }
+  }
+  
+  
   
   var ASSERT = function(condition, msg) {
     if(!condition) {
@@ -1175,14 +1413,6 @@
   /* Options are: width (optional), height (optional), margin (margin), selector (mandatory) */
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
   Graphic.prototype.plot = function(param) {
-    var renderParams = {};
-    renderParams.selector = param && param.selector
-    ASSERT(renderParams.selector, "Please specify the selector in plot()")
-    LOG("Ready to plot: width={0}, height={1}, margin={2}, selector={3}".format(
-          renderParams.width,
-          renderParams.height,
-          renderParams.margin,
-          renderParams.selector))
     ASSERT(this.render, "No function render in this; how am I  supposed to render ??")
     // debugger
     var theGraphic = this;

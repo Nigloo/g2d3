@@ -86,10 +86,8 @@
                                     'data:col3',
                                     'data:col4'],
                         stroke_width:3})
-            /*
             .line(  {   fill:'none',
                         stroke:'black'})
-            //*/
             .circle({   radius:5,
                         fill:'data:col5'})
             .data(dataset)
@@ -146,9 +144,71 @@
                         stroke:'black'})
             .data(dataset)
             .plot({selector:"#graph", width:1024, height:768, margin_left:150, margin_bottom:40});
+            
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var g = new Graphic();
+            
+            var dataset = [];
+            
+            var ppsb = 10;
+            for(var t = 0 ; t < 3 ; t++) {
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset.push({col1:'A',col2:'C',col3:i,col4:i*(t+1),col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset.push({col1:'B',col2:'C',col3:ppsb-i-1,col4:i*(t+1),col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset.push({col1:'A',col2:'D',col3:i,col4:(ppsb-i-1)*(t+1),col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset.push({col1:'B',col2:'D',col3:ppsb-i-1,col4:(ppsb-i-1)*(t+1),col5:t});
+                }
+            }
+            
+            g.coord(new Rect({  x:1,
+                                y:2,
+                                subSys: new Polar({ theta:3,
+                                                    radius:4})
+                            }))
+            .time(new Temp({t1:     'data:col5'}))
+            .element({  position:[  'data:col1',
+                                    'data:col2',
+                                    'data:col3',
+                                    'data:col4']})
+            .line({     fill:'none',
+                        stroke:'red',
+                        interpolation:function (d) {if(d.col1=='A'&&d.col2=='C'){
+                                                        return 'linear';
+                                                    } else if(d.col1=='A'&&d.col2=='D') {
+                                                        return 'cardinal';
+                                                    } else if(d.col1=='B'&&d.col2=='C') {
+                                                        return 'step';
+                                                    } else if(d.col1=='B'&&d.col2=='D') {
+                                                        return 'basis';
+                                                    }}})
+            .circle({   radius:3,
+                        fill:'data:col3',
+                        stroke:'black'})
+            .data(dataset)
+            .plot({selector:"#graph", width:1024, height:768, margin_left:150, margin_bottom:40});
+            
+            function prev() {
+                g.previousStep(1);
+            }
+            
+            function next() {
+                g.nextStep(1);
+            }
+               
         </script>
     </head>
     <body>
         <div id="graph"></div>
+        <input type="button" value="Previous" onclick="prev()"/>
+        <input type="button" value="Next" onclick="next()"/>
     </body>
 </html>   

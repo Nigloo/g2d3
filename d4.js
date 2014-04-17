@@ -13,59 +13,37 @@
   var coordSysMargin = 0.2;
   
   
-  // Definiting the base constructor for all classes, which will execute the final class prototype's initialize method if exists
-  var Class = function() {
-      this.initialize && this.initialize.apply(this, arguments);
-  };
-  Class.extend = function(childPrototype) { // Defining a static method 'extend'
-    var parent = this;
-    var child = function() { // The child constructor is a call to its parent's
-      return parent.apply(this, arguments);
-    };
-    child.extend = parent.extend; // Adding the extend method to the child class
-    var Surrogate = function() {}; // Surrogate "trick"
-    Surrogate.prototype = parent.prototype;
-    child.prototype = new Surrogate;
-    for(var key in childPrototype){
-      child.prototype[key] = childPrototype[key];
-    }
-    return child; // Returning the child class
-  };
-  
   // Elements definition
-  var Element = Class.extend({
-    initialize : function() {
-      this.name =             'Element';
-      this.position =         { type:'position',
-                                value:null};
-      this.fill =             { type:'color',
-                                value:null};
-      this.fill_opacity =     { type:'number',
-                                value:null};
-      this.stroke_width =     { type:'number',
-                                value:null};
-      this.stroke =           { type:'color',
-                                value:null};
-      this.stroke_dasharray = { type:'string',
-                                value:null};
-      this.stroke_opacity =   { type:'number',
-                                value:null};
-     }
-  });
+  var ElementBase = function() {
+    this.name =             'ElementBase';
+    this.position =         { type:'position',
+                              value:null};
+    this.fill =             { type:'color',
+                              value:null};
+    this.fill_opacity =     { type:'number',
+                              value:null};
+    this.stroke_width =     { type:'number',
+                              value:null};
+    this.stroke =           { type:'color',
+                              value:null};
+    this.stroke_dasharray = { type:'string',
+                              value:null};
+    this.stroke_opacity =   { type:'number',
+                              value:null};
+  };
     
-  var Circle = Element.extend({
-    initialize : function() {
-      this.name =   'Circle';
-      this.radius = { type:'number',
-                      value:null};
-     }
-  });
+  var Symbol = function() {
+    this.name =   'Symbol';
+    this.type = { type:'symbol',
+                    value:'circle'};
+    this.size = { type:'number',
+                    value:null};
+  };
   
-  var Line = Element.extend({
-    initialize : function() {
-      this.name = 'Line';
-      this.interpolation = {type:'string',
-                            value:'linear'}; // TODO: null ?
+  var Line = function() {
+    this.name = 'Line';
+    this.interpolation = {type:'string',
+                          value:'linear'}; // TODO: null ?
     /* Possible values :
      * linear - piecewise linear segments, as in a polyline.
      * linear-closed - close the linear segments to form a polygon.
@@ -81,15 +59,15 @@
      * cardinal-closed - a closed Cardinal spline, as in a loop.
      * monotone - cubic interpolation that preserves monotonicity in y.
      */
-      this.stroke_linecap = {type:'string',
-                             value:'butt'}; // TODO: null ?
+    
+    this.stroke_linecap = {type:'string',
+                           value:'butt'}; // TODO: null ?
     /* Possible values :
      * butt
      * round
      * square
      */  
-     }
-  });
+  };
   
   
   // Graphic definition
@@ -98,7 +76,7 @@
     this.temporalCoord = new Temp();
     this.dataset = null;
     this.elements = [];
-    this.fallback_element = new Element();
+    this.fallback_element = new ElementBase();
     
     // attribute non null only after render
     this.margin = null;
@@ -111,7 +89,7 @@
   
   // Set element properties
   Graphic.prototype.element = function(param) {
-    this.fallback_element = new Element();
+    this.fallback_element = new ElementBase();
     
     if(typeof param != 'undefined') {
       for(var attr in this.fallback_element) {
@@ -126,8 +104,8 @@
   
   
   // Add circles
-  Graphic.prototype.circle = function(param) {
-    addElement(this, Circle, param);
+  Graphic.prototype.symbol = function(param) {
+    addElement(this, Symbol, param);
     
     return this;
   }
@@ -152,9 +130,6 @@
     if(typeof coordSys === 'undefined') {
       this.spacialCoord = new Rect({x:1, y:2});
     }
-    else if(!coordSys instanceof CoordSys) {
-      throw errorMessage('Graphic', 'coord', typeof coordSys, '\'Rect\' or \'Polar\'');
-    }
     else {
       this.spacialCoord = coordSys;
       
@@ -176,11 +151,8 @@
     if(typeof temporalCoord === 'undefined') {
       this.temporalCoord = new Temp();
     }
-    else if(!temporalCoord instanceof CoordSys) {
-      throw errorMessage('Graphic', 'time', typeof temporalCoord, '\'Temp\'');
-    }
     else {
-      this.temporalCoord = temporalCoord;
+      this.temporalCoord = new Temp(temporalCoord);
     }
     
     return this;
@@ -330,6 +302,11 @@
                 throw errorMessage(this.elements[i].name, attr, aes_ret_type, 'color (\'number\' or \'string\')');
               }
               break;
+            case 'symbol':
+              if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+                throw errorMessage(this.elements[i].name, attr, aes_ret_type, 'symbol (\'number\' or \'string\')');
+              }
+              break;
             case 'string':
               if(aes_ret_type != 'number' && aes_ret_type != 'string') {
                 throw errorMessage(this.elements[i].name, attr, aes_ret_type, '\'string\' (\'number\' accepted)');
@@ -472,6 +449,8 @@
         var attr_type = this.elements[i][attr].type;
         var attr_aes = this.elements[i][attr].aes;
         var aes_ret_type = typeof attr_aes.func(this.dataset[0], 0);
+        var dom;
+        
         
         switch(attr_type) {
           case 'color':
@@ -481,25 +460,37 @@
             }
             else {
               // Compute continuous domain
-              var dom;
-              if(typeof attr_aes.continuousDomain === 'undefined') {
-                // Compute continuous domain from ordinal one
-                if(typeof attr_aes.ordinalDomain != 'undefined') {
-                  var ordDom = attr_aes.ordinalDomain;
-                  dom = [ordDom[0], ordDom[ordDom.length-1]];
-                }
-                else {
-                  var stat = computeStat(this.dataset, attr_aes.func);
-                  dom = [stat.min, stat.max];
-                }
-                attr_aes.continuousDomain = dom;
-              }
-              else
-                dom = attr_aes.continuousDomain;
+              computeDomain(attr_aes, this.dataset, 'continuous');
               
               // Scaling
-              var scale = d3.scale.category10().domain(dom);
-              var scale = d3.scale.category10().domain(dom);
+              var scale = d3.scale.category10().domain(attr_aes.continuousDomain);
+              var Closure = function (scale, func) {
+              this.s = scale;
+              this.f = func;
+              var me = this;
+                return {
+                  action:function (d, i) {
+                    return me.s(me.f(d, i));
+                  }
+                }
+              };
+              this.elements[i][attr].func = (new Closure(scale, attr_aes.func)).action;
+            }
+            break;
+          
+          case 'symbol':
+            if(aes_ret_type === 'string') {
+              // No scaling
+              this.elements[i][attr].func = attr_aes.func;
+            }
+            else {
+              // Compute discret domain
+              computeDomain(attr_aes, this.dataset, 'discret');
+              
+              // Scaling
+              var scale = d3.scale.ordinal()
+                                  .domain(attr_aes.ordinalDomain)
+                                  .range(d3.svg.symbolTypes);
               var Closure = function (scale, func) {
               this.s = scale;
               this.f = func;
@@ -701,23 +692,37 @@
         }
         
         // Set attributes for each kind of elements
-        // Circle
-        if(this.elements[i] instanceof Circle) {
+        // Symbol
+        if(this.elements[i].name == 'Symbol') {
+          var symbol = d3.svg.symbol();
+          
+          if(this.elements[i].type.value != null)
+            symbol.type(this.elements[i].type.func);
+            
+          if(this.elements[i].size.value != null)
+            symbol.size(this.elements[i].size.func);
+          
           var node = this.svg.selectAll('.'+eltClass)
                          .data(dataSubset);
-           
-          node.enter().append('circle').attr('class', eltClass);
+          
+          // On enter
+          var onEnter = node.enter().append('path').attr('class', eltClass);
+          svgSetCommonAttributes(onEnter, this.elements[i]);
+          onEnter.attr('transform', function(d, i) {return 'translate('+getX(d,i)+','+getY(d,i)+')';});
+          onEnter.attr('d', symbol);
+          
+          // On exit
           node.exit().remove();
           
-          node = this.svg.selectAll('.'+eltClass).transition();
+          // On update
+          var onUpdate = node.transition();
           
-          svgSetCommonAttributes(node, this.elements[i]);
-          node.attr('cx', getX);
-          node.attr('cy', getY);
-          svgSetAttribute(node, 'r' , this.elements[i], 'radius');
+          svgSetCommonAttributes(onUpdate, this.elements[i]);
+          onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d,i)+','+getY(d,i)+')';});
+          node.attr('d', symbol); // Transition bug here...
         }
         // Lines
-        else if(this.elements[i] instanceof Line) {
+        else if(this.elements[i].name == 'Line') {
           var interpolation;
           if(dataSubset.length > 0)
             interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
@@ -729,15 +734,21 @@
                                .y(getY)
                                .interpolate(interpolation);
           
-          if(this.svg.selectAll('.'+eltClass).empty()) {
-            this.svg.append('path').attr('class', eltClass);
+          var node;
+          // On enter
+          if(this.svg.select('.'+eltClass).empty()) {
+            node = this.svg.append('path').attr('class', eltClass);
           }
-          
-          var node = this.svg.selectAll('.'+eltClass).transition();
+          // On update
+          else {
+            node = this.svg.select('.'+eltClass).transition();
+          }
           
           node.attr("d", lineFunction(dataSubset)); 
           svgSetCommonAttributes(node, this.elements[i]);
           svgSetAttribute(node, 'stroke-linecap', this.elements[i], 'stroke_linecap');
+          
+          // Nothing to do on exit, there will just be an empty path
         }
         
         var j = 0;
@@ -766,403 +777,377 @@
   // Coordonate Systems //
   ////////////////////////
   
-  var CoordSys = Class.extend({
-    initialize : function(param) {
-      this.dimId = [];
-      this.subSys = null;
-    },
-    
-    computeScale: function(dim, width, height) {
-      throw 'CoordSys.computeScale(dimentions, width, height) is not overridden';
-    },
-    
-    getX: function(pos, d, i) {
-      throw 'CoordSys.getX(position, d, i) is not overridden';
-    },
-    
-    getY: function(pos, d, i) {
-      throw 'CoordSys.getY(position, d, i) is not overridden';
-    },
-    
-    drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
-      throw 'CoordSys.drawAxis(svgNode, dim, offsetX, offsetY, width, height) is not overridden';
-    }
-  });
-  
   /////// CARTESIAN ///////
-  window.Rect = CoordSys.extend({
-    initialize : function(param) {
-      this.dimId = [null,   // x
-                    null];  // y
-      this.subSys = null;
-      this.scaleX = null;
-      this.scaleY = null;
-      
-      if(typeof param === 'undefined') {
-        return;
-      }
-      
-      var type = typeof param.x;
-      if(type != 'undefined') {
-        if(type != 'number') {
-          throw errorMessage('Rect', 'x', type, '\'positive integer\'');
-        }
-        else {
-          this.dimId[0] = param.x-1;
-        }
-      }
-      
-      type = typeof param.y;
-      if(type != 'undefined') {
-        if(type != 'number') {
-          throw errorMessage('Rect', 'y', type, '\'positive integer\'');
-        }
-        else {
-          this.dimId[1] = param.y-1;
-        }
-      }
-      
-      var type = typeof param.subSys;
-      if(type != 'undefined') {
-        if(type != 'object' || !param.subSys instanceof CoordSys) {
-          throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
-        }
-        else {
-          this.subSys = param.subSys;
-        }
-      }
-    },
+  window.Rect = function(param) {
+    this.dimId = [null,   // [0] : x
+                  null];  // [1] : y
+    this.subSys = null;
+    this.scaleX = null;
+    this.scaleY = null;
     
-    computeScale: function(dim, width, height) {
-      // X scale
-      var subWidth = null;
-      var subHeight = null;
-      
-      if(this.dimId[0] === null) {
-        subWidth = width;
-      }
-      else if(this.subSys != null) {
-        this.scaleX = d3.scale.ordinal()
-                        .domain(dim[this.dimId[0]].domain)
-                        .rangeRoundBands([0, width], coordSysMargin);
-        subWidth = this.scaleX.rangeBand();
-      }
-      else if(dim[this.dimId[0]].ordinal) {
-        this.scaleX = d3.scale.ordinal()
-                        .domain(dim[this.dimId[0]].domain)
-                        .rangePoints([0, width], ordinal_scale_padding);
+    if(typeof param === 'undefined') {
+      return;
+    }
+    
+    var type = typeof param.x;
+    if(type != 'undefined') {
+      if(type != 'number') {
+        throw errorMessage('Rect', 'x', type, '\'positive integer\'');
       }
       else {
-        this.scaleX = d3.scale.linear()
-                        .domain(addPadding(dim[this.dimId[0]].domain, linear_scale_padding))
-                        .range([0, width])
-                        .nice();
+        this.dimId[0] = param.x-1;
       }
-      
-      // Y scale
-      if(this.dimId[1] === null) {
-        subHeight = height;
-      }
-      else if(this.subSys != null) {
-        this.scaleY = d3.scale.ordinal()
-                        .domain(dim[this.dimId[1]].domain)
-                        .rangeRoundBands([height, 0], coordSysMargin);
-        subHeight = this.scaleY.rangeBand();
-      }
-      else if(dim[this.dimId[1]].ordinal) {
-        this.scaleY = d3.scale.ordinal()
-                        .domain(dim[this.dimId[1]].domain)
-                        .rangePoints([height, 0], ordinal_scale_padding);
+    }
+    
+    type = typeof param.y;
+    if(type != 'undefined') {
+      if(type != 'number') {
+        throw errorMessage('Rect', 'y', type, '\'positive integer\'');
       }
       else {
-        this.scaleY = d3.scale.linear()
-                        .domain(addPadding(dim[this.dimId[1]].domain, linear_scale_padding))
-                        .range([height, 0])
-                        .nice();
+        this.dimId[1] = param.y-1;
       }
-      
-      // Sub coordonate system scale
-      if(this.subSys != null) {
-        this.subSys.computeScale(dim, subWidth, subHeight);
-      }
-    },
+    }
     
-    getX: function(pos, d, i) {
-      var X = (this.dimId[0] != null) ? this.scaleX(pos[this.dimId[0]](d, i)) : 0;
+    var type = typeof param.subSys;
+    if(type != 'undefined') {
+      if(type != 'object') {
+        throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
+      }
+      else {
+        this.subSys = param.subSys;
+      }
+    }
+  };
+    
+  Rect.prototype.computeScale = function(dim, width, height) {
+    // X scale
+    var subWidth = null;
+    var subHeight = null;
+    
+    if(this.dimId[0] === null) {
+      subWidth = width;
+    }
+    else if(this.subSys != null) {
+      this.scaleX = d3.scale.ordinal()
+                      .domain(dim[this.dimId[0]].domain)
+                      .rangeRoundBands([0, width], coordSysMargin);
+      subWidth = this.scaleX.rangeBand();
+    }
+    else if(dim[this.dimId[0]].ordinal) {
+      this.scaleX = d3.scale.ordinal()
+                      .domain(dim[this.dimId[0]].domain)
+                      .rangePoints([0, width], ordinal_scale_padding);
+    }
+    else {
+      this.scaleX = d3.scale.linear()
+                      .domain(addPadding(dim[this.dimId[0]].domain, linear_scale_padding))
+                      .range([0, width])
+                      .nice();
+    }
+    
+    // Y scale
+    if(this.dimId[1] === null) {
+      subHeight = height;
+    }
+    else if(this.subSys != null) {
+      this.scaleY = d3.scale.ordinal()
+                      .domain(dim[this.dimId[1]].domain)
+                      .rangeRoundBands([height, 0], coordSysMargin);
+      subHeight = this.scaleY.rangeBand();
+    }
+    else if(dim[this.dimId[1]].ordinal) {
+      this.scaleY = d3.scale.ordinal()
+                      .domain(dim[this.dimId[1]].domain)
+                      .rangePoints([height, 0], ordinal_scale_padding);
+    }
+    else {
+      this.scaleY = d3.scale.linear()
+                      .domain(addPadding(dim[this.dimId[1]].domain, linear_scale_padding))
+                      .range([height, 0])
+                      .nice();
+    }
+    
+    // Sub coordonate system scale
+    if(this.subSys != null) {
+      this.subSys.computeScale(dim, subWidth, subHeight);
+    }
+  };
+    
+  Rect.prototype.getX = function(pos, d, i) {
+    var X = (this.dimId[0] != null) ? this.scaleX(pos[this.dimId[0]](d, i)) : 0;
+    
+    if(this.subSys != null) {
+      X += this.subSys.getX(pos, d, i);
+    }
+    
+    return X;
+  },
+  
+  Rect.prototype.getY = function(pos, d, i) {
+    var Y = (this.dimId[1] != null) ? this.scaleY(pos[this.dimId[1]](d, i)) : 0;
+    
+    if(this.subSys != null) {
+      Y += this.subSys.getY(pos, d, i);
+    }
+    
+    return Y;
+  };
+    
+  Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+    //*//TODO remove
+    svgNode.append('g')
+    .attr("transform", 'translate('+offsetX+','+offsetY+')')
+    .append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("fill","orange")
+    .attr("fill-opacity",0.3);
+    //*/
+    
+    // X axis
+    if(this.dimId[0] != null) {
+      var xAxis = d3.svg.axis()
+                  .scale(this.scaleX)
+                  .orient('bottom');
       
-      if(this.subSys != null) {
-        X += this.subSys.getX(pos, d, i);
+      if(!dim[this.dimId[0]].ordinal) {
+        xAxis.ticks(5);
       }
       
-      return X;
-    },
-    
-    getY: function(pos, d, i) {
-      var Y = (this.dimId[1] != null) ? this.scaleY(pos[this.dimId[1]](d, i)) : 0;
       
-      if(this.subSys != null) {
-        Y += this.subSys.getY(pos, d, i);
-      }
-      
-      return Y;
-    },
-    
-    drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
-      //*//TODO remove
       svgNode.append('g')
-      .attr("transform", 'translate('+offsetX+','+offsetY+')')
-      .append("rect")
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill","orange")
-      .attr("fill-opacity",0.3);
-      //*/
+             .attr('class', 'axis')
+             .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
+             .call(xAxis);
+    }
+                  
+    // Y axis
+    if(this.dimId[1] != null) {
+      var yAxis = d3.svg.axis()
+                  .scale(this.scaleY)
+                  .orient('left');
       
-      // X axis
-      if(this.dimId[0] != null) {
-        var xAxis = d3.svg.axis()
-                    .scale(this.scaleX)
-                    .orient('bottom');
-        
-        if(!dim[this.dimId[0]].ordinal) {
-          xAxis.ticks(5);
-        }
-        
-        
-        svgNode.append('g')
-               .attr('class', 'axis')
-               .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-               .call(xAxis);
-      }
-                    
-      // Y axis
-      if(this.dimId[1] != null) {
-        var yAxis = d3.svg.axis()
-                    .scale(this.scaleY)
-                    .orient('left');
-        
-        if(!dim[this.dimId[1]].ordinal) {
-          yAxis.ticks(5);
-        }
-        
-        svgNode.append('g')
-               .attr('class', 'axis')
-               .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-               .call(yAxis);
+      if(!dim[this.dimId[1]].ordinal) {
+        yAxis.ticks(5);
       }
       
-      if(this.subSys != null) {
-        var rangeX = (this.dimId[0] != null) ? this.scaleX.range() : [0];
-        var rangeY = (this.dimId[1] != null) ? this.scaleY.range() : [0];
-        var subWidth = (this.dimId[0] != null) ? this.scaleX.rangeBand() : width;
-        var subHeight = (this.dimId[1] != null) ? this.scaleY.rangeBand() : height;
-        
-        for(var i = 0 ; i < rangeX.length ; i++) {
-          for(var j = 0 ; j < rangeY.length ; j++) {
-            this.subSys.drawAxis(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
-          }
+      svgNode.append('g')
+             .attr('class', 'axis')
+             .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
+             .call(yAxis);
+    }
+    
+    if(this.subSys != null) {
+      var rangeX = (this.dimId[0] != null) ? this.scaleX.range() : [0];
+      var rangeY = (this.dimId[1] != null) ? this.scaleY.range() : [0];
+      var subWidth = (this.dimId[0] != null) ? this.scaleX.rangeBand() : width;
+      var subHeight = (this.dimId[1] != null) ? this.scaleY.rangeBand() : height;
+      
+      for(var i = 0 ; i < rangeX.length ; i++) {
+        for(var j = 0 ; j < rangeY.length ; j++) {
+          this.subSys.drawAxis(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
         }
       }
     }
-  });
+  };
   
   /////// POLAR ///////
-  window.Polar = CoordSys.extend({
-    initialize : function(param) {
-      this.dimId = [null,   // theta
-                  null];  // radius
-      this.centerX = null;
-      this.centerY = null;
-      this.scaleT = null;
-      this.scaleR = null;
-      this.subSys = null;
-      
-      if(typeof param === 'undefined') {
-        return;
-      }
-      
-      var type = typeof param.theta;
-      if(type != 'undefined') {
-        if(type != 'number') {
-          throw errorMessage('Rect', 'theta', type, '\'positive integer\'');
-        }
-        else {
-          this.dimId[0] = param.theta-1;
-        }
-      }
-      
-      type = typeof param.radius;
-      if(type != 'undefined') {
-        if(type != 'number') {
-          throw errorMessage('Rect', 'radius', type, '\'positive integer\'');
-        }
-        else {
-          this.dimId[1] = param.radius-1;
-        }
-      }
-      
-      var type = typeof param.subSys;
-      if(type != 'undefined') {
-        if(type != 'object' || !param.subSys instanceof CoordSys) {
-          throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
-        }
-        else {
-          this.subSys = param.subSys;
-        }
-      }
-    },
+  window.Polar = function(param) {
+    this.dimId = [null,   // [0] : theta
+                  null];  // [1] : radius
+    this.centerX = null;
+    this.centerY = null;
+    this.scaleT = null;
+    this.scaleR = null;
+    this.subSys = null;
     
-    computeScale: function(dim, width, height) {
-      this.centerX = width / 2;
-      this.centerY = height / 2;
-      
-      // Theta
-      if(dim[this.dimId[0]].ordinal) {
-        this.scaleT = d3.scale.ordinal()
-                        .domain(dim[this.dimId[0]].domain)
-                        .rangePoints([0, 2 * Math.PI]);
+    if(typeof param === 'undefined') {
+      return;
+    }
+    
+    var type = typeof param.theta;
+    if(type != 'undefined') {
+      if(type != 'number') {
+        throw errorMessage('Rect', 'theta', type, '\'positive integer\'');
       }
       else {
-        this.scaleT = d3.scale.linear()
-                        .domain(dim[this.dimId[0]].domain)
-                        .range([0, 2*Math.PI]);
-      }
-      
-      // Radius
-      var radiusMax = d3.min([width / 2, height / 2]);
-      if(dim[this.dimId[1]].ordinal) {
-        this.scaleR = d3.scale.ordinal()
-                        .domain(dim[this.dimId[1]].domain)
-                        .rangePoints([0, radiusMax], ordinal_scale_padding);
-      }
-      else {
-        this.scaleR = d3.scale.linear()
-                        .domain(dim[this.dimId[1]].domain)
-                        .range([0, radiusMax])
-                        .nice();
-      }
-    },
-    
-    getX: function(pos, d, i) {
-      var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
-      var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
-      
-      return this.centerX + Math.cos(theta) * radius;
-    },
-    
-    getY: function(pos, d, i) {
-      var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
-      var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
-      
-      return this.centerY - Math.sin(theta) * radius;
-    },
-    
-    drawAxis: function(svgNode, dim, offsetX, offsetY, width, height) {
-      var maxRadius = d3.min([width / 2, height / 2]);
-      
-      //*//TODO remove
-      svgNode.append('g')
-      .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
-      .append('circle')
-      .attr('r', maxRadius)
-      .attr('fill','orange')
-      .attr('fill-opacity',0.3);
-      //*/
-      
-      var axisNode = svgNode.append('g');
-      axisNode.attr('class', 'axis')
-              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
-      
-      // Radius 'axis'
-      if(this.dimId[1] != null) {
-        var ticks;
-        
-        if(dim[this.dimId[1]].ordinal) {
-          ticks = this.scaleR.domain();
-        }
-        else {
-          ticks = this.scaleR.ticks(5);
-          var dom = this.scaleR.domain();
-          ticks.push(dom[0]);
-          ticks.push(dom[1]);
-          RemoveDupArray(ticks);
-        }
-        
-        for(var i = 0 ; i < ticks.length ; i++) {
-          axisNode.append('circle')
-                  .attr('r', this.scaleR(ticks[i]) || 1)
-                  .attr('fill', 'none')
-                  .attr('stroke', 'black');
-          
-          axisNode.append('text')
-                  .text(ticks[i])
-                  .attr('x', this.scaleR(ticks[i]) + 5)
-                  .attr('y', -5)
-                  .attr('fill', 'black');
-        }
-      }
-      
-      // Theta axis
-      if(this.dimId[0] != null) {
-        var ticks;
-        
-        if(dim[this.dimId[0]].ordinal) {
-          ticks = this.scaleT.domain();
-        }
-        else {
-          ticks = this.scaleT.ticks(8);
-          var dom = this.scaleT.domain();
-          //ticks.push(dom[0]);
-          //ticks.push(dom[1]);
-          //RemoveDupArray(ticks);
-        }
-        
-        for(var i = 0 ; i < ticks.length ; i++) {
-          var x = Math.cos(this.scaleT(ticks[i])) * maxRadius;
-          var y = -Math.sin(this.scaleT(ticks[i])) * maxRadius;
-          axisNode.append('line')
-                  .attr('x1', 0)
-                  .attr('y1', 0)
-                  .attr('x2', x)
-                  .attr('y2', y)
-                  .attr('stroke', 'black');
-          
-          x = Math.cos(this.scaleT(ticks[i])) * (maxRadius + 20);
-          y = -Math.sin(this.scaleT(ticks[i])) * (maxRadius + 20);
-          axisNode.append('text')
-                  .text(ticks[i].toFixed(2))
-                  .attr('text-anchor', 'middle')
-                  .attr('x', x)
-                  .attr('y', y)
-                  .attr('fill', 'black');
-        }
+        this.dimId[0] = param.theta-1;
       }
     }
-  });
+    
+    type = typeof param.radius;
+    if(type != 'undefined') {
+      if(type != 'number') {
+        throw errorMessage('Rect', 'radius', type, '\'positive integer\'');
+      }
+      else {
+        this.dimId[1] = param.radius-1;
+      }
+    }
+    
+    var type = typeof param.subSys;
+    if(type != 'undefined') {
+      if(type != 'object' || !param.subSys instanceof CoordSys) {
+        throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
+      }
+      else {
+        this.subSys = param.subSys;
+      }
+    }
+  };
+    
+  Polar.prototype.computeScale = function(dim, width, height) {
+    this.centerX = width / 2;
+    this.centerY = height / 2;
+    
+    // Theta
+    if(dim[this.dimId[0]].ordinal) {
+      var dom = dim[this.dimId[0]].domain;
+      dom.push('');
+      this.scaleT = d3.scale.ordinal()
+                      .domain(dim[this.dimId[0]].domain)
+                      .rangePoints([0, 2 * Math.PI]);
+    }
+    else {
+      this.scaleT = d3.scale.linear()
+                      .domain(dim[this.dimId[0]].domain)
+                      .range([0, 2*Math.PI]);
+    }
+    
+    // Radius
+    var radiusMax = d3.min([width / 2, height / 2]);
+    if(dim[this.dimId[1]].ordinal) {
+      this.scaleR = d3.scale.ordinal()
+                      .domain(dim[this.dimId[1]].domain)
+                      .rangePoints([0, radiusMax], ordinal_scale_padding);
+    }
+    else {
+      this.scaleR = d3.scale.linear()
+                      .domain(dim[this.dimId[1]].domain)
+                      .range([0, radiusMax])
+                      .nice();
+    }
+  };
+    
+  Polar.prototype.getX = function(pos, d, i) {
+    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
+    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
+    
+    return this.centerX + Math.cos(theta) * radius;
+  },
+  
+  Polar.prototype.getY = function(pos, d, i) {
+    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
+    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
+    
+    return this.centerY - Math.sin(theta) * radius;
+  };
+  
+  Polar.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+    var maxRadius = d3.min([width / 2, height / 2]);
+    
+    //*//TODO remove
+    svgNode.append('g')
+    .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
+    .append('circle')
+    .attr('r', maxRadius)
+    .attr('fill','orange')
+    .attr('fill-opacity',0.3);
+    //*/
+    
+    var axisNode = svgNode.append('g');
+    axisNode.attr('class', 'axis')
+            .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
+    
+    // Radius 'axis'
+    if(this.dimId[1] != null) {
+      var ticks;
+      
+      if(dim[this.dimId[1]].ordinal) {
+        ticks = this.scaleR.domain();
+      }
+      else {
+        ticks = this.scaleR.ticks(5);
+        var dom = this.scaleR.domain();
+        ticks.push(dom[0]);
+        ticks.push(dom[1]);
+        RemoveDupArray(ticks);
+      }
+      
+      for(var i = 0 ; i < ticks.length ; i++) {
+        axisNode.append('circle')
+                .attr('r', this.scaleR(ticks[i]) || 1)
+                .attr('fill', 'none')
+                .attr('stroke', 'black');
+        
+        axisNode.append('text')
+                .text(ticks[i])
+                .attr('x', this.scaleR(ticks[i]) + 5)
+                .attr('y', -5)
+                .attr('fill', 'black');
+      }
+    }
+    
+    // Theta axis
+    if(this.dimId[0] != null) {
+      var ticks;
+      
+      if(dim[this.dimId[0]].ordinal) {
+        ticks = this.scaleT.domain();
+      }
+      else {
+        ticks = this.scaleT.ticks(8);
+        var dom = this.scaleT.domain();
+        //ticks.push(dom[0]);
+        //ticks.push(dom[1]);
+        //RemoveDupArray(ticks);
+      }
+      
+      for(var i = 0 ; i < ticks.length ; i++) {
+        var x = Math.cos(this.scaleT(ticks[i])) * maxRadius;
+        var y = -Math.sin(this.scaleT(ticks[i])) * maxRadius;
+        axisNode.append('line')
+                .attr('x1', 0)
+                .attr('y1', 0)
+                .attr('x2', x)
+                .attr('y2', y)
+                .attr('stroke', 'black');
+        
+        x = Math.cos(this.scaleT(ticks[i])) * (maxRadius + 20);
+        y = -Math.sin(this.scaleT(ticks[i])) * (maxRadius + 20);
+        var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
+        axisNode.append('text')
+                .text(tick)
+                .attr('text-anchor', 'middle')
+                .attr('x', x)
+                .attr('y', y)
+                .attr('fill', 'black');
+      }
+    }
+  };
   
   /////// TEMPORAL ///////
-    window.Temp = CoordSys.extend({
-    initialize : function(param) {
-      this.dimId = [];
-      this.value = [];
-      
-      if(typeof param === 'undefined') {
-        return;
-      }
-      
-      for(var attr in param) {
-        if(attr.indexOf(temp_dim_attr_prefix) != 0) {
-          continue;
-        }
-        var ind = parseInt(attr.substring(temp_dim_attr_prefix.length)) - 1;
-        if(isNaN(ind)) {
-          continue;
-        }
-        
-        this.value[ind] = param[attr];
-      }
+  var Temp =  function(param) {
+    this.dimId = [];
+    this.value = [];
+    
+    if(typeof param === 'undefined') {
+      return;
     }
-  });
+    
+    for(var attr in param) {
+      if(attr.indexOf(temp_dim_attr_prefix) != 0) {
+        continue;
+      }
+      var ind = parseInt(attr.substring(temp_dim_attr_prefix.length)) - 1;
+      if(isNaN(ind)) {
+        continue;
+      }
+      
+      this.value[ind] = param[attr];
+    }
+  };
   
 
   
@@ -1368,6 +1353,36 @@
       throw 'Error: attribute bind to a \''+typeof attr_val+'\'';
       
     return id;
+  }
+  
+  
+  // Compute domains of an aestetic
+  function computeDomain(aes, dataset, type) {
+    // Ordinal domain
+    if(type == 'discret') {
+      if(typeof aes.ordinalDomain === 'undefined') {
+        var f = aes.func;
+        aes.ordinalDomain = [];
+        for(var k = 0 ; k < dataset.length ; k++) {
+          aes.ordinalDomain.push(f(dataset[k]));
+        }
+        RemoveDupArray(aes.ordinalDomain);
+      }
+    }
+    // Continue domain
+    else {
+      if(typeof aes.continuousDomain === 'undefined') {
+        // Compute continuous domain from ordinal one
+        if(typeof aes.ordinalDomain != 'undefined') {
+          var ordDom = aes.ordinalDomain;
+          aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
+        }
+        else {
+          var stat = computeStat(dataset, aes.func);
+          aes.continuousDomain = [stat.min, stat.max];
+        }
+      }
+    }
   }
   
   // Allocate split data array

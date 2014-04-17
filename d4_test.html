@@ -21,16 +21,18 @@
         <script type="text/javascript">
             
             "use strict";
+            var G = [];
             
             var g = new Graphic();
+            G.push(g);
             
-            var dataset = [
-                {col1:5, col2:5, col3:10},
-                {col1:10, col2:20, col3:20},
-                {col1:20, col2:3, col3:32},
-                {col1:40, col2:17, col3:44}];
+            var dataset1 = [
+                {col1:5, col2:5, col3:300},
+                {col1:10, col2:20, col3:1200},
+                {col1:20, col2:3, col3:3000},
+                {col1:40, col2:17, col3:6000}];
             
-            g.element({ position:[  function(d){return d.col1;},
+            g.element({position:[  function(d){return d.col1;},
                                     'data:col2'],
                         stroke_width:function(d,i){return i+1;},
                         stroke:function(d,i){return i;},
@@ -40,25 +42,26 @@
                         fill:'none',
                         interpolation:'cardinal',
                         stroke_linecap:'round'})
-            .circle({   radius:function(d,i){return 5*(i+1)+5;},
+            .symbol({   size:function(d,i){var r = 5*(i+1)+5; return 3.1415*r*r;},
                         fill_opacity:0.5})
-            .circle({   position:[10, 10],
+            .symbol({   position:[10, 10],
                         stroke_width:function(d,i){return i%2==0?10:3;},
                         stroke:function(d,i){return Math.exp(i);},
                         stroke_opacity:function(d,i){return (i+1)/4;},
                         fill:'none',
-                        radius:'data:col3',
+                        size:'data:col3',
                         stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
-            .data(dataset)
-            .plot({selector:"#graph", width:1024, height:768, margin:50});
+            .data(dataset1)
+            .plot({selector:"#graph1", width:1024, height:768, margin:50});
             
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             var g = new Graphic();
+            G.push(g);
             
-            var dataset = [
+            var dataset2 = [
                 {col1:'A', col2:10, col3:'a',   col4:1,   col5:1},
                 {col1:'A', col2:10, col3:2,   col4:3,   col5:2},
                 {col1:'A', col2:10, col3:3,   col4:2,   col5:3},
@@ -76,7 +79,7 @@
                 {col1:'B', col2:20, col3:1,   col4:1,   col5:12}];
                 
             
-            g.coord(new Rect({  x:1,
+            g.coord(new Rect({ x:1,
                                 y:2,
                                 subSys: new Rect({  x:3,
                                                     y:4})
@@ -88,99 +91,73 @@
                         stroke_width:3})
             .line(  {   fill:'none',
                         stroke:'black'})
-            .circle({   radius:5,
+            .symbol({   size:50,
                         fill:'data:col5'})
-            .data(dataset)
-            .plot({selector:"#graph", width:1024, height:768, margin:50});
+            .data(dataset2)
+            .plot({selector:"#graph2", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             var g = new Graphic();
+            G.push(g);
             
-            var dataset = [];
-            for(var i = 0 ; i < 20 ; i++)
-                dataset.push({col1:i+1});
+            var dataset3 = [];
+            for(var t = 0 ; t < 20 ; t++)
+                for(var i = 0 ; i < 20 ; i++)
+                    dataset3.push({col1:i, col2:t, col3:'v'+(i<10?'0':'')+i});
             
             g.coord(new Polar({ theta:1,
                                 radius:2}))
-            .circle({   position:['data:col1', 'data:col1'],
-                        radius:3})
-            .data(dataset)
-            .plot({selector:"#graph", width:1024, height:768, margin:50});
-        
+            .time({t1:'data:col2'})
+            .symbol({   position:['data:col3', function(d){return (d.col1+d.col2)%20;}],
+                        size:50,
+                        type:'data:col1',
+                        fill:'none',
+                        stroke:'data:col1',
+                        stroke_width:2})
+            .data(dataset3)
+            .plot({selector:"#graph3", width:1024, height:768, margin:50});
+            
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            var g = new Graphic();
+            g = new Graphic();
+            G.push(g);
             
-            var dataset = [];
+            var dataset4 = [];
             
             var ppsb = 10;
-            for(var i = 0 ; i < ppsb ; i++) {
-                dataset.push({col1:'increasing theta',col2:'increasing radius',col3:i,col4:i});
-            }
-            for(var i = 0 ; i < ppsb ; i++) {
-                dataset.push({col1:'decreasing theta',col2:'increasing radius',col3:ppsb-i-1,col4:i});
-            }
-            for(var i = 0 ; i < ppsb ; i++) {
-                dataset.push({col1:'increasing theta',col2:'decreasing radius',col3:i,col4:ppsb-i-1});
-            }
-            for(var i = 0 ; i < ppsb ; i++) {
-                dataset.push({col1:'decreasing theta',col2:'decreasing radius',col3:ppsb-i-1,col4:ppsb-i-1});
+            for(var t = 0 ; t < 4 ; t++) {
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset4.push({col1:'A',col2:'C',col3:i%ppsb,             col4:i*(t+1),               col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset4.push({col1:'B',col2:'C',col3:(ppsb+t-i-1)%ppsb,  col4:i*(t+1),               col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset4.push({col1:'A',col2:'D',col3:i%ppsb,             col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset4.push({col1:'B',col2:'D',col3:(ppsb+t-i-1)%ppsb,  col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                }
             }
             
-            g.coord(new Rect({  x:1,
+            
+            g.coord(new Rect({ x:1,
                                 y:2,
                                 subSys: new Polar({ theta:3,
                                                     radius:4})
                             }))
-            .circle({   position:[  'data:col1',
-                                    'data:col2',
-                                    'data:col3',
-                                    'data:col4'],
-                        radius:3,
-                        fill:function(d,i){return i;},
-                        stroke:'black'})
-            .data(dataset)
-            .plot({selector:"#graph", width:1024, height:768, margin_left:150, margin_bottom:40});
-            
-            
-/////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////
-            
-            var g = new Graphic();
-            
-            var dataset = [];
-            
-            var ppsb = 10;
-            for(var t = 0 ; t < 3 ; t++) {
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'A',col2:'C',col3:i,col4:i*(t+1),col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'B',col2:'C',col3:ppsb-i-1,col4:i*(t+1),col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'A',col2:'D',col3:i,col4:(ppsb-i-1)*(t+1),col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'B',col2:'D',col3:ppsb-i-1,col4:(ppsb-i-1)*(t+1),col5:t});
-                }
-            }
-            
-            g.coord(new Rect({  x:1,
-                                y:2,
-                                subSys: new Polar({ theta:3,
-                                                    radius:4})
-                            }))
-            .time(new Temp({t1:     'data:col5'}))
+            .time({t1:'data:col5'})
             .element({  position:[  'data:col1',
                                     'data:col2',
-                                    'data:col3',
+                                    function(d){return 'v'+d.col3},
                                     'data:col4']})
             .line({     fill:'none',
                         stroke:'red',
+                        stroke_width:2,
                         interpolation:function (d) {if(d.col1=='A'&&d.col2=='C'){
                                                         return 'linear';
                                                     } else if(d.col1=='A'&&d.col2=='D') {
@@ -190,25 +167,33 @@
                                                     } else if(d.col1=='B'&&d.col2=='D') {
                                                         return 'basis';
                                                     }}})
-            .circle({   radius:3,
-                        fill:'data:col3',
+            .symbol({   fill:'data:col3',
+                        type:'data:col4',
                         stroke:'black'})
-            .data(dataset)
-            .plot({selector:"#graph", width:1024, height:768, margin_left:150, margin_bottom:40});
+            .data(dataset4)
+            .plot({selector:"#graph4", width:1024, height:768, margin_left:50, margin_bottom:40});
             
-            function prev() {
-                g.previousStep(1);
+            function prev(i) {
+                G[i-1].previousStep(1);
             }
             
-            function next() {
-                g.nextStep(1);
+            function next(i) {
+                G[i-1].nextStep(1);
             }
                
         </script>
     </head>
     <body>
-        <div id="graph"></div>
-        <input type="button" value="Previous" onclick="prev()"/>
-        <input type="button" value="Next" onclick="next()"/>
+        <div id="graph1"></div>
+        
+        <div id="graph2"></div>
+        
+        <div id="graph3"></div>
+        <input type="button" value="Previous" onclick="prev(3)"/>
+        <input type="button" value="Next" onclick="next(3)"/>
+        
+        <div id="graph4"></div>
+        <input type="button" value="Previous" onclick="prev(4)"/>
+        <input type="button" value="Next" onclick="next(4)"/>
     </body>
 </html>   

@@ -1,8 +1,10 @@
 !function() {
 "use strict";
   
-  var d4 = {
-    version: '0.1'
+  var lib_name = 'd4';
+  
+  window[lib_name] = {
+    version: '0.2'
   };
   
   // Some constants
@@ -10,7 +12,7 @@
   var temp_dim_attr_prefix = 't';
   var ordinal_scale_padding = 1;
   var linear_scale_padding = 0.1;
-  var coordSysMargin = 0.2;
+  var coordSysMargin = 0.15;
   
   
   // Elements definition
@@ -70,8 +72,13 @@
   };
   
   
+  // Create a new graphic
+  window[lib_name].graphic = function(args) {
+    return new Graphic(args);
+  }
+  
   // Graphic definition
-  window.Graphic = function() {
+  var Graphic = function() {
     this.spacialCoord = new Rect({x:1, y:2});
     this.temporalCoord = new Temp();
     this.dataset = null;
@@ -125,7 +132,7 @@
     return this;
   }
   
-  // Set spacial coordonate system (Rect({x:1, y:2}) by default)
+  // Set spacial coordinate system (Rect({x:1, y:2}) by default)
   Graphic.prototype.coord = function(coordSys) {
     if(typeof coordSys === 'undefined') {
       this.spacialCoord = new Rect({x:1, y:2});
@@ -146,7 +153,7 @@
     return this;
   }
   
-  // Set temporal coordonate system (none by default)
+  // Set temporal coordinate system (none by default)
   Graphic.prototype.time = function(temporalCoord) {
     if(typeof temporalCoord === 'undefined') {
       this.temporalCoord = new Temp();
@@ -431,7 +438,7 @@
      * Computing scales *
     \*                  */
     
-    // For the coordonate system
+    // For the coordinate system
     this.spacialCoord.computeScale( this.dim, 
                                     width - this.margin.left - this.margin.right,
                                     height - this.margin.top - this.margin.bottom);
@@ -449,7 +456,6 @@
         var attr_type = this.elements[i][attr].type;
         var attr_aes = this.elements[i][attr].aes;
         var aes_ret_type = typeof attr_aes.func(this.dataset[0], 0);
-        var dom;
         
         
         switch(attr_type) {
@@ -777,8 +783,16 @@
   // Coordonate Systems //
   ////////////////////////
   
+  window[lib_name].rect = function(args) {
+    return new Rect(args);
+  };
+  
+  window[lib_name].polar = function(args) {
+    return new Polar(args);
+  };
+  
   /////// CARTESIAN ///////
-  window.Rect = function(param) {
+  var Rect = function(param) {
     this.dimId = [null,   // [0] : x
                   null];  // [1] : y
     this.subSys = null;
@@ -868,7 +882,7 @@
                       .nice();
     }
     
-    // Sub coordonate system scale
+    // Sub coordinate system scale
     if(this.subSys != null) {
       this.subSys.computeScale(dim, subWidth, subHeight);
     }
@@ -953,7 +967,7 @@
   };
   
   /////// POLAR ///////
-  window.Polar = function(param) {
+  var Polar = function(param) {
     this.dimId = [null,   // [0] : theta
                   null];  // [1] : radius
     this.centerX = null;
@@ -1256,7 +1270,7 @@
     while(cs != null) {
       for(var i = 0 ; i < cs.dimId.length ; i++) {
         if(cs.dimId[i] != null) {
-          // Force ordinal if the coordonate system have a sub coordonate system
+          // Force ordinal if the coordinate system have a sub coordinate system
           if(cs.subSys != null) {
             dim[cs.dimId[i]] = {forceOrdinal:true,
                               isSpacial:true};
@@ -1428,10 +1442,12 @@
   /* Options are: width (optional), height (optional), margin (margin), selector (mandatory) */
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
   Graphic.prototype.plot = function(param) {
-    ASSERT(this.render, "No function render in this; how am I  supposed to render ??")
+    ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
     // debugger
     var theGraphic = this;
-    window.addEventListener("load", function() { theGraphic.render(param); }, true)
+    window.addEventListener("load", function() { theGraphic.render(param); }, true);
+    
+    return this;
   };
 }();
 

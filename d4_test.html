@@ -23,16 +23,14 @@
             "use strict";
             var G = [];
             
-            var g = new Graphic();
-            G.push(g);
-            
             var dataset1 = [
                 {col1:5, col2:5, col3:300},
                 {col1:10, col2:20, col3:1200},
                 {col1:20, col2:3, col3:3000},
                 {col1:40, col2:17, col3:6000}];
             
-            g.element({position:[  function(d){return d.col1;},
+            G.push(d4.graphic()
+            .element({position:[  function(d){return d.col1;},
                                     'data:col2'],
                         stroke_width:function(d,i){return i+1;},
                         stroke:function(d,i){return i;},
@@ -52,14 +50,11 @@
                         size:'data:col3',
                         stroke_dasharray:function(d,i){var a=1+i*2;return 2*a+','+a;}})
             .data(dataset1)
-            .plot({selector:"#graph1", width:1024, height:768, margin:50});
+            .plot({selector:"#graph1", width:1024, height:768, margin:50}));
             
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
-            var g = new Graphic();
-            G.push(g);
             
             var dataset2 = [
                 {col1:'A', col2:10, col3:'a',   col4:1,   col5:1},
@@ -78,11 +73,11 @@
                 {col1:'B', col2:20, col3:2,   col4:2,   col5:11},
                 {col1:'B', col2:20, col3:1,   col4:1,   col5:12}];
                 
-            
-            g.coord(new Rect({ x:1,
-                                y:2,
-                                subSys: new Rect({  x:3,
-                                                    y:4})
+            G.push(d4.graphic()
+            .coord(d4.rect({x:1,
+                            y:2,
+                            subSys: d4.rect({   x:3,
+                                                y:4})
                             }))
             .element({  position:[  'data:col1',
                                     'data:col2',
@@ -94,20 +89,18 @@
             .symbol({   size:50,
                         fill:'data:col5'})
             .data(dataset2)
-            .plot({selector:"#graph2", width:1024, height:768, margin:50});
+            .plot({selector:"#graph2", width:1024, height:768, margin:50}));
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
-            var g = new Graphic();
-            G.push(g);
             
             var dataset3 = [];
             for(var t = 0 ; t < 20 ; t++)
                 for(var i = 0 ; i < 20 ; i++)
                     dataset3.push({col1:i, col2:t, col3:'v'+(i<10?'0':'')+i});
             
-            g.coord(new Polar({ theta:1,
+            G.push(d4.graphic()
+            .coord(d4.polar({   theta:1,
                                 radius:2}))
             .time({t1:'data:col2'})
             .symbol({   position:['data:col3', function(d){return (d.col1+d.col2)%20;}],
@@ -117,14 +110,11 @@
                         stroke:'data:col1',
                         stroke_width:2})
             .data(dataset3)
-            .plot({selector:"#graph3", width:1024, height:768, margin:50});
+            .plot({selector:"#graph3", width:1024, height:768, margin:50}));
             
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
-            g = new Graphic();
-            G.push(g);
             
             var dataset4 = [];
             
@@ -144,11 +134,11 @@
                 }
             }
             
-            
-            g.coord(new Rect({ x:1,
-                                y:2,
-                                subSys: new Polar({ theta:3,
-                                                    radius:4})
+            G.push(d4.graphic()
+            .coord(d4.rect({x:1,
+                            y:2,
+                            subSys: d4.polar({  theta:3,
+                                                radius:4})
                             }))
             .time({t1:'data:col5'})
             .element({  position:[  'data:col1',
@@ -171,7 +161,7 @@
                         type:'data:col4',
                         stroke:'black'})
             .data(dataset4)
-            .plot({selector:"#graph4", width:1024, height:768, margin_left:50, margin_bottom:40});
+            .plot({selector:"#graph4", width:1024, height:768, margin_left:50, margin_bottom:40}));
             
             function prev(i) {
                 G[i-1].previousStep(1);
@@ -180,6 +170,8 @@
             function next(i) {
                 G[i-1].nextStep(1);
             }
+            
+            
                
         </script>
     </head>

@@ -204,10 +204,10 @@
     var selector = 'body';
     var width = 640;
     var height = 360;
-    this.margin = { left:10,
-                    top:10,
-                    right:10,
-                    bottom:10};
+    this.margin = { left:20,
+                    top:20,
+                    right:20,
+                    bottom:20};
     
     // Check parameters
     if(typeof param != 'undefined') {

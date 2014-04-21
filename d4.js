@@ -45,7 +45,7 @@
   var Line = function() {
     this.name = 'Line';
     this.interpolation = {type:'string',
-                          value:'linear'}; // TODO: null ?
+                          value:'linear'};
     /* Possible values :
      * linear - piecewise linear segments, as in a polyline.
      * linear-closed - close the linear segments to form a polygon.
@@ -63,7 +63,7 @@
      */
     
     this.stroke_linecap = {type:'string',
-                           value:'butt'}; // TODO: null ?
+                           value:'butt'};
     /* Possible values :
      * butt
      * round
@@ -346,7 +346,7 @@
     }
     
     // We don't need those variables anymore
-    // aes = undefined; TODO: uncomment
+    aes = undefined;
     dataCol2Aes = undefined;
     func2Aes = undefined;
     const2Aes = undefined;
@@ -909,7 +909,7 @@
   };
     
   Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
-    /*//TODO remove
+    //*//TODO remove
     svgNode.append('g')
     .attr("transform", 'translate('+offsetX+','+offsetY+')')
     .append("rect")
@@ -1314,9 +1314,7 @@
           }
         };
         
-        aes.push({func:(new Closure(column)).action,
-                  column:column // TODO : remove
-                  });
+        aes.push({func:(new Closure(column)).action});
         id = aes.length - 1;
         dataCol2Aes[column] = id;
       }
@@ -1339,9 +1337,7 @@
         
         aes.push({func:(new Closure(attr_val)).action,
                   // We set the domains while we know it's a constant value
-                  ordinalDomain:[attr_val],
-                  constant:attr_val // TODO : remove
-                  });
+                  ordinalDomain:[attr_val]});
         id = aes.length - 1;
         
         if(typeof attr_val === 'number')

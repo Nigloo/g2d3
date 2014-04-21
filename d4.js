@@ -909,7 +909,7 @@
   };
     
   Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
-    //*//TODO remove
+    /*//TODO remove
     svgNode.append('g')
     .attr("transform", 'translate('+offsetX+','+offsetY+')')
     .append("rect")

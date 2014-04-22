@@ -82,6 +82,7 @@
     this.spacialCoord = new Rect({x:1, y:2});
     this.temporalCoord = new Temp();
     this.dataset = null;
+    this.dataLoader = null;
     this.elements = [];
     this.fallback_element = new ElementBase();
     
@@ -127,7 +128,15 @@
   
   // Set dataset
   Graphic.prototype.data = function(data) {
-    this.dataset = data;
+    
+    if(data instanceof Array) {
+      this.dataset = data;
+    }
+    // Call from the d3 file loading function
+    else {
+      data.me.g = this;
+      this.dataLoader = data;
+    }
     
     return this;
   }
@@ -197,8 +206,8 @@
 
   // Render the graphic in svg
   Graphic.prototype.render = function(param) {
-    if(this.dataset == null) {
-      throw 'No dataset';
+    if(this.dataset === null) {
+      return this;
     }
     
     var selector = 'body';
@@ -1164,6 +1173,51 @@
   };
   
 
+  // Load data from a csv file
+  window[lib_name].loadFromFile = function(filename) {
+    
+    var Closure = function () {
+      this.g = null;
+      this.plotParam = null;
+      var me = this;
+      return {
+        me:this,
+        action:function (error, dataset) {
+          // TODO: handle errors
+          
+          console.log(dataset);
+          
+          me.g.data(dataset);
+          
+          if(me.plotParam != null) {
+            me.g.render(me.plotParam);
+          }
+        }
+      };
+    }
+    
+    var closure = new Closure();
+    
+    d3.csv(filename)
+    .row(function(d) {
+      var new_row = {};
+      for(var key in d) {
+        var value = +d[key];
+        if(isNaN(value)) {
+          new_row[key.trim()] = d[key].trim();
+        }
+        else {
+          new_row[key.trim()] = value;
+        }
+      }
+      return new_row;
+    })
+    .get(closure.action);
+    
+    return closure;
+  }
+
+
   
   ///////////////////////
   // Private functions //
@@ -1418,6 +1472,7 @@
   }
   
   var LOG = function(msg) {
+    return;
     if ( window.console && window.console.log ) {
       console.log(msg)
     }
@@ -1439,6 +1494,12 @@
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
   Graphic.prototype.plot = function(param) {
     ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
+    
+    if(this.dataLoader != null) {
+      this.dataLoader.me.plotParam = param;
+      return this;
+    }
+    
     // debugger
     var theGraphic = this;
     window.addEventListener("load", function() { theGraphic.render(param); }, true);

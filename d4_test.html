@@ -145,26 +145,6 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
-            var dataset = [];
-            
-            var ppsb = 10;
-            for(var t = 0 ; t < 4 ; t++) {
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'A',col2:'C',col3:i%ppsb,             col4:i*(t+1),               col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'B',col2:'C',col3:(ppsb+t-i-1)%ppsb,  col4:i*(t+1),               col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'A',col2:'D',col3:i%ppsb,             col4:(ppsb+t-i-1)*(t+1),    col5:t});
-                }
-                for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset.push({col1:'B',col2:'D',col3:(ppsb+t-i-1)%ppsb,  col4:(ppsb+t-i-1)*(t+1),    col5:t});
-                }
-            }
-            
-
 
             G.push(d4.graphic()
             .coord(d4.rect({x:1,
@@ -192,8 +172,10 @@
             .symbol({   fill:'data:col3',
                         type:'data:col4',
                         stroke:'black'})
-            .data(dataset)
-            .plot({selector:"#graph5", width:1000, height:1000, margin_left:50, margin_bottom:40}));
+            .data(d4.loadFromFile('test.csv'))
+            .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40}));
+            
+            
             
             function prev(i) {
                 G[i-1].previousStep(1);

@@ -128,11 +128,13 @@
   
   // Set dataset
   Graphic.prototype.data = function(data) {
-    
-    if(data instanceof Array) {
+    if(data === null) {
+      throw 'Setting data to null';
+    }
+    else if(data instanceof Array) {
       this.dataset = data;
     }
-    // Call from the d3 file loading function
+    // Value from the file loading function
     else {
       data.me.g = this;
       this.dataLoader = data;
@@ -479,17 +481,8 @@
               
               // Scaling
               var scale = d3.scale.category10().domain(attr_aes.continuousDomain);
-              var Closure = function (scale, func) {
-              this.s = scale;
-              this.f = func;
-              var me = this;
-                return {
-                  action:function (d, i) {
-                    return me.s(me.f(d, i));
-                  }
-                }
-              };
-              this.elements[i][attr].func = (new Closure(scale, attr_aes.func)).action;
+              
+              this.elements[i][attr].func = scale.compose(attr_aes.func);
             }
             break;
           
@@ -506,17 +499,8 @@
               var scale = d3.scale.ordinal()
                                   .domain(attr_aes.ordinalDomain)
                                   .range(d3.svg.symbolTypes);
-              var Closure = function (scale, func) {
-              this.s = scale;
-              this.f = func;
-              var me = this;
-                return {
-                  action:function (d, i) {
-                    return me.s(me.f(d, i));
-                  }
-                }
-              };
-              this.elements[i][attr].func = (new Closure(scale, attr_aes.func)).action;
+              
+              this.elements[i][attr].func = scale.compose(attr_aes.func);
             }
             break;
           
@@ -526,16 +510,12 @@
               this.elements[i][attr].func = attr_aes.func;
             }
             else { // Just apply toString
-              var Closure = function (func) {
-                this.f = func;
-                var me = this;
-                return {
-                  action:function (d, i) {
-                    return me.f(d, i).toString();
-                  }
+              var applyToString = function (f) {
+                return function (d, i) {
+                  return me.f(d, i).toString();
                 }
               };
-              this.elements[i][attr].func = (new Closure(attr_aes.func)).action;
+              this.elements[i][attr].func = applyToString(attr_aes.func);
             }
             break;
           
@@ -674,32 +654,20 @@
         }
         
         // getX
-        var Closure = function (coordSys, pos, margin_left) {
-          this.cs = coordSys;
-          this.p = pos;
-          this.ml = margin_left;
-          var me = this;
-          return {
-            action:function (d, i) {
-              return me.ml + me.cs.getX(me.p, d, i);
-            }
+        var Closure = function (cs, p, ml) {
+          return function (d, i) {
+            return ml + cs.getX(p, d, i);
           }
         };
-        var getX = (new Closure(this.spacialCoord, pos, this.margin.left)).action;
+        var getX = Closure(this.spacialCoord, pos, this.margin.left);
         
         // getY
-        Closure = function (coordSys, pos, margin_top) {
-          this.cs = coordSys;
-          this.p = pos;
-          this.mt = margin_top;
-          var me = this;
-          return {
-            action:function (d, i) {
-              return me.mt + me.cs.getY(me.p, d, i);
-            }
+        Closure = function (cs, p, mt) {
+          return function (d, i) {
+            return mt + cs.getY(p, d, i);
           }
         };
-        var getY = (new Closure(this.spacialCoord, pos, this.margin.top)).action;
+        var getY = Closure(this.spacialCoord, pos, this.margin.top);
         
         var eltClass = 'etl'+i;
         for(var j = 0 ; j < currentPos.length ; j++) {
@@ -1185,8 +1153,6 @@
         action:function (error, dataset) {
           // TODO: handle errors
           
-          console.log(dataset);
-          
           me.g.data(dataset);
           
           if(me.plotParam != null) {
@@ -1291,6 +1257,7 @@
     }
   }
   
+  
   // Compute some stats (min and max only for now)
   function computeStat(dataset, f) {  
     var min = f(dataset[0], 0);
@@ -1358,17 +1325,13 @@
       if(typeof dataCol2Aes[column] === 'undefined')
       {
         // We convert it into a fonction
-        var Closure = function (col) {
-          this.c = col;
-          var me = this;
-          return {
-            action:function (d) {
-              return d[me.c];
-            }
+        var toFunction = function (c) {
+          return function (d) {
+            return d[c];
           }
         };
         
-        aes.push({func:(new Closure(column)).action});
+        aes.push({func:toFunction(column)});
         id = aes.length - 1;
         dataCol2Aes[column] = id;
       }
@@ -1379,17 +1342,13 @@
     else if(typeof attr_val === 'number' || typeof attr_val === 'string') {
       if(typeof const2Aes[attr_val] === 'undefined') {
         // We convert it into a fonction
-        var Closure = function (v) {
-          this.value = v;
-          var me = this;
-          return {
-            action:function () {
-              return me.value;
-            }
+        var toFunction = function (v) {
+          return function () {
+            return v;
           }
         };
         
-        aes.push({func:(new Closure(attr_val)).action,
+        aes.push({func:toFunction(attr_val),
                   // We set the domains while we know it's a constant value
                   ordinalDomain:[attr_val]});
         id = aes.length - 1;
@@ -1472,11 +1431,21 @@
   }
   
   var LOG = function(msg) {
-    return;
+    
     if ( window.console && window.console.log ) {
       console.log(msg)
     }
   }
+  
+  
+  /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
+Function.prototype.compose = function(g) {
+  var fn = this;
+  return function() {
+    return fn.call(this, g.apply(this, arguments));
+  };
+};
+  
   
   /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
   String.prototype.format = function() {

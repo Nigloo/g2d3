@@ -20,6 +20,8 @@
     this.name =             'ElementBase';
     this.position =         { type:'position',
                               value:null};
+    this.group =            { type:'string',
+                              value:'1'};
     this.fill =             { type:'color',
                               value:null};
     this.fill_opacity =     { type:'number',
@@ -297,7 +299,7 @@
             var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val[j]);
             
             // Check data type return by this aesthetic
-            var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+            var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
             if(aes_ret_type != 'number' && aes_ret_type != 'string')
               throw errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\'');
             
@@ -313,7 +315,7 @@
           var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val);
           
           // Check data type return by this aesthetic
-          var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+          var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
           switch(attr_type) {
             case 'color':
               if(aes_ret_type != 'number' && aes_ret_type != 'string') {
@@ -348,7 +350,7 @@
       var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalCoord.value[i]);
       
       // Check data type return by this aesthetic
-      var aes_ret_type = typeof aes[aesId].func(this.dataset[0], 0);
+      var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
       if(aes_ret_type != 'number' && aes_ret_type != 'string') {
         throw errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\'');
       }
@@ -390,19 +392,9 @@
       if(ordinal) {
         domain = [];
         for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-          // Compute ordinal domain
-          var dom;
-          if(typeof this.dim[i].aes[j].ordinalDomain === 'undefined') {
-            var f = this.dim[i].aes[j].func;
-            dom = [];
-            for(var k = 0 ; k < this.dataset.length ; k++) {
-              dom.push(f(this.dataset[k]));
-            }
-            RemoveDupArray(dom);
-            this.dim[i].aes[j].ordinalDomain = dom;
-          }
-          else
-            dom = this.dim[i].aes[j].ordinalDomain;
+          // Compute discret domain
+          computeDomain(this.dim[i].aes[j], this.dataset, 'discret');
+          var dom = this.dim[i].aes[j].ordinalDomain;;
           
           for(var k = 0 ; k < dom.length ; k++)
             domain.push(dom[k]);
@@ -414,21 +406,8 @@
         domain = [Infinity, -Infinity];
         for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
           // Compute continuous domain
-          var dom;
-          if(typeof this.dim[i].aes[j].continuousDomain === 'undefined') {
-            // Compute continuous domain from ordinal one
-            if(typeof this.dim[i].aes[j].ordinalDomain != 'undefined') {
-              var ordDom = dim[i].aes[j].ordinalDomain;
-              dom = [ordDom[0], ordDom[ordDom.length-1]];
-            }
-            else {
-              var stat = computeStat(this.dataset, this.dim[i].aes[j].func);
-              dom = [stat.min, stat.max];
-            }
-            this.dim[i].aes[j].continuousDomain = dom;
-          }
-          else
-            dom = this.dim[i].aes[j].continuousDomain;
+          computeDomain(this.dim[i].aes[j], this.dataset, 'continuous');
+          var dom = this.dim[i].aes[j].continuousDomain;
           
           if(dom[0] < domain[0])
             domain[0] = dom[0];
@@ -466,7 +445,7 @@
         
         var attr_type = this.elements[i][attr].type;
         var attr_aes = this.elements[i][attr].aes;
-        var aes_ret_type = typeof attr_aes.func(this.dataset[0], 0);
+        var aes_ret_type = typeof attr_aes.func(this.dataset[0]);
         
         
         switch(attr_type) {
@@ -511,8 +490,8 @@
             }
             else { // Just apply toString
               var applyToString = function (f) {
-                return function (d, i) {
-                  return me.f(d, i).toString();
+                return function (d) {
+                  return f(d).toString();
                 }
               };
               this.elements[i][attr].func = applyToString(attr_aes.func);
@@ -556,6 +535,14 @@
       }
     }
     
+    // Splitting data according to group
+    var groupSizes = [];
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
+      groupSizes.push(this.elements[i].group.aes.ordinalDomain.length);
+    }
+    
+    
     var splitDataset = allocateSplitDataArray(splitSizes, 0);
     
     var values = [];
@@ -577,7 +564,16 @@
           dataSpacialSubset = dataSpacialSubset[id];
         }
         
-        dataSpacialSubset.push(this.dataset[i]);
+        if(dataSpacialSubset.length == 0) {
+          for(var k = 0 ; k < groupSizes[j] ; k++) {
+            dataSpacialSubset.push([]);
+          }
+        }
+        
+        var value = this.elements[j].group.aes.func(this.dataset[i], i);
+        var id = this.elements[j].group.aes.ordinalDomain.indexOf(value);
+        
+        dataSpacialSubset[id].push(this.dataset[i]);
       }
     }
     
@@ -624,9 +620,36 @@
     }
     
     
-    
     // Draw elements
     for(var i = 0 ; i < this.elements.length ; i++) {
+      // Compute 'getX' and 'getY' functions
+      var pos;
+      if(typeof this.elements[i].position.value === null) {
+        // TODO: default value (first value of discret domain or min of continue one)
+      }
+      else {
+        pos = new Array(this.elements[i].position.aes.length);
+        for(var j = 0 ; j < pos.length ; j++)
+          pos[j] = this.elements[i].position.aes[j].func;
+      }
+      
+      // getX
+      var Closure = function (cs, p, ml) {
+        return function (d) {
+          return ml + cs.getX(p, d);
+        }
+      };
+      var getX = Closure(this.spacialCoord, pos, this.margin.left);
+      
+      // getY
+      Closure = function (cs, p, mt) {
+        return function (d) {
+          return mt + cs.getY(p, d);
+        }
+      };
+      var getY = Closure(this.spacialCoord, pos, this.margin.top);
+      
+      
       // Initilasing current position
       var currentPos = [];
       for(var j = 0 ; j < this.splitSpacialDimId.length ; j++) {
@@ -641,97 +664,88 @@
           dataSubset = dataSubset[currentPos[j]];
         }
         
-        // Compute 'getX' and 'getY' functions
-        var pos;
-        if(typeof this.elements[i].position.value === null) {
-         // TODO: default value (first value of discret domain or min of continue one)
-        }
-        else {
-          // TODO: optimize: some part of the position are already been computed
-          pos = new Array(this.elements[i].position.aes.length);
-          for(var j = 0 ; j < pos.length ; j++)
-            pos[j] = this.elements[i].position.aes[j].func;
-        }
-        
-        // getX
-        var Closure = function (cs, p, ml) {
-          return function (d, i) {
-            return ml + cs.getX(p, d, i);
-          }
-        };
-        var getX = Closure(this.spacialCoord, pos, this.margin.left);
-        
-        // getY
-        Closure = function (cs, p, mt) {
-          return function (d, i) {
-            return mt + cs.getY(p, d, i);
-          }
-        };
-        var getY = Closure(this.spacialCoord, pos, this.margin.top);
-        
-        var eltClass = 'etl'+i;
-        for(var j = 0 ; j < currentPos.length ; j++) {
-          eltClass += currentPos[j];
-        }
-        
-        // Set attributes for each kind of elements
-        // Symbol
-        if(this.elements[i].name == 'Symbol') {
-          var symbol = d3.svg.symbol();
+        var dataSubsetCopy = dataSubset;
+        var groupSize = this.elements[i].group.aes.ordinalDomain.length;
+        console.log('dataSubsetCopy', currentPos,dataSubsetCopy);
+        for(var j = 0 ; j < groupSize ; j++) {
+          dataSubset = dataSubsetCopy[j];
           
-          if(this.elements[i].type.value != null)
-            symbol.type(this.elements[i].type.func);
+          console.log('dataSubset', currentPos, j,dataSubset);
+          
+          
+          var eltClass = 'etl'+i;
+          for(var k = 0 ; k < currentPos.length ; k++) {
+            eltClass += currentPos[k];
+          }
+          eltClass +=j
+          
+          // Set attributes for each kind of elements
+          // Symbol
+          if(this.elements[i].name == 'Symbol') {
+            var symbol = d3.svg.symbol();
             
-          if(this.elements[i].size.value != null)
-            symbol.size(this.elements[i].size.func);
-          
-          var node = this.svg.selectAll('.'+eltClass)
-                         .data(dataSubset);
-          
-          // On enter
-          var onEnter = node.enter().append('path').attr('class', eltClass);
-          svgSetCommonAttributes(onEnter, this.elements[i]);
-          onEnter.attr('transform', function(d, i) {return 'translate('+getX(d,i)+','+getY(d,i)+')';});
-          onEnter.attr('d', symbol);
-          
-          // On exit
-          node.exit().remove();
-          
-          // On update
-          var onUpdate = node.transition();
-          
-          svgSetCommonAttributes(onUpdate, this.elements[i]);
-          onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d,i)+','+getY(d,i)+')';});
-          node.attr('d', symbol); // Transition bug here...
-        }
-        // Lines
-        else if(this.elements[i].name == 'Line') {
-          var interpolation;
-          if(dataSubset.length > 0)
-            interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
-          else
-            interpolation = '';
-          
-          var lineFunction = d3.svg.line()
-                               .x(getX)
-                               .y(getY)
-                               .interpolate(interpolation);
-          
-          var node;
-          // On enter
-          if(this.svg.select('.'+eltClass).empty()) {
-            node = this.svg.append('path').attr('class', eltClass);
-          }
-          // On update
-          else {
-            node = this.svg.select('.'+eltClass).transition();
+            if(this.elements[i].type.value != null)
+              symbol.type(this.elements[i].type.func);
+              
+            if(this.elements[i].size.value != null)
+              symbol.size(this.elements[i].size.func);
+            
+            var node = this.svg.selectAll('.'+eltClass)
+                           .data(dataSubset);
+            
+            // On enter
+            var onEnter = node.enter().append('path').attr('class', eltClass);
+            svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
+            onEnter.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
+            onEnter.attr('d', symbol);
+            
+            // On exit
+            node.exit().remove();
+            
+            // On update
+            var onUpdate = node.transition();
+            
+            svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
+            onUpdate.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
+            node.attr('d', symbol); // Transition bug here...
           }
           
-          node.attr("d", lineFunction(dataSubset)); 
-          svgSetCommonAttributes(node, this.elements[i]);
-          svgSetAttribute(node, 'stroke-linecap', this.elements[i], 'stroke_linecap');
-          
-          // Nothing to do on exit, there will just be an empty path
+          // Lines
+          else if(this.elements[i].name == 'Line') {
+            var interpolation;
+            if(dataSubset.length > 0)
+              interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
+            else
+              interpolation = '';
+            
+            var lineFunction = d3.svg.line()
+                                 .x(getX)
+                                 .y(getY)
+                                 .interpolate(interpolation);
+            
+            var node;
+            // On enter
+            if(this.svg.select('.'+eltClass).empty()) {
+              node = this.svg.append('path').attr('class', eltClass);
+            }
+            // On update
+            else {
+              node = this.svg.select('.'+eltClass).transition();
+            }
+            
+            node.attr("d", lineFunction(dataSubset)); 
+            
+            if(dataSubset.length > 0) {
+              svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0]);
+              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0]);
+            }
+            else {
+              svgSetCommonAttributesPerGroup(node, this.elements[i], null);
+              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', null);
+            }
+            
+            // Nothing to do on exit, there will just be an empty path
+          }
         }
         
         var j = 0;
@@ -865,21 +879,21 @@
     }
   };
     
-  Rect.prototype.getX = function(pos, d, i) {
-    var X = (this.dimId[0] != null) ? this.scaleX(pos[this.dimId[0]](d, i)) : 0;
+  Rect.prototype.getX = function(pos, d) {
+    var X = (this.dimId[0] != null) ? this.scaleX(pos[this.dimId[0]](d)) : 0;
     
     if(this.subSys != null) {
-      X += this.subSys.getX(pos, d, i);
+      X += this.subSys.getX(pos, d);
     }
     
     return X;
   },
   
-  Rect.prototype.getY = function(pos, d, i) {
-    var Y = (this.dimId[1] != null) ? this.scaleY(pos[this.dimId[1]](d, i)) : 0;
+  Rect.prototype.getY = function(pos, d) {
+    var Y = (this.dimId[1] != null) ? this.scaleY(pos[this.dimId[1]](d)) : 0;
     
     if(this.subSys != null) {
-      Y += this.subSys.getY(pos, d, i);
+      Y += this.subSys.getY(pos, d);
     }
     
     return Y;
@@ -1021,16 +1035,16 @@
     }
   };
     
-  Polar.prototype.getX = function(pos, d, i) {
-    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
-    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
+  Polar.prototype.getX = function(pos, d) {
+    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d)) : 2*Math.PI;
+    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d)) : this.centerX / 2;
     
     return this.centerX + Math.cos(theta) * radius;
   },
   
-  Polar.prototype.getY = function(pos, d, i) {
-    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d, i)) : 2*Math.PI;
-    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d, i)) : this.centerX / 2;
+  Polar.prototype.getY = function(pos, d) {
+    var theta = (this.dimId[0] != null) ? this.scaleT(pos[this.dimId[0]](d)) : 2*Math.PI;
+    var radius = (this.dimId[1] != null) ? this.scaleR(pos[this.dimId[1]](d)) : this.centerX / 2;
     
     return this.centerY - Math.sin(theta) * radius;
   };
@@ -1152,6 +1166,7 @@
         me:this,
         action:function (error, dataset) {
           // TODO: handle errors
+          // TODO: handle errors
           
           me.g.data(dataset);
           
@@ -1215,21 +1230,38 @@
     g.elements.push(elt);
   }
   
-  // Set an svg attribute
-  function svgSetAttribute(node, svgAttr, elt, attr) {
+  // Set an svg attribute (each element have its value)
+  function svgSetAttributePerElem(node, svgAttr, elt, attr) {
     if(elt[attr].value != null) {
       node.attr(svgAttr, elt[attr].func);
     }
   }
   
-  // Set common svg attribute
-  function svgSetCommonAttributes(node, elt) {
-    svgSetAttribute(node, 'stroke-width',     elt, 'stroke_width');
-    svgSetAttribute(node, 'stroke',           elt, 'stroke');
-    svgSetAttribute(node, 'stroke-dasharray', elt, 'stroke_dasharray');
-    svgSetAttribute(node, 'stroke-opacity',   elt, 'stroke_opacity');
-    svgSetAttribute(node, 'fill',             elt, 'fill');
-    svgSetAttribute(node, 'fill-opacity',     elt, 'fill_opacity');
+  // Set common svg attribute (each element have its value)
+  function svgSetCommonAttributesPerElem(node, elt) {
+    svgSetAttributePerElem(node, 'stroke-width',     elt, 'stroke_width');
+    svgSetAttributePerElem(node, 'stroke',           elt, 'stroke');
+    svgSetAttributePerElem(node, 'stroke-dasharray', elt, 'stroke_dasharray');
+    svgSetAttributePerElem(node, 'stroke-opacity',   elt, 'stroke_opacity');
+    svgSetAttributePerElem(node, 'fill',             elt, 'fill');
+    svgSetAttributePerElem(node, 'fill-opacity',     elt, 'fill_opacity');
+  }
+  
+  // Set an svg attribute (element of the same group have the same value)
+  function svgSetAttributePerGroup(node, svgAttr, elt, attr, datum) {
+    if(elt[attr].value != null) {
+      node.attr(svgAttr, elt[attr].func(datum));
+    }
+  }
+  
+  // Set common svg attribute (element of the same group have the same value)
+  function svgSetCommonAttributesPerGroup(node, elt, datum) {
+    svgSetAttributePerGroup(node, 'stroke-width',     elt, 'stroke_width',     datum);
+    svgSetAttributePerGroup(node, 'stroke',           elt, 'stroke',           datum);
+    svgSetAttributePerGroup(node, 'stroke-dasharray', elt, 'stroke_dasharray', datum);
+    svgSetAttributePerGroup(node, 'stroke-opacity',   elt, 'stroke_opacity',   datum);
+    svgSetAttributePerGroup(node, 'fill',             elt, 'fill',             datum);
+    svgSetAttributePerGroup(node, 'fill-opacity',     elt, 'fill_opacity',     datum);
   }
   
   // Add padding to a continue interval
@@ -1260,7 +1292,7 @@
   
   // Compute some stats (min and max only for now)
   function computeStat(dataset, f) {  
-    var min = f(dataset[0], 0);
+    var min = f(dataset[0]);
     var max = min;
     
     for(var i = 1 ; i < dataset.length ; i++){

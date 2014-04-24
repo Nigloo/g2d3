@@ -136,6 +136,7 @@
                 for(var i = 0 ; i < 20 ; i++)
                     dataset.push({col1:i, col2:t, col3:'v'+(i<10?'0':'')+i});
             
+            
             G.push(d4.graphic()
             .coord(d4.polar({   theta:1,
                                 radius:2}))
@@ -146,7 +147,7 @@
                         fill:'white',
                         stroke:'data:col1',
                         stroke_width:2})
-            .data(dataset)
+            .data(d4.loadFromFile('test.csv'))
             .plot({selector:"#graph4", width:1024, height:768, margin:50}));
             
             
@@ -179,7 +180,11 @@
             .symbol({   fill:'data:col3',
                         type:'data:col4',
                         stroke:'black'})
-            .data(d4.loadFromFile('test.csv'))
+            .data(d4.loadFromDatabase({ host:'localhost',
+                                        dbname:'test_db',
+                                        user:'user_test',
+                                        pwd:'123456',
+                                        request:'SELECT * FROM data_test'}))
             .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40}));
             
             
@@ -191,7 +196,7 @@
             function next(i) {
                 G[i-1].nextStep(1);
             }
-               
+            
         </script>
     </head>
     <body>

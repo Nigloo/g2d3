@@ -101,9 +101,9 @@
   Graphic.prototype.element = function(param) {
     this.fallback_element = new ElementBase();
     
-    if(typeof param != 'undefined') {
+    if(!isUndefined(param)) {
       for(var attr in this.fallback_element) {
-        if(typeof param[attr] != 'undefined') {
+        if(!isUndefined(param[attr])) {
           this.fallback_element[attr].value = param[attr];
         }
       }
@@ -147,7 +147,7 @@
   
   // Set spacial coordinate system (Rect({x:1, y:2}) by default)
   Graphic.prototype.coord = function(coordSys) {
-    if(typeof coordSys === 'undefined') {
+    if(isUndefined(coordSys)) {
       this.spacialCoord = new Rect({x:1, y:2});
     }
     else {
@@ -168,7 +168,7 @@
   
   // Set temporal coordinate system (none by default)
   Graphic.prototype.time = function(temporalCoord) {
-    if(typeof temporalCoord === 'undefined') {
+    if(isUndefined(temporalCoord)) {
       this.temporalCoord = new Temp();
     }
     else {
@@ -180,7 +180,7 @@
   
   // Go to the next value of the specified time dimension
   Graphic.prototype.nextStep = function(timeDimension) {
-    if(typeof timeDimension === 'undefined' || this.currentTime === null ||
+    if(isUndefined(timeDimension) || this.currentTime === null ||
       timeDimension < 1 || timeDimension > this.currentTime.length) {
       return this;
     }
@@ -195,7 +195,7 @@
   
   // Go to the previous value of the specified time dimension
   Graphic.prototype.previousStep = function(timeDimension) {
-    if(typeof timeDimension === 'undefined' || this.currentTime === null ||
+    if(isUndefined(timeDimension) || this.currentTime === null ||
       timeDimension < 1 || timeDimension > this.currentTime.length) {
       return this;
     }
@@ -223,29 +223,29 @@
                     bottom:20};
     
     // Check parameters
-    if(typeof param != 'undefined') {
-      if(typeof param.selector != 'undefined') {
+    if(!isUndefined(param)) {
+      if(!isUndefined(param.selector)) {
         selector = param.selector;
       }
-      if(typeof param.width != 'undefined') {
+      if(!isUndefined(param.width)) {
         width = param.width;
       }
-      if(typeof param.height != 'undefined') {
+      if(!isUndefined(param.height)) {
         height = param.height;
       }
-      if(typeof param.margin != 'undefined') {
+      if(!isUndefined(param.margin)) {
         this.margin.left = this.margin.top = this.margin.right = this.margin.bottom = param.margin;
       }
-      if(typeof param.margin_left != 'undefined') {
+      if(!isUndefined(param.margin_left)) {
         this.margin.left = param.margin_left;
       }
-      if(typeof param.margin_top != 'undefined') {
+      if(!isUndefined(param.margin_top)) {
         this.margin.top = param.margin_top;
       }
-      if(typeof param.margin_right != 'undefined') {
+      if(!isUndefined(param.margin_right)) {
         this.margin.right = param.margin_right;
       }
-      if(typeof param.margin_bottom != 'undefined') {
+      if(!isUndefined(param.margin_bottom)) {
         this.margin.bottom = param.margin_bottom;
       }
     }
@@ -280,7 +280,7 @@
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
         // Skip uninteresting attributes and non-set attributes
-        if(typeof this.elements[i][attr].type === 'undefined' ||
+        if(isUndefined(this.elements[i][attr].type) ||
            this.elements[i][attr].value === null) {
           continue;
         }
@@ -304,7 +304,7 @@
               throw errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\'');
             
             this.elements[i][attr].aes[j] = aes[aesId];
-            if(typeof this.dim[j].aes === 'undefined')
+            if(isUndefined(this.dim[j].aes))
               this.dim[j].aes = [];
               
             this.dim[j].aes.push(aes[aesId]);
@@ -369,7 +369,7 @@
      * Computing dimentions' domains *
     \*                               */
     for(var i = 0 ; i < this.dim.length ; i++) {
-      if(typeof this.dim[i].aes === 'undefined')
+      if(isUndefined(this.dim[i].aes))
         throw 'Error: dimention '+(i+1)+' unused';
       
       var domain;
@@ -437,7 +437,7 @@
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
         // Skip uninteresting attributes and non-set attributes
-        if(typeof this.elements[i][attr].type === 'undefined' ||
+        if(isUndefined(this.elements[i][attr].type) ||
            this.elements[i][attr].value === null ||
            this.elements[i][attr].type === 'position') {
           continue;
@@ -550,7 +550,7 @@
       var dataTempSubset = splitDataset;
       for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
         // There is only one aesthetic per temporal dimension
-        var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i], i);
+        var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i]);
         var id = this.dim[this.splitTempDimId[j]].domain.indexOf(value);
         dataTempSubset = dataTempSubset[id];
       }
@@ -559,7 +559,7 @@
         var dataSpacialSubset = dataTempSubset[j];
         for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
           // There is only one aesthetic per temporal dimension
-          var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i], i);
+          var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i]);
           var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
           dataSpacialSubset = dataSpacialSubset[id];
         }
@@ -570,7 +570,7 @@
           }
         }
         
-        var value = this.elements[j].group.aes.func(this.dataset[i], i);
+        var value = this.elements[j].group.aes.func(this.dataset[i]);
         var id = this.elements[j].group.aes.ordinalDomain.indexOf(value);
         
         dataSpacialSubset[id].push(this.dataset[i]);
@@ -666,12 +666,8 @@
         
         var dataSubsetCopy = dataSubset;
         var groupSize = this.elements[i].group.aes.ordinalDomain.length;
-        console.log('dataSubsetCopy', currentPos,dataSubsetCopy);
         for(var j = 0 ; j < groupSize ; j++) {
           dataSubset = dataSubsetCopy[j];
-          
-          console.log('dataSubset', currentPos, j,dataSubset);
-          
           
           var eltClass = 'etl'+i;
           for(var k = 0 ; k < currentPos.length ; k++) {
@@ -790,7 +786,7 @@
     this.scaleX = null;
     this.scaleY = null;
     
-    if(typeof param === 'undefined') {
+    if(isUndefined(param)) {
       return;
     }
     
@@ -967,7 +963,7 @@
     this.scaleR = null;
     this.subSys = null;
     
-    if(typeof param === 'undefined') {
+    if(isUndefined(param)) {
       return;
     }
     
@@ -1137,7 +1133,7 @@
     this.dimId = [];
     this.value = [];
     
-    if(typeof param === 'undefined') {
+    if(isUndefined(param)) {
       return;
     }
     
@@ -1166,7 +1162,6 @@
         me:this,
         action:function (error, dataset) {
           // TODO: handle errors
-          // TODO: handle errors
           
           me.g.data(dataset);
           
@@ -1180,24 +1175,77 @@
     var closure = new Closure();
     
     d3.csv(filename)
-    .row(function(d) {
-      var new_row = {};
-      for(var key in d) {
-        var value = +d[key];
-        if(isNaN(value)) {
-          new_row[key.trim()] = d[key].trim();
-        }
-        else {
-          new_row[key.trim()] = value;
-        }
-      }
-      return new_row;
-    })
+    .row(processRow)
     .get(closure.action);
     
     return closure;
   }
 
+
+  // Load data from a database
+  window[lib_name].loadFromDatabase = function(param) {
+    var host = 'localhost';
+    var dbname = null;
+    var user = null;
+    var pwd = null;
+    var request = null;
+    
+    if(isUndefined(param)) {
+      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters';
+    }
+    else if(isUndefined(param.dbname)) {
+      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'dbname\'';
+    }
+    else if(isUndefined(param.user)) {
+      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'user\'';
+    }
+    else if(isUndefined(param.pwd)) {
+      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'pwd\'';
+    }
+    else if(isUndefined(param.request)) {
+      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'request\'';
+    }
+    else if(!isUndefined(param.request)) {
+      host = param.host;
+    }
+    
+    dbname = param.dbname;
+    user = param.user;
+    pwd = param.pwd;
+    request = param.request;
+    
+    var Closure = function () {
+      this.g = null;
+      this.plotParam = null;
+      var me = this;
+      return {
+        me:this,
+        action:function (error, dataset) {
+          // TODO: handle errors
+          
+          me.g.data(dataset);
+          
+          if(me.plotParam != null) {
+            me.g.render(me.plotParam);
+          }
+          
+        }
+      };
+    }
+    
+    var closure = new Closure();
+    
+    var urlParam = 'host='+host+'&dbname='+dbname+'&user='+user+'&pwd='+pwd+'&request='+request;
+    
+    d3.xhr('http://localhost?'+urlParam)
+    //.header("Content-Type", "application/x-www-form-url-encoded")
+    .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
+    //.header("Content-Type", "text/csv") // Cause an error (Request header field content-type is not allowed by Access-Control-Allow-Headers)
+    //.post('a=42',closure.action)
+    .get(closure.action);
+    
+    return closure;
+  }
 
   
   ///////////////////////
@@ -1210,16 +1258,16 @@
     
     // copying attributes' values from the fallback element
     for(var attr in g.fallback_element) {
-      if(typeof g.fallback_element[attr].type != 'undefined') {
+      if(!isUndefined(g.fallback_element[attr].type)) {
         elt[attr] = {type:g.fallback_element[attr].type,
                      value:g.fallback_element[attr].value};
       }
     }
     
-    if(typeof param != 'undefined') {
+    if(!isUndefined(param)) {
       for(var attr in elt) {
-        if(typeof param[attr] != 'undefined' &&
-           typeof elt[attr] != 'undefined' && typeof elt[attr].type != 'undefined') {
+        if(!isUndefined(param[attr]) &&
+           !isUndefined(elt[attr]) && !isUndefined(elt[attr].type)) {
           if(attr == 'pos')
             elt[attr].value = param[attr].slice();
           else
@@ -1296,7 +1344,7 @@
     var max = min;
     
     for(var i = 1 ; i < dataset.length ; i++){
-      var val = f(dataset[i], i);
+      var val = f(dataset[i]);
       
       if(val < min) {
         min = val;
@@ -1354,7 +1402,7 @@
     if(typeof attr_val === 'string' && attr_val.indexOf(data_binding_prefix) == 0) {
       var column = attr_val.substring(data_binding_prefix.length);
       
-      if(typeof dataCol2Aes[column] === 'undefined')
+      if(isUndefined(dataCol2Aes[column]))
       {
         // We convert it into a fonction
         var toFunction = function (c) {
@@ -1372,7 +1420,7 @@
     }
     // If the value of the attribute is constant
     else if(typeof attr_val === 'number' || typeof attr_val === 'string') {
-      if(typeof const2Aes[attr_val] === 'undefined') {
+      if(isUndefined(const2Aes[attr_val])) {
         // We convert it into a fonction
         var toFunction = function (v) {
           return function () {
@@ -1395,7 +1443,7 @@
     }
     // If the value of the attribute is computed by a function
     else if(typeof attr_val === 'function') {
-      if(typeof func2Aes[attr_val] === 'undefined')
+      if(isUndefined(func2Aes[attr_val]))
       {
         aes.push({func:attr_val});
         id = aes.length - 1;
@@ -1415,7 +1463,7 @@
   function computeDomain(aes, dataset, type) {
     // Ordinal domain
     if(type == 'discret') {
-      if(typeof aes.ordinalDomain === 'undefined') {
+      if(isUndefined(aes.ordinalDomain)) {
         var f = aes.func;
         aes.ordinalDomain = [];
         for(var k = 0 ; k < dataset.length ; k++) {
@@ -1426,9 +1474,9 @@
     }
     // Continue domain
     else {
-      if(typeof aes.continuousDomain === 'undefined') {
+      if(isUndefined(aes.continuousDomain)) {
         // Compute continuous domain from ordinal one
-        if(typeof aes.ordinalDomain != 'undefined') {
+        if(!isUndefined(aes.ordinalDomain)) {
           var ordDom = aes.ordinalDomain;
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
@@ -1454,6 +1502,15 @@
     }
   }
   
+  function processRow(d) {
+    for(var key in d) {
+      var value = +d[key];
+      if(!isNaN(value)) {
+        d[key] = value;
+      }
+    }
+    return d;
+  }
   
   
   var ASSERT = function(condition, msg) {
@@ -1467,6 +1524,10 @@
     if ( window.console && window.console.log ) {
       console.log(msg)
     }
+  }
+  
+  function isUndefined(a) {
+    return typeof a === 'undefined';
   }
   
   

@@ -91,6 +91,7 @@
     // attribute non null only after render
     this.margin = null;
     this.svg = null;
+    this.nestedData = null;
     this.currentTime = null;
     this.splitTempDimId = null;
     this.splitSpacialDimId = null;
@@ -543,11 +544,11 @@
     }
     
     
-    var splitDataset = allocateSplitDataArray(splitSizes, 0);
+    this.nestedata = allocateSplitDataArray(splitSizes, 0);
     
     var values = [];
     for(var i = 0 ; i < this.dataset.length ; i++) {
-      var dataTempSubset = splitDataset;
+      var dataTempSubset = this.nestedata;
       for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
         // There is only one aesthetic per temporal dimension
         var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i]);
@@ -576,8 +577,6 @@
         dataSpacialSubset[id].push(this.dataset[i]);
       }
     }
-    
-    this.dataset = splitDataset;
     
     // Initialising current 'time' (i.e. position in spacial dimensions)
     this.currentTime = [];
@@ -614,7 +613,7 @@
   // (Re)draw elements of the graphics
   Graphic.prototype.update = function() {
     // Data belonging to the current time
-    var dataToDisplay = this.dataset;
+    var dataToDisplay = this.nestedata;
     for(var i = 0 ; i < this.currentTime.length ; i++) {
       dataToDisplay = dataToDisplay[this.currentTime[i]];
     }
@@ -1235,14 +1234,12 @@
     
     var closure = new Closure();
     
-    var urlParam = 'host='+host+'&dbname='+dbname+'&user='+user+'&pwd='+pwd+'&request='+request;
+    var httpRequestParam = 'host='+host+'&dbname='+dbname+'&user='+user+'&pwd='+pwd+'&request='+request;
     
-    d3.xhr('http://localhost?'+urlParam)
-    //.header("Content-Type", "application/x-www-form-url-encoded")
+    d3.xhr('http://localhost')
+    .header("Content-Type", "application/x-www-form-urlencoded")
     .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
-    //.header("Content-Type", "text/csv") // Cause an error (Request header field content-type is not allowed by Access-Control-Allow-Headers)
-    //.post('a=42',closure.action)
-    .get(closure.action);
+    .post(httpRequestParam, closure.action)
     
     return closure;
   }
@@ -1340,21 +1337,9 @@
   
   // Compute some stats (min and max only for now)
   function computeStat(dataset, f) {  
-    var min = f(dataset[0]);
-    var max = min;
+    var min_max = d3.extent(dataset, f);
     
-    for(var i = 1 ; i < dataset.length ; i++){
-      var val = f(dataset[i]);
-      
-      if(val < min) {
-        min = val;
-      }
-      else if(val > max) {
-        max = val;
-      }
-    }
-    
-    return {min:min, max:max}
+    return {min:min_max[0], max:min_max[1]}
   }
   
   // Generate an error message

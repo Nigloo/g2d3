@@ -24,6 +24,9 @@
             
             var G = [];
             
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
             var dataset = [
                 {col1:5,    col2:5,     col3:300,   col4:0},
                 {col1:10,   col2:20,    col3:1200,  col4:1},
@@ -63,8 +66,9 @@
             
             for(var i = 0 ; i < cat1.length ; i++) {
                 for(var j = 0 ; j < cat2.length ; j++) {
-                    for(var k = 0 ; k < 10 ; k++) {
-                        dataset.push({col1:cat1[i], col2:cat2[j], col3:Math.random()*4, col4:Math.random()*4});
+                    for(var k = 0 ; k < 5 ; k++) {
+                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:Math.random()*2});
+                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:2+Math.random()*2});
                     }
                 }
             }
@@ -75,11 +79,10 @@
             }
             
             var color = function(d) {
-                //alert(d.col4);
                 return (group(d) == 1) ? 'blue' : 'red';
             }
             
-                
+            
             G.push(d4.graphic()
             .coord(d4.rect({x:1,
                             y:2,
@@ -89,16 +92,21 @@
             .element({  position:[  'data:col1',
                                     'data:col2',
                                     'data:col3',
-                                    'data:col4'],
-                        stroke:color,
-                        group:group})
+                                    'data:col4']})
             .line(  {   fill:'none',
-                        stroke_width:3})
+                        stroke_width:3,
+                        stroke:'green',
+                        group:'data:col3',
+                        stroke_dasharray:'5,5'})
             .symbol({   size:50,
                         fill:'white',
-                        stroke_width:2})
+                        stroke:color,
+                        stroke_width:2,
+                        type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data(dataset)
-            .plot({selector:"#graph2", width:1024, height:768, margin:50}));
+            .plot({selector:"#graph2", width:800, height:600, margin:30}));
+            
+
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +195,9 @@
                                         request:'SELECT * FROM data_test'}))
             .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40}));
             
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
             
             
             function prev(i) {

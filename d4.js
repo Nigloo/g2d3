@@ -132,7 +132,7 @@
   // Set dataset
   Graphic.prototype.data = function(data) {
     if(data === null) {
-      throw 'Setting data to null';
+      ERROR('Setting data to null');
     }
     else if(data instanceof Array) {
       this.dataset = data;
@@ -156,7 +156,7 @@
       
       while(coordSys != null) {
         if(coordSys instanceof Polar && coordSys.subSys != null) {
-          throw 'Impossible to have a sub coordinate system in a Polar system'
+          ERROR('Impossible to have a sub coordinate system in a Polar system');
         }
         else{
           coordSys = coordSys.subSys;
@@ -292,7 +292,7 @@
         if(attr_type == 'position') {
           // Positions are bound with several aesthetics (one per dimention) 
           if(!attr_val instanceof Array)
-            throw errorMessage(this.elements[i].name, attr, typeof attr_val, '\'Array\'');
+            ERROR(errorMessage(this.elements[i].name, attr, typeof attr_val, '\'Array\''));
           
           this.elements[i][attr].aes = new Array(attr_val.length);
           for(var j = 0 ; j < attr_val.length ; j++) {
@@ -302,7 +302,7 @@
             // Check data type return by this aesthetic
             var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
             if(aes_ret_type != 'number' && aes_ret_type != 'string')
-              throw errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\'');
+              ERROR(errorMessage(this.elements[i].name, attr+'['+j+']', aes_ret_type, '\'number\' or \'string\''));
             
             this.elements[i][attr].aes[j] = aes[aesId];
             if(isUndefined(this.dim[j].aes))
@@ -320,22 +320,22 @@
           switch(attr_type) {
             case 'color':
               if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-                throw errorMessage(this.elements[i].name, attr, aes_ret_type, 'color (\'number\' or \'string\')');
+                ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
               }
               break;
             case 'symbol':
               if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-                throw errorMessage(this.elements[i].name, attr, aes_ret_type, 'symbol (\'number\' or \'string\')');
+                ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
               }
               break;
             case 'string':
               if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-                throw errorMessage(this.elements[i].name, attr, aes_ret_type, '\'string\' (\'number\' accepted)');
+                ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
               }
               break;
             case 'number':
               if(aes_ret_type != 'number') {
-                throw errorMessage(this.elements[i].name, attr, aes_ret_type, '\'number\'');
+                ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, '\'number\''));
               }
               break;
           }
@@ -353,7 +353,7 @@
       // Check data type return by this aesthetic
       var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
       if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-        throw errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\'');
+        ERROR(errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\''));
       }
       // There is one and only one aesthetic per temporal dimention
       this.dim[this.temporalCoord.dimId[i]].aes = [aes[aesId]];
@@ -371,7 +371,7 @@
     \*                               */
     for(var i = 0 ; i < this.dim.length ; i++) {
       if(isUndefined(this.dim[i].aes))
-        throw 'Error: dimention '+(i+1)+' unused';
+        ERROR('Error: dimention '+(i+1)+' unused');
       
       var domain;
       var ordinal;
@@ -792,7 +792,7 @@
     var type = typeof param.x;
     if(type != 'undefined') {
       if(type != 'number') {
-        throw errorMessage('Rect', 'x', type, '\'positive integer\'');
+        ERROR(errorMessage('Rect', 'x', type, '\'positive integer\''));
       }
       else {
         this.dimId[0] = param.x-1;
@@ -802,7 +802,7 @@
     type = typeof param.y;
     if(type != 'undefined') {
       if(type != 'number') {
-        throw errorMessage('Rect', 'y', type, '\'positive integer\'');
+        ERROR(errorMessage('Rect', 'y', type, '\'positive integer\''));
       }
       else {
         this.dimId[1] = param.y-1;
@@ -812,7 +812,7 @@
     var type = typeof param.subSys;
     if(type != 'undefined') {
       if(type != 'object') {
-        throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
+        ERROR(errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\''));
       }
       else {
         this.subSys = param.subSys;
@@ -969,7 +969,7 @@
     var type = typeof param.theta;
     if(type != 'undefined') {
       if(type != 'number') {
-        throw errorMessage('Rect', 'theta', type, '\'positive integer\'');
+        ERROR(errorMessage('Rect', 'theta', type, '\'positive integer\''));
       }
       else {
         this.dimId[0] = param.theta-1;
@@ -979,7 +979,7 @@
     type = typeof param.radius;
     if(type != 'undefined') {
       if(type != 'number') {
-        throw errorMessage('Rect', 'radius', type, '\'positive integer\'');
+        ERROR(errorMessage('Rect', 'radius', type, '\'positive integer\''));
       }
       else {
         this.dimId[1] = param.radius-1;
@@ -989,7 +989,7 @@
     var type = typeof param.subSys;
     if(type != 'undefined') {
       if(type != 'object' || !param.subSys instanceof CoordSys) {
-        throw errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\'');
+        ERROR(errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\''));
       }
       else {
         this.subSys = param.subSys;
@@ -1152,32 +1152,13 @@
 
   // Load data from a csv file
   window[lib_name].loadFromFile = function(filename) {
-    
-    var Closure = function () {
-      this.g = null;
-      this.plotParam = null;
-      var me = this;
-      return {
-        me:this,
-        action:function (error, dataset) {
-          // TODO: handle errors
-          
-          me.g.data(dataset);
-          
-          if(me.plotParam != null) {
-            me.g.render(me.plotParam);
-          }
-        }
-      };
-    }
-    
-    var closure = new Closure();
+    var dl = new DataLoader();
     
     d3.csv(filename)
     .row(processRow)
-    .get(closure.action);
+    .get(dl.load);
     
-    return closure;
+    return dl;
   }
 
 
@@ -1190,19 +1171,19 @@
     var request = null;
     
     if(isUndefined(param)) {
-      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters';
+      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameters');
     }
     else if(isUndefined(param.dbname)) {
-      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'dbname\'';
+      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'dbname\'');
     }
     else if(isUndefined(param.user)) {
-      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'user\'';
+      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'user\'');
     }
     else if(isUndefined(param.pwd)) {
-      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'pwd\'';
+      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'pwd\'');
     }
     else if(isUndefined(param.request)) {
-      throw 'Error in '+lib_name+'.loadFromDatabase: Missing parameters \'request\'';
+      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'request\'');
     }
     else if(!isUndefined(param.request)) {
       host = param.host;
@@ -1213,41 +1194,43 @@
     pwd = param.pwd;
     request = param.request;
     
-    var Closure = function () {
-      this.g = null;
-      this.plotParam = null;
-      var me = this;
-      return {
-        me:this,
-        action:function (error, dataset) {
-          // TODO: handle errors
-          
-          me.g.data(dataset);
-          
-          if(me.plotParam != null) {
-            me.g.render(me.plotParam);
-          }
-          
-        }
-      };
-    }
-    
-    var closure = new Closure();
+    var dl = new DataLoader();
     
     var httpRequestParam = 'host='+host+'&dbname='+dbname+'&user='+user+'&pwd='+pwd+'&request='+request;
     
     d3.xhr('http://localhost')
-    .header("Content-Type", "application/x-www-form-urlencoded")
+    .header('Content-Type', 'application/x-www-form-urlencoded')
     .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
-    .post(httpRequestParam, closure.action)
+    .post(httpRequestParam, dl.load);
     
-    return closure;
+    return dl;
   }
 
   
   ///////////////////////
   // Private functions //
   ///////////////////////
+  
+  // 
+  var DataLoader = function () {
+    this.g = null;
+    this.plotParam = null;
+    var me = this;
+    return {
+      me:this,
+      load:function (error, dataset) {
+        if(error != null) {
+          ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
+        }
+        
+        me.g.data(dataset);
+        
+        if(me.plotParam != null) {
+          me.g.render(me.plotParam);
+        }
+      }
+    };
+  }
   
   // Add an element to the graphic
   function addElement(g, Type, param) {
@@ -1265,10 +1248,12 @@
       for(var attr in elt) {
         if(!isUndefined(param[attr]) &&
            !isUndefined(elt[attr]) && !isUndefined(elt[attr].type)) {
-          if(attr == 'pos')
+          if(attr == 'pos') {
             elt[attr].value = param[attr].slice();
-          else
+          }
+          else {
             elt[attr].value = param[attr];
+          }
         }
       }
     }
@@ -1334,13 +1319,6 @@
     }
   }
   
-  
-  // Compute some stats (min and max only for now)
-  function computeStat(dataset, f) {  
-    var min_max = d3.extent(dataset, f);
-    
-    return {min:min_max[0], max:min_max[1]}
-  }
   
   // Generate an error message
   function errorMessage(elt_name, attribute, type, expected) {
@@ -1438,7 +1416,7 @@
         id = func2Aes[attr_val];
     }
     else
-      throw 'Error: attribute bind to a \''+typeof attr_val+'\'';
+      ERROR('Error: attribute bind to a \''+typeof attr_val+'\'');
       
     return id;
   }
@@ -1466,8 +1444,7 @@
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
         else {
-          var stat = computeStat(dataset, aes.func);
-          aes.continuousDomain = [stat.min, stat.max];
+          aes.continuousDomain = d3.extent(dataset, aes.func);
         }
       }
     }
@@ -1497,18 +1474,28 @@
     return d;
   }
   
+  function ABORT() {
+    throw 'Abort';
+  }
+  
+  function ERROR(msg) {
+      console.error('Error: '+msg);
+      ABORT();
+  }
+  
+  function WARNING(msg) {
+    console.warn(msg);
+  }
   
   var ASSERT = function(condition, msg) {
+    console.assert(condition, msg);
     if(!condition) {
-      throw 'ASSERTION false: '.concat(msg)
+      ABORT();
     }
   }
   
   var LOG = function(msg) {
-    
-    if ( window.console && window.console.log ) {
-      console.log(msg)
-    }
+    console.log(msg)
   }
   
   function isUndefined(a) {
@@ -1517,12 +1504,12 @@
   
   
   /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
-Function.prototype.compose = function(g) {
-  var fn = this;
-  return function() {
-    return fn.call(this, g.apply(this, arguments));
+  Function.prototype.compose = function(g) {
+    var fn = this;
+    return function() {
+      return fn.call(this, g.apply(this, arguments));
+    };
   };
-};
   
   
   /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */

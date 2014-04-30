@@ -188,6 +188,13 @@
             .symbol({   fill:'data:col3',
                         type:'data:col4',
                         stroke:'black'})
+            .on('mouseover', function(d, g) {
+                                var pos = d4.mouse(g);
+                                d4.popup({id:'hover', graphic:g, position:pos, text:d.col3.toString()});
+                            })
+            .on('mouseout', function(d, g) {
+                                d4.popdown({id:'hover', graphic:g});
+                            })
             .data(d4.loadFromDatabase({ host:'localhost',
                                         dbname:'test_db',
                                         user:'user_test',

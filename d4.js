@@ -3,9 +3,10 @@
   
   var lib_name = 'd4';
   
-  window[lib_name] = {
-    version: '0.2'
+  var main_object = {
+    version: '0.3'
   };
+  window[lib_name] = main_object;
   
   // Some constants
   var data_binding_prefix = 'data:';
@@ -34,6 +35,8 @@
                               value:null};
     this.stroke_opacity =   { type:'number',
                               value:null};
+                              
+    this.listeners = [];
   };
     
   var Symbol = function() {
@@ -42,6 +45,8 @@
                     value:'circle'};
     this.size = { type:'number',
                     value:null};
+                    
+    this.listeners = [];
   };
   
   var Line = function() {
@@ -70,12 +75,14 @@
      * butt
      * round
      * square
-     */  
+     */
+     
+     this.listeners = [];
   };
   
   
   // Create a new graphic
-  window[lib_name].graphic = function(args) {
+  main_object.graphic = function(args) {
     return new Graphic(args);
   }
   
@@ -87,6 +94,7 @@
     this.dataLoader = null;
     this.elements = [];
     this.fallback_element = new ElementBase();
+    this.lastElementAdded = this.fallback_element;
     
     // attribute non null only after render
     this.margin = null;
@@ -101,6 +109,7 @@
   // Set element properties
   Graphic.prototype.element = function(param) {
     this.fallback_element = new ElementBase();
+    this.lastElementAdded = this.fallback_element;
     
     if(!isUndefined(param)) {
       for(var attr in this.fallback_element) {
@@ -125,6 +134,13 @@
   // Add lines
   Graphic.prototype.line = function(param) {
     addElement(this, Line, param);
+    
+    return this;
+  }
+  
+  // Set listener
+  Graphic.prototype.on = function(type, listener) {
+    this.lastElementAdded.listeners[type] = listener;
     
     return this;
   }
@@ -263,11 +279,11 @@
     
     /*                                               *\
      * Standardization of aesthetics                 *
-     * Collecting some informations about dimentions *
+     * Collecting some informations about dimensions *
     \*                                               */
     
-    // Information on each dimention
-    this.dim = getDimentionsInfo(this.spacialCoord, this.temporalCoord);
+    // Information on each dimension
+    this.dim = getDimensionsInfo(this.spacialCoord, this.temporalCoord);
     // Aesthetics
     var aes = [];
     // Map data column name -> aesthetic id
@@ -290,7 +306,7 @@
         var attr_val = this.elements[i][attr].value;
         
         if(attr_type == 'position') {
-          // Positions are bound with several aesthetics (one per dimention) 
+          // Positions are bound with several aesthetics (one per dimension) 
           if(!attr_val instanceof Array)
             ERROR(errorMessage(this.elements[i].name, attr, typeof attr_val, '\'Array\''));
           
@@ -355,7 +371,7 @@
       if(aes_ret_type != 'number' && aes_ret_type != 'string') {
         ERROR(errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\''));
       }
-      // There is one and only one aesthetic per temporal dimention
+      // There is one and only one aesthetic per temporal dimension
       this.dim[this.temporalCoord.dimId[i]].aes = [aes[aesId]];
     }
     
@@ -367,11 +383,11 @@
     
     
     /*                               *\
-     * Computing dimentions' domains *
+     * Computing dimensions' domains *
     \*                               */
     for(var i = 0 ; i < this.dim.length ; i++) {
       if(isUndefined(this.dim[i].aes))
-        ERROR('Error: dimention '+(i+1)+' unused');
+        ERROR('Error: dimension '+(i+1)+' unused');
       
       var domain;
       var ordinal;
@@ -515,7 +531,7 @@
     // Sizes of each splits, sub-splits, etc
     var splitSizes = [];
     
-    // Splitting data according to temporal dimentions
+    // Splitting data according to temporal dimensions
     this.splitTempDimId = [];
     for(var i = 0 ; i < this.dim.length ; i++) {
       // Split
@@ -525,7 +541,7 @@
       }
     }
     
-    // Splitting data according to spacial dimentions
+    // Splitting data according to spacial dimensions
     splitSizes.push(this.elements.length);
     this.splitSpacialDimId = [];
     for(var i = 0 ; i < this.dim.length ; i++) {
@@ -588,7 +604,7 @@
      * Generating svg *
     \*                */
     
-    // add Canvas
+    // Add Canvas
     this.svg = d3.select(selector)
                 .append("svg")
                 .attr("width", width)
@@ -603,7 +619,7 @@
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
                                 
-    // Drawn elements
+    // Draw elements
     this.update();
     
     return this;
@@ -690,9 +706,23 @@
             
             // On enter
             var onEnter = node.enter().append('path').attr('class', eltClass);
+            
             svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
             onEnter.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
             onEnter.attr('d', symbol);
+            
+            var listeners = this.elements[i].listeners;
+            var g = this;
+            
+            var GetFunc = function(event) {
+              return function(d) {
+                listeners[event].call(this, d, g);
+              }
+            }
+            
+            for(var event in listeners) {
+              node.on(event, GetFunc(event));
+            }
             
             // On exit
             node.exit().remove();
@@ -728,7 +758,8 @@
               node = this.svg.select('.'+eltClass).transition();
             }
             
-            node.attr("d", lineFunction(dataSubset)); 
+            node.attr("d", lineFunction(dataSubset));
+            node
             
             if(dataSubset.length > 0) {
               svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0]);
@@ -769,11 +800,11 @@
   // Coordonate Systems //
   ////////////////////////
   
-  window[lib_name].rect = function(args) {
+  main_object.rect = function(args) {
     return new Rect(args);
   };
   
-  window[lib_name].polar = function(args) {
+  main_object.polar = function(args) {
     return new Polar(args);
   };
   
@@ -1114,14 +1145,14 @@
                 .attr('y2', y)
                 .attr('stroke', 'black');
         
-        x = Math.cos(this.scaleT(ticks[i])) * (maxRadius + 20);
-        y = -Math.sin(this.scaleT(ticks[i])) * (maxRadius + 20);
+        x = Math.cos(this.scaleT(ticks[i])) * (maxRadius + 15);
+        y = -Math.sin(this.scaleT(ticks[i])) * (maxRadius + 15);
         var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
         axisNode.append('text')
                 .text(tick)
+                .attr('transform', 'translate('+x+','+y+')')
                 .attr('text-anchor', 'middle')
-                .attr('x', x)
-                .attr('y', y)
+                .attr('y', '.35em')
                 .attr('fill', 'black');
       }
     }
@@ -1151,7 +1182,7 @@
   
 
   // Load data from a csv file
-  window[lib_name].loadFromFile = function(filename) {
+  main_object.loadFromFile = function(filename) {
     var dl = new DataLoader();
     
     d3.csv(filename)
@@ -1163,7 +1194,7 @@
 
 
   // Load data from a database
-  window[lib_name].loadFromDatabase = function(param) {
+  main_object.loadFromDatabase = function(param) {
     var host = 'localhost';
     var dbname = null;
     var user = null;
@@ -1205,11 +1236,118 @@
     
     return dl;
   }
+  
+  // Display a popup
+  main_object.popup = function(param) {
+    var g = null;
+    var id = null;
+    var position = [0, 0];
+    var text = '';
+    
+    if(!isUndefined(param)) {
+      if(!isUndefined(param.position)) {
+        position = param.position;
+      }
+      if(!isUndefined(param.text)) {
+        text = param.text;
+      }
+      if(!isUndefined(param.graphic)) {
+        g = param.graphic;
+      }
+      if(!isUndefined(param.id)) {
+        id = param.id;
+      }
+    }
+    
+    if(g === null) {
+      ERROR(lib_name+'.popup(): parameter graphic undefined');
+    }
+    else if(id === null) {
+      ERROR(lib_name+'.popup(): parameter id undefined');
+    }
+    
+    displayLabel(g.svg, position[0], position[1], text, id);
+  }
+  
+  
+  main_object.popdown = function(param) {
+    var g = null;
+    var id = null;
+    
+    if(!isUndefined(param)) {
+      if(!isUndefined(param.graphic)) {
+        g = param.graphic;
+      }
+      if(!isUndefined(param.id)) {
+        id = param.id;
+      }
+    }
+    
+    if(g === null) {
+      ERROR(lib_name+'.popdown(): parameter graphic undefined');
+    }
+    else if(id === null) {
+      ERROR(lib_name+'.popdown(): parameter id undefined');
+    }
+    
+    hideLabel(g.svg, id);
+  }
+  
+  main_object.mouse = function(g) {
+    return d3.mouse(g.svg[0][0]);
+  }
 
   
   ///////////////////////
   // Private functions //
   ///////////////////////
+  
+  // Display a text in a pop-up (only 1 pop-up at time)
+  function displayLabel(svg, x, y, text, id) {
+    var popup = svg.select('#pop-up-'+id.toString());
+    var bgNode = null;
+    var textNode = null;
+    
+    if(popup.empty()) {
+      popup = svg.insert('g').attr('id', 'pop-up-'+id.toString());
+      bgNode = popup.insert('rect').attr('x', '0')
+                                   .attr('y', '0')
+                                   .attr('rx', '5')
+                                   .attr('ry', '5')
+                                   .attr('fill', 'white')
+                                   .attr('opacity', '0.5');
+      textNode = popup.insert('text').attr('x', '10')
+                                     .attr('y', '20');
+    }
+    else {
+      bgNode = popup.select('rect');
+      textNode = popup.select('text');
+    }
+    
+    // Interrupt and cancel transition if any
+    bgNode.interrupt().transition();
+    textNode.interrupt().transition();
+    
+    popup.attr('transform', 'translate('+x+','+y+')');
+    textNode.attr('opacity', '1')
+            .text(text);
+    var textDOM = textNode[0][0];
+    bgNode.attr('opacity', '0.7')
+          .attr('width', textDOM.clientWidth + 20)
+          .attr('height', textDOM.clientHeight + 15);
+  }
+  
+  // Hide the pop-up
+  function hideLabel(svg, id) {
+    var popup = svg.select('#pop-up-'+id.toString());
+    popup.select('rect').transition().duration(500).attr('opacity', '0');
+    popup.select('text').transition().duration(500).attr('opacity', '0')
+    // Callback at the end of the transition
+      .each("end", function() {
+          popup.remove();
+          
+        });
+  }
   
   // 
   var DataLoader = function () {
@@ -1243,6 +1381,9 @@
                      value:g.fallback_element[attr].value};
       }
     }
+    for(var event in g.fallback_element.listeners) {
+      elt.listeners[event] = g.fallback_element.listeners[event];
+    }
     
     if(!isUndefined(param)) {
       for(var attr in elt) {
@@ -1258,6 +1399,7 @@
       }
     }
     g.elements.push(elt);
+    g.lastElementAdded = elt;
   }
   
   // Set an svg attribute (each element have its value)
@@ -1326,8 +1468,8 @@
            '\'; Expected: '+expected;
   }
   
-  // Determinate on which dimention we have to force to ordinal scale
-  function getDimentionsInfo(coordSystem, tempCoord) {
+  // Determinate on which dimension we have to force to ordinal scale
+  function getDimensionsInfo(coordSystem, tempCoord) {
     var dim = [];
     var cs = coordSystem;
     
@@ -1337,11 +1479,11 @@
           // Force ordinal if the coordinate system have a sub coordinate system
           if(cs.subSys != null) {
             dim[cs.dimId[i]] = {forceOrdinal:true,
-                              isSpacial:true};
+                                isSpacial:true};
           }
           else {
             dim[cs.dimId[i]] = {forceOrdinal:false,
-                              isSpacial:true};
+                                isSpacial:true};
           }
         }
       }

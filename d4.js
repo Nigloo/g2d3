@@ -96,7 +96,11 @@
     this.fallback_element = new ElementBase();
     this.lastElementAdded = this.fallback_element;
     
-    // attribute non null only after render
+    // Attributes
+    this.render_param = null;
+    this.data_filter = null;
+    
+    // Sttributes non null only after render
     this.margin = null;
     this.svg = null;
     this.nestedData = null;
@@ -146,21 +150,46 @@
   }
   
   // Set dataset
-  Graphic.prototype.data = function(data) {
+  Graphic.prototype.data = function(data, filter) {
     if(data === null) {
       ERROR('Setting data to null');
     }
-    else if(data instanceof Array) {
-      this.dataset = data;
+
+    if(!isUndefined(filter)) {
+      this.data_filter = filter;
+    }
+    
+    if(data instanceof Array) {
+      this.onDataLoaded(data);
     }
     // Value from the file loading function
     else {
-      data.me.g = this;
       this.dataLoader = data;
+      data.me.g = this;
     }
     
     return this;
   }
+  
+  
+  // Set data just loaded, filter them and render if needed;
+  // Not supposed to be called by the user
+  Graphic.prototype.onDataLoaded = function(data) {
+    if(this.data_filter != null) {
+      this.dataset = filterData(data, this.data_filter);
+      this.data_filter = null;
+    }
+    else {
+      this.dataset = data;
+    }
+    
+    if(this.render_param != null) {
+      var param = this.render_param;
+      this.render_param = null;
+      this.render(param);
+    }
+  }
+  
   
   // Set spacial coordinate system (Rect({x:1, y:2}) by default)
   Graphic.prototype.coord = function(coordSys) {
@@ -228,6 +257,7 @@
   // Render the graphic in svg
   Graphic.prototype.render = function(param) {
     if(this.dataset === null) {
+      this.render_param = param;
       return this;
     }
     
@@ -611,13 +641,25 @@
                 .attr("height", height);
     
     
+    // Add background
+    //*
+    this.spacialCoord.drawBackground( this.svg,
+                                      this.dim,
+                                      this.margin.left,
+                                      this.margin.top,
+                                      width-this.margin.left-this.margin.right,
+                                      height-this.margin.top-this.margin.bottom);
+    //*/
+    
     // Add axis
+    //*
     this.spacialCoord.drawAxis( this.svg,
                                 this.dim,
                                 this.margin.left,
                                 this.margin.top,
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
+    //*/
                                 
     // Draw elements
     this.update();
@@ -759,7 +801,6 @@
             }
             
             node.attr("d", lineFunction(dataSubset));
-            node
             
             if(dataSubset.length > 0) {
               svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0]);
@@ -924,18 +965,32 @@
     
     return Y;
   };
-    
-  Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
-    //*//TODO remove
+  
+  Rect.prototype.drawBackground = function(svgNode, dim, offsetX, offsetY, width, height) {
     svgNode.append('g')
+    .attr('class', 'background')
     .attr("transform", 'translate('+offsetX+','+offsetY+')')
     .append("rect")
     .attr("width", width)
     .attr("height", height)
     .attr("fill","orange")
     .attr("fill-opacity",0.3);
-    //*/
     
+    if(this.subSys != null) {
+      var rangeX = (this.dimId[0] != null) ? this.scaleX.range() : [0];
+      var rangeY = (this.dimId[1] != null) ? this.scaleY.range() : [0];
+      var subWidth = (this.dimId[0] != null) ? this.scaleX.rangeBand() : width;
+      var subHeight = (this.dimId[1] != null) ? this.scaleY.rangeBand() : height;
+      
+      for(var i = 0 ; i < rangeX.length ; i++) {
+        for(var j = 0 ; j < rangeY.length ; j++) {
+          this.subSys.drawBackground(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
+        }
+      }
+    }
+  }
+  
+  Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
     // X axis
     if(this.dimId[0] != null) {
       var xAxis = d3.svg.axis()
@@ -1075,17 +1130,20 @@
     return this.centerY - Math.sin(theta) * radius;
   };
   
-  Polar.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+  Polar.prototype.drawBackground = function(svgNode, dim, offsetX, offsetY, width, height) {
     var maxRadius = d3.min([width / 2, height / 2]);
     
-    //*//TODO remove
     svgNode.append('g')
+    .attr('class', 'background')
     .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
     .append('circle')
     .attr('r', maxRadius)
     .attr('fill','orange')
     .attr('fill-opacity',0.3);
-    //*/
+  }
+  
+  Polar.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+    var maxRadius = d3.min([width / 2, height / 2]);
     
     var axisNode = svgNode.append('g');
     axisNode.attr('class', 'axis')
@@ -1269,8 +1327,41 @@
     displayLabel(g.svg, position[0], position[1], text, id);
   }
   
-  
+  // Hide a pop-up
   main_object.popdown = function(param) {
+    var g = null;
+    var id = null;
+    var duration = 500;
+    
+    if(!isUndefined(param)) {
+      if(!isUndefined(param.graphic)) {
+        g = param.graphic;
+      }
+      if(!isUndefined(param.id)) {
+        id = param.id;
+      }
+      if(!isUndefined(param.duration)) {
+        duration = param.duration;
+      }
+    }
+    
+    if(g === null) {
+      ERROR(lib_name+'.popdown(): parameter graphic undefined');
+    }
+    else if(id === null) {
+      ERROR(lib_name+'.popdown(): parameter id undefined');
+    }
+    
+    hideLabel(g.svg, id, duration);
+  }
+  
+  main_object.mouse = function(g) {
+    return d3.mouse(g.svg[0][0]);
+  }
+  
+  
+  // Return if a pop-up exist with a  given id exist or not
+  main_object.popupExist = function(param) {
     var g = null;
     var id = null;
     
@@ -1290,17 +1381,25 @@
       ERROR(lib_name+'.popdown(): parameter id undefined');
     }
     
-    hideLabel(g.svg, id);
-  }
-  
-  main_object.mouse = function(g) {
-    return d3.mouse(g.svg[0][0]);
+    return !g.svg.select('#pop-up-'+id.toString()).empty();
   }
 
   
   ///////////////////////
   // Private functions //
   ///////////////////////
+  
+  // Return 
+  function filterData(data, filter) {
+    var new_data = []
+    
+    for(var i = 0 ; i < data.length ; i++) {
+      if(filter(data[i], i)) {
+        new_data.push(data[i]);
+      }
+    }
+    return new_data;
+  }
   
   // Display a text in a pop-up (only 1 pop-up at time)
   function displayLabel(svg, x, y, text, id) {
@@ -1338,10 +1437,10 @@
   }
   
   // Hide the pop-up
-  function hideLabel(svg, id) {
+  function hideLabel(svg, id, duration) {
     var popup = svg.select('#pop-up-'+id.toString());
-    popup.select('rect').transition().duration(500).attr('opacity', '0');
-    popup.select('text').transition().duration(500).attr('opacity', '0')
+    popup.select('rect').transition().duration(duration).attr('opacity', '0');
+    popup.select('text').transition().duration(duration).attr('opacity', '0')
     // Callback at the end of the transition
       .each("end", function() {
           popup.remove();
@@ -1352,7 +1451,6 @@
   // 
   var DataLoader = function () {
     this.g = null;
-    this.plotParam = null;
     var me = this;
     return {
       me:this,
@@ -1361,11 +1459,7 @@
           ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
         }
         
-        me.g.data(dataset);
-        
-        if(me.plotParam != null) {
-          me.g.render(me.plotParam);
-        }
+        me.g.onDataLoaded(dataset);
       }
     };
   }
@@ -1670,11 +1764,6 @@
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
   Graphic.prototype.plot = function(param) {
     ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
-    
-    if(this.dataLoader != null) {
-      this.dataLoader.me.plotParam = param;
-      return this;
-    }
     
     // debugger
     var theGraphic = this;

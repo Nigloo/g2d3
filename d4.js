@@ -336,7 +336,6 @@
      * Deletion of useless attributes               *
     \*                                              */
     
-    // Aesthetics of elements
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
         // Skip uninteresting attributes typed attributes
@@ -883,9 +882,6 @@
   main_object.polar = function(args) {
     return new Polar(args);
   };
-  
-  // TODO:  Rect.prototype.dimName = ['x', 'y']
-  //        this.dimName[0] -> this.dim['x']
   
   /////// CARTESIAN ///////
   var Rect = function(param) {
@@ -1636,9 +1632,7 @@
           }
         };
         
-        aes.push({func:toFunction(column)
-                ,column:column
-                });
+        aes.push({func:toFunction(column)});
         id = aes.length - 1;
         dataCol2Aes[column] = id;
       }
@@ -1656,7 +1650,6 @@
         };
         
         aes.push({func:toFunction(attr_val),
-                  constant:attr_val,
                   // We set the domains while we know it's a constant value
                   ordinalDomain:[attr_val]});
         id = aes.length - 1;

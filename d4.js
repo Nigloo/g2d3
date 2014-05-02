@@ -10,7 +10,6 @@
   
   // Some constants
   var data_binding_prefix = 'data:';
-  var temp_dim_attr_prefix = 't';
   var ordinal_scale_padding = 1;
   var linear_scale_padding = 0.1;
   var coordSysMargin = 0.15;
@@ -68,7 +67,7 @@
     this.spacialCoord = null;
     this.spacialDimName = null;
     this.coord();
-    this.temporalCoord = new Temp();
+    this.temporalDim = null;
     this.dataset = null;
     this.dataLoader = null;
     this.elements = [];
@@ -229,10 +228,10 @@
   // Set temporal coordinate system (none by default)
   Graphic.prototype.time = function(temporalCoord) {
     if(isUndefined(temporalCoord)) {
-      this.temporalCoord = new Temp();
+      this.temporalDim = {};
     }
     else {
-      this.temporalCoord = new Temp(temporalCoord);
+      this.temporalDim = temporalCoord;
     }
     
     return this;
@@ -240,13 +239,12 @@
   
   // Go to the next value of the specified time dimension
   Graphic.prototype.nextStep = function(timeDimension) {
-    if(isUndefined(timeDimension) || this.currentTime === null ||
-      timeDimension < 1 || timeDimension > this.currentTime.length) {
+    if(isUndefined(timeDimension) || this.currentTime === null) {
       return this;
     }
     
-    if(this.currentTime[timeDimension-1] < this.dim[this.splitTempDimId[timeDimension-1]].domain.length-1){
-      this.currentTime[timeDimension-1]++;
+    if(this.currentTime[timeDimension] < this.dim[timeDimension].domain.length-1){
+      this.currentTime[timeDimension]++;
       this.update();
     }
     
@@ -255,13 +253,12 @@
   
   // Go to the previous value of the specified time dimension
   Graphic.prototype.previousStep = function(timeDimension) {
-    if(isUndefined(timeDimension) || this.currentTime === null ||
-      timeDimension < 1 || timeDimension > this.currentTime.length) {
+    if(isUndefined(timeDimension) || this.currentTime === null) {
       return this;
     }
     
-    if(this.currentTime[timeDimension-1] > 0){
-      this.currentTime[timeDimension-1]--;
+    if(this.currentTime[timeDimension] > 0){
+      this.currentTime[timeDimension]--;
       this.update();
     }
     
@@ -363,7 +360,7 @@
     \*                                               */
     
     // Information on each dimension
-    this.dim = getDimensionsInfo(this.spacialCoord, this.temporalCoord);
+    this.dim = getDimensionsInfo(this.spacialCoord, this.temporalDim);
     // Aesthetics
     var aes = [];
     // Map data column name -> aesthetic id
@@ -426,17 +423,17 @@
     }
     
     // Aesthetics of temporal dimensions
-    for(var i = 0 ; i < this.temporalCoord.value.length ; i++) {
+    for(var i in this.temporalDim) {
       // Get the aestetic id
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalCoord.value[i]);
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalDim[i]);
       
       // Check data type return by this aesthetic
       var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
       if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-        ERROR(errorMessage('Temp', temp_dim_attr_prefix+(i+1), aes_ret_type, '\'number\' or \'string\''));
+        ERROR(errorMessage('time', i, aes_ret_type, '\'number\' or \'string\''));
       }
       // There is one and only one aesthetic per temporal dimension
-      this.dim[this.temporalCoord.dimName[i]].aes = [aes[aesId]];
+      this.dim[i].aes = [aes[aesId]];
     }
     
     // We don't need those variables anymore
@@ -594,17 +591,23 @@
      * Splitting data *
     \*                */
     
+    // Initialising current 'time' (i.e. position in spacial dimensions)
+    this.currentTime = [];
+    for(var i in this.dim) {
+      if(!this.dim[i].isSpacial) {
+        this.currentTime[i] = 0;
+      }
+    }
+    
     // Sizes of each splits, sub-splits, etc
     var splitSizes = [];
     
     // Splitting data according to temporal dimensions
     this.splitTempDimId = [];
-    for(var i = 0 ; i < this.dim.length ; i++) {
+    for(var i in this.currentTime) {
       // Split
-      if(!this.dim[i].isSpacial) {
-        this.splitTempDimId.push(i);
-        splitSizes.push(this.dim[i].domain.length);
-      }
+      this.splitTempDimId.push(i);
+      splitSizes.push(this.dim[i].domain.length);
     }
     
     // Splitting data according to spacial dimensions
@@ -660,11 +663,6 @@
       }
     }
     
-    // Initialising current 'time' (i.e. position in spacial dimensions)
-    this.currentTime = [];
-    for(var i = 0 ; i < this.splitTempDimId.length ; i++) {
-      this.currentTime.push(0);
-    }
     
     /*                *\
      * Generating svg *
@@ -701,7 +699,7 @@
   Graphic.prototype.update = function() {
     // Data belonging to the current time
     var dataToDisplay = this.nestedata;
-    for(var i = 0 ; i < this.currentTime.length ; i++) {
+    for(var i in this.currentTime) {
       dataToDisplay = dataToDisplay[this.currentTime[i]];
     }
     
@@ -1227,29 +1225,6 @@
       }
     }
   };
-  
-  /////// TEMPORAL ///////
-  var Temp =  function(param) {
-    this.dimName = [];
-    this.value = [];
-    
-    if(isUndefined(param)) {
-      return;
-    }
-    
-    for(var attr in param) {
-      if(attr.indexOf(temp_dim_attr_prefix) != 0) {
-        continue;
-      }
-      var ind = parseInt(attr.substring(temp_dim_attr_prefix.length)) - 1;
-      if(isNaN(ind)) {
-        continue;
-      }
-      
-      this.value[ind] = param[attr];
-    }
-  };
-  
 
   // Load data from a csv file
   main_object.loadFromFile = function(filename) {
@@ -1585,7 +1560,7 @@
   }
   
   // Determinate on which dimension we have to force to ordinal scale
-  function getDimensionsInfo(coordSystem, tempCoord) {
+  function getDimensionsInfo(coordSystem, temporalDim) {
     var dim = [];
     var cs = coordSystem;
     
@@ -1606,10 +1581,9 @@
       cs = cs.subSys;
     }
     
-    for(var i = 0 ; i < tempCoord.value.length ; i++) {
-      dim.push({forceOrdinal:true,
-                isSpacial:false});
-      tempCoord.dimName.push(dim.length-1);
+    for(var i in temporalDim) {
+      dim[i] = {forceOrdinal:true,
+                isSpacial:false};
     }
     
     return dim;

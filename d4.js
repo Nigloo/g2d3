@@ -92,30 +92,34 @@
   };
   
   // Add listener
-  Graphic.prototype.on = function(type, listener) {
-    this.lastElementAdded.listeners[type] = listener;
+  Graphic.prototype.on = function(param) {
+    var funcName = 'Graphic.on';
+    var event =     checkParam(funcName, param, 'event');
+    var listener =  checkParam(funcName, param, 'listener');
+    
+    this.lastElementAdded.listeners[event] = listener;
     
     return this;
   };
   
   // Set dataset
-  Graphic.prototype.data = function(data, filter) {
-    if(data === null) {
-      ERROR(errorParamMessage('Graphic.data', 'data', 'null',
-        'Array  or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
-    }
-
-    if(!isUndefined(filter)) {
-      this.data_filter = filter;
-    }
+  Graphic.prototype.data = function(param) {
+    var funcName = 'Graphic.data';
+    var data =    checkParam(funcName, param, 'data');
+    var filter =  checkParam(funcName, param, 'filter', null);
+    
+    this.data_filter = filter;
     
     if(data instanceof Array) {
       this.onDataLoaded(data);
     }
-    // Value from the file loading function
-    else {
+    else if(data instanceof Object && !isUndefined(data.me) && data.me instanceof DataLoader) {
       this.dataLoader = data;
       data.me.g = this;
+    }
+    else {
+      ERROR(errorParamMessage('Graphic.data', 'data', 'null',
+        'Array  or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
     }
     
     return this;
@@ -192,12 +196,12 @@
   };
   
   // Set temporal coordinate system (none by default)
-  Graphic.prototype.time = function(temporalCoord) {
-    if(isUndefined(temporalCoord)) {
+  Graphic.prototype.time = function(param) {
+    if(isUndefined(param)) {
       this.temporalDim = {};
     }
     else {
-      this.temporalDim = temporalCoord;
+      this.temporalDim = param;
     }
     
     return this;

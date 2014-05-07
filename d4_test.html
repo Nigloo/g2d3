@@ -54,7 +54,7 @@
                         stroke_opacity:function(d){return (d.col4+1)/4;},
                         size:'data:col3',
                         stroke_dasharray:function(d){var a=1+d.col4*2;return 2*a+','+a;}})
-            .data(dataset)
+            .data({data:dataset})
             .plot({selector:"#graph1", width:1024, height:768, margin:50}));
             
             
@@ -104,7 +104,7 @@
                         stroke:color,
                         stroke_width:2,
                         type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
-            .data(dataset)
+            .data({data:dataset})
             .plot({selector:"#graph2", width:800, height:600, margin:30}));
             
             
@@ -133,7 +133,7 @@
                     //type:'square',
                     fill:function(d){return d.col2=='cat A'?'red':'blue';}
                     })
-            .data(dataset)
+            .data({data:dataset})
             .plot({selector:"#graph3", width:1000, height:1000, margin:50}));
             
             
@@ -156,7 +156,7 @@
                         fill:'white',
                         stroke:'data:col1',
                         stroke_width:2})
-            .data(d4.loadFromFile('test.csv'))
+            .data({data:d4.loadFromFile('test.csv')})
             .plot({selector:"#graph4", width:1024, height:768, margin:50}));
             
             
@@ -185,18 +185,18 @@
             .symbol({   fill:'data:col3',
                         type:'data:col4',
                         stroke:'black'})
-            .on('mouseover',function(d, g) {
+            .on({event:'mouseover', listener:function(d, g) {
                                 var id = d.col1+'-'+d.col2+'-'+d.col3+'-'+d.col4+'-'+d.col5;
                                 var pos = d4.mouse(g);
                                 
                                 if(!d4.popupExist({id:id, graphic:g})) {
                                     d4.showPopup({id:'hover', graphic:g, position:pos, text:d.col3.toString()});
                                 }
-                            })
-            .on('mouseout', function(d, g) {
+                            }})
+            .on({event:'mouseout',  listener:function(d, g) {
                                 d4.hidePopup({id:'hover', graphic:g, duration:500});
-                            })
-            .on('click',    function(d, g) {
+                            }})
+            .on({event:'click',     listener:function(d, g) {
                                 var id = d.col1+'-'+d.col2+'-'+d.col3+'-'+d.col4+'-'+d.col5;
                                 var pos = d4.mouse(g);
                                 
@@ -207,12 +207,12 @@
                                     d4.showPopup({id:id, graphic:g, position:pos, text:d.col3.toString()});
                                     d4.hidePopup({id:'hover', graphic:g});
                                 }
-                            })
-            .data(d4.loadFromDatabase({ host:'localhost',
-                                        dbname:'test_db',
-                                        user:'user_test',
-                                        pwd:'123456',
-                                        request:'SELECT * FROM data_test'}))
+                            }})
+            .data({data:d4.loadFromDatabase({   host:'localhost',
+                                                dbname:'test_db',
+                                                user:'user_test',
+                                                pwd:'123456',
+                                                request:'SELECT * FROM data_test'})})
             .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40}));
             
             
@@ -229,7 +229,7 @@
                         fill:'white',
                         stroke_width:2,
                         stroke:function(d){return d.sn6 > 0.5 ? 'red' : 'blue'}})
-            .data(d4.loadFromFile('big.csv'))
+            .data({data:d4.loadFromFile('big.csv')})
             .plot({selector:"#graph6", width:1024, height:768, margin:50}));
             
 /////////////////////////////////////////////////////////////////////////////////////////////////

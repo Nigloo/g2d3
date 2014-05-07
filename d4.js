@@ -4,7 +4,7 @@
   var lib_name = 'd4';
   
   var main_object = {
-    version: '0.3'
+    version: '0.4'
   };
   window[lib_name] = main_object;
   
@@ -15,52 +15,14 @@
   var coordSysMargin = 0.15;
   
   
-  // Elements definition
-  var ElementBase = function() {
-    this.name =             'ElementBase';
-    this.group =            { type:'string',
-                              value:'1'};
-    this.fill =             { type:'color',
-                              value:null};
-    this.fill_opacity =     { type:'number',
-                              value:null};
-    this.stroke_width =     { type:'number',
-                              value:null};
-    this.stroke =           { type:'color',
-                              value:null};
-    this.stroke_dasharray = { type:'string',
-                              value:null};
-    this.stroke_opacity =   { type:'number',
-                              value:null};
-                              
-    this.listeners = [];
-  };
-    
-  var Symbol = function() {
-    this.name =   'Symbol';
-    this.type = { type:'symbol',
-                    value:'circle'};
-    this.size = { type:'number',
-                    value:null};
-                    
-    this.listeners = [];
-  };
-  
-  var Line = function() {
-    this.name = 'Line';
-    this.interpolation = {type:'string',
-                          value:'linear'};
-    this.stroke_linecap = {type:'string',
-                           value:'butt'};
-     
-     this.listeners = [];
-  };
-  
-  
+  ///////////////////////
+  // Graphic's methods //
+  ///////////////////////
+
   // Create a new graphic
   main_object.graphic = function(args) {
     return new Graphic(args);
-  }
+  };
   
   // Graphic definition
   var Graphic = function() {
@@ -86,7 +48,7 @@
     this.splitTempDimId = null;
     this.splitSpacialDimId = null;
     this.dim = null;
-  }
+  };
   
   // Set element properties
   Graphic.prototype.element = function(param) {
@@ -104,37 +66,43 @@
         }
       }
     }
+    
+    // Set the origin function (for error message)
+    for(var attr in this.fallback_element) {
+      if(!isUndefined(this.fallback_element[attr].type)) {
+        this.fallback_element[attr].originFunc = 'Graphic.element';
+      }
+    }
 
     return this;
-  }
-  
+  };
   
   // Add circles
   Graphic.prototype.symbol = function(param) {
-    addElement(this, Symbol, param);
+    addElement(this, Symbol, param, 'Graphic.symbol');
     
     return this;
-  }
-  
+  };
   
   // Add lines
   Graphic.prototype.line = function(param) {
-    addElement(this, Line, param);
+    addElement(this, Line, param, 'Graphic.line');
     
     return this;
-  }
+  };
   
-  // Set listener
+  // Add listener
   Graphic.prototype.on = function(type, listener) {
     this.lastElementAdded.listeners[type] = listener;
     
     return this;
-  }
+  };
   
   // Set dataset
   Graphic.prototype.data = function(data, filter) {
     if(data === null) {
-      ERROR('Setting data to null');
+      ERROR(errorParamMessage('Graphic.data', 'data', 'null',
+        'Array  or value return by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
     }
 
     if(!isUndefined(filter)) {
@@ -151,8 +119,7 @@
     }
     
     return this;
-  }
-  
+  };
   
   // Set data just loaded, filter them and render if needed;
   // Not supposed to be called by the user
@@ -170,8 +137,7 @@
       this.render_param = null;
       this.render(param);
     }
-  }
-  
+  };
   
   // Set spacial coordinate system (Rect({x:'x', y:'y'}) by default)
   Graphic.prototype.coord = function(coordSys) {
@@ -223,7 +189,7 @@
     }
     
     return this;
-  }
+  };
   
   // Set temporal coordinate system (none by default)
   Graphic.prototype.time = function(temporalCoord) {
@@ -235,7 +201,7 @@
     }
     
     return this;
-  }
+  };
   
   // Go to the next value of the specified time dimension
   Graphic.prototype.nextStep = function(timeDimension) {
@@ -249,7 +215,7 @@
     }
     
     return this;
-  }
+  };
   
   // Go to the previous value of the specified time dimension
   Graphic.prototype.previousStep = function(timeDimension) {
@@ -263,47 +229,27 @@
     }
     
     return this;
-  }
+  };
 
   // Render the graphic in svg
   Graphic.prototype.render = function(param) {
-    var selector = 'body';
-    var width = 640;
-    var height = 360;
-    this.margin = { left:30,
-                    top:10,
-                    right:10,
-                    bottom:20};
     
     // Check parameters
-    if(!isUndefined(param)) {
-      if(!isUndefined(param.selector)) {
-        selector = param.selector;
-      }
-      if(!isUndefined(param.width)) {
-        width = param.width;
-      }
-      if(!isUndefined(param.height)) {
-        height = param.height;
-      }
-      if(!isUndefined(param.margin)) {
-        this.margin.left = this.margin.top = this.margin.right = this.margin.bottom = param.margin;
-      }
-      if(!isUndefined(param.margin_left)) {
-        this.margin.left = param.margin_left;
-      }
-      if(!isUndefined(param.margin_top)) {
-        this.margin.top = param.margin_top;
-      }
-      if(!isUndefined(param.margin_right)) {
-        this.margin.right = param.margin_right;
-      }
-      if(!isUndefined(param.margin_bottom)) {
-        this.margin.bottom = param.margin_bottom;
-      }
-    }
+    var funcName = 'Graphic.render';
+    var selector =  checkParam(funcName, param, 'selector', 'body');
+    var width =     checkParam(funcName, param, 'width',    640);
+    var height =    checkParam(funcName, param, 'height',   360);
+    this.margin = { left:   checkParam(funcName, param, 'margin', 30),
+                    top:    checkParam(funcName, param, 'margin', 10),
+                    right:  checkParam(funcName, param, 'margin', 10),
+                    bottom: checkParam(funcName, param, 'margin', 20)};
+    this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
+    this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
+    this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
+    this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
     
-    // Reserve the place for the graphic while loading
+    
+    // Reserve some space for the graphic while loading
     // Add Canvas
     if(this.svg === null) {
       this.svg = d3.select(selector)
@@ -313,10 +259,15 @@
     }
     
     if(this.dataset === null) {
-      this.render_param = param;
-      return this;
+      if(this.dataLoader != null) {
+        this.render_param = param;
+        return this;
+      }
+      else {
+        ERROR('Can\'t plot without data');
+      }
     }
-    
+    console.log(this.elements);
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
           width,
@@ -335,7 +286,7 @@
     
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i]) {
-        // Skip uninteresting attributes typed attributes
+        // Skip uninteresting attributes
         if(isUndefined(this.elements[i][attr].type)) {
           continue;
         }
@@ -380,16 +331,17 @@
         
         var attr_type = this.elements[i][attr].type;
         var attr_val = this.elements[i][attr].value;
+        var originFunc = this.elements[i][attr].originFunc;
         
         // Get the aestetic id
-        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val);
+        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, attr, originFunc);
         
         // Check data type return by this aesthetic
         var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
         switch(attr_type) {
           case 'dimension':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
             }
             if(isUndefined(this.dim[attr].aes)) {
               this.dim[attr].aes = [];
@@ -398,22 +350,22 @@
             break;
           case 'color':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
             }
             break;
           case 'symbol':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
             }
             break;
           case 'string':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
+              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
             }
             break;
           case 'number':
             if(aes_ret_type != 'number') {
-              ERROR(errorMessage(this.elements[i].name, attr, aes_ret_type, '\'number\''));
+              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, '\'number\''));
             }
             break;
         }
@@ -425,12 +377,12 @@
     // Aesthetics of temporal dimensions
     for(var i in this.temporalDim) {
       // Get the aestetic id
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalDim[i]);
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalDim[i], i, 'Graphic.time');
       
       // Check data type return by this aesthetic
       var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
       if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-        ERROR(errorMessage('time', i, aes_ret_type, '\'number\' or \'string\''));
+        ERROR(errorAesMessage('Graphic.time', i, aes_ret_type, '\'number\' or \'string\''));
       }
       // There is one and only one aesthetic per temporal dimension
       this.dim[i].aes = [aes[aesId]];
@@ -692,7 +644,7 @@
     this.update();
     
     return this;
-  }
+  };
   
   
   // (Re)draw elements of the graphics
@@ -766,7 +718,7 @@
           
           // Set attributes for each kind of elements
           // Symbol
-          if(this.elements[i].name == 'Symbol') {
+          if(this.elements[i] instanceof Symbol) {
             var symbol = d3.svg.symbol();
             
             if(!isUndefined(this.elements[i].type))
@@ -810,7 +762,7 @@
           }
           
           // Lines
-          else if(this.elements[i].name == 'Line') {
+          else if(this.elements[i] instanceof Line) {
             var interpolation;
             if(dataSubset.length > 0)
               interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
@@ -866,19 +818,75 @@
       }
     }
     return this;
-  }
+  };
+  
+  
+  /* The function to render the plot                     */
+  /* Automatically attaches itself to the window.onLoad  */
+  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
+  Graphic.prototype.plot = function(param) {
+    ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
+    
+    // debugger
+    var theGraphic = this;
+    window.addEventListener("load", function() { theGraphic.render(param); }, true);
+    
+    return this;
+  };
+  
+  
+  /////////////////////////
+  // Elements definition //
+  /////////////////////////
+  
+  var ElementBase = function() {
+    this.group =            { type:'string',
+                              value:'1'};
+    this.fill =             { type:'color',
+                              value:null};
+    this.fill_opacity =     { type:'number',
+                              value:null};
+    this.stroke_width =     { type:'number',
+                              value:null};
+    this.stroke =           { type:'color',
+                              value:null};
+    this.stroke_dasharray = { type:'string',
+                              value:null};
+    this.stroke_opacity =   { type:'number',
+                              value:null};
+                              
+    this.listeners = [];
+  };
+    
+  var Symbol = function() {
+    this.type = { type:'symbol',
+                    value:'circle'};
+    this.size = { type:'number',
+                    value:null};
+                    
+    this.listeners = [];
+  };
+  
+  var Line = function() {
+    this.interpolation = {type:'string',
+                          value:'linear'};
+    this.stroke_linecap = {type:'string',
+                           value:null};
+     
+     this.listeners = [];
+  };
   
   
   ////////////////////////
   // Coordonate Systems //
   ////////////////////////
   
-  main_object.rect = function(args) {
-    return new Rect(args);
+  main_object.rect = function(param) {
+    return new Rect(param);
   };
   
-  main_object.polar = function(args) {
-    return new Polar(args);
+  main_object.polar = function(param) {
+    return new Polar(param);
   };
   
   /////// CARTESIAN ///////
@@ -901,7 +909,7 @@
       var type = typeof param[i];
       if(type != 'undefined') {
         if(type != 'number' && type != 'string' && param[i] != null) {
-          ERROR(errorMessage('Rect', i, type, '\'number\' or \'string\''));
+          ERROR(errorParamMessage(lib_name+'.rect', i, type, '\'number\' or \'string\''));
         }
         else {
           this.dimName[i] = param[i];
@@ -910,7 +918,7 @@
     }
     
     if(!param.subSys instanceof Rect && !param.subSys instanceof Polar) {
-      ERROR(errorMessage('Rect', 'subSys', type, '\'Rect\' or \'Polar\''));
+      ERROR(errorParamMessage(lib_name+'.rect', 'subSys', type, '\'Rect\' or \'Polar\''));
     }
     else {
       this.subSys = param.subSys;
@@ -977,8 +985,8 @@
     return Y;
   };
   
-  Rect.prototype.drawBackground = function(svgNode, dim, offsetX, offsetY, width, height) {
-    svgNode.append('g')
+  Rect.prototype.drawBackground = function(svg, dim, offsetX, offsetY, width, height) {
+    svg.append('g')
     .attr('class', 'background')
     .attr('transform', 'translate('+offsetX+','+offsetY+')')
     .append('rect')
@@ -995,13 +1003,13 @@
       
       for(var i = 0 ; i < rangeX.length ; i++) {
         for(var j = 0 ; j < rangeY.length ; j++) {
-          this.subSys.drawBackground(svgNode, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
+          this.subSys.drawBackground(svg, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
         }
       }
     }
-  }
+  };
   
-  Rect.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+  Rect.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height) {
     // X axis
     if(this.dimName['x'] != null) {
       var xAxis = d3.svg.axis()
@@ -1013,10 +1021,10 @@
       }
       
       
-      svgNode.append('g')
-             .attr('class', 'axis')
-             .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-             .call(xAxis);
+      svg.append('g')
+         .attr('class', 'axis')
+         .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
+         .call(xAxis);
     }
                   
     // Y axis
@@ -1029,10 +1037,10 @@
         yAxis.ticks(5);
       }
       
-      svgNode.append('g')
-             .attr('class', 'axis')
-             .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-             .call(yAxis);
+      svg.append('g')
+         .attr('class', 'axis')
+         .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
+         .call(yAxis);
     }
     
     if(this.subSys != null) {
@@ -1048,7 +1056,7 @@
       
       for(var i = 0 ; i < range['x'].length ; i++) {
         for(var j = 0 ; j < range['y'].length ; j++) {
-          this.subSys.drawAxis(svgNode, dim, offsetX+range['x'][i], offsetY+range['y'][j], subSize['x'], subSize['y']);
+          this.subSys.drawAxis(svg, dim, offsetX+range['x'][i], offsetY+range['y'][j], subSize['x'], subSize['y']);
         }
       }
     }
@@ -1075,7 +1083,7 @@
       var type = typeof param[i];
       if(type != 'undefined') {
         if(type != 'number' && type != 'string' && param[i] != null) {
-          ERROR(errorMessage('Polar', i, type, '\'number\' or \'string\''));
+          ERROR(errorParamMessage(lib_name+'.polar', i, type, '\'number\' or \'string\''));
         }
         else {
           this.dimName[i] = param[i];
@@ -1084,7 +1092,7 @@
     }
     
     if(!param.subSys instanceof Rect && !param.subSys instanceof Polar) {
-      ERROR(errorMessage('Polar', 'subSys', type, '\'Rect\' or \'Polar\''));
+      ERROR(errorParamMessage(lib_name+'.polar', 'subSys', type, '\'Rect\' or \'Polar\''));
     }
     else {
       this.subSys = param.subSys;
@@ -1131,7 +1139,7 @@
     var radius = (this.dimName['radius'] != null) ? this.scaleR(pos[this.dimName['radius']](d)) : this.centerX / 2;
     
     return this.centerX + Math.cos(theta) * radius;
-  },
+  };
   
   Polar.prototype.getY = function(pos, d) {
     var theta = (this.dimName['theta'] != null) ? this.scaleT(pos[this.dimName['theta']](d)) : 2*Math.PI;
@@ -1140,22 +1148,22 @@
     return this.centerY - Math.sin(theta) * radius;
   };
   
-  Polar.prototype.drawBackground = function(svgNode, dim, offsetX, offsetY, width, height) {
+  Polar.prototype.drawBackground = function(svg, dim, offsetX, offsetY, width, height) {
     var maxRadius = d3.min([width / 2, height / 2]);
     
-    svgNode.append('g')
+    svg.append('g')
     .attr('class', 'background')
     .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
     .append('circle')
     .attr('r', maxRadius)
     .attr('fill','orange')
     .attr('fill-opacity',0.3);
-  }
+  };
   
-  Polar.prototype.drawAxis = function(svgNode, dim, offsetX, offsetY, width, height) {
+  Polar.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height) {
     var maxRadius = d3.min([width / 2, height / 2]);
     
-    var axisNode = svgNode.append('g');
+    var axisNode = svg.append('g');
     axisNode.attr('class', 'axis')
             .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
     
@@ -1225,6 +1233,11 @@
       }
     }
   };
+  
+  
+  ///////////////////////
+  // Loading functions //
+  ///////////////////////
 
   // Load data from a csv file
   main_object.loadFromFile = function(filename) {
@@ -1269,40 +1282,17 @@
     .get(dl.load);
     
     return dl;
-  }
-
-
+  };
+  
   // Load data from a database
   main_object.loadFromDatabase = function(param) {
-    var host = 'localhost';
-    var dbname = null;
-    var user = null;
-    var pwd = null;
-    var request = null;
+    var funcName = lib_name+'.loadFromDatabase';
+    var host =    checkParam(funcName, param, 'host', 'localhost');
+    var dbname =  checkParam(funcName, param, 'dbname');
+    var user =    checkParam(funcName, param, 'user');
+    var pwd =     checkParam(funcName, param, 'pwd');
+    var request = checkParam(funcName, param, 'request');
     
-    if(isUndefined(param)) {
-      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameters');
-    }
-    else if(isUndefined(param.dbname)) {
-      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'dbname\'');
-    }
-    else if(isUndefined(param.user)) {
-      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'user\'');
-    }
-    else if(isUndefined(param.pwd)) {
-      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'pwd\'');
-    }
-    else if(isUndefined(param.request)) {
-      ERROR('Error in '+lib_name+'.loadFromDatabase: Missing parameter \'request\'');
-    }
-    else if(!isUndefined(param.request)) {
-      host = param.host;
-    }
-    
-    dbname = param.dbname;
-    user = param.user;
-    pwd = param.pwd;
-    request = param.request;
     
     var dl = new DataLoader();
     
@@ -1314,36 +1304,21 @@
     .post(httpRequestParam, dl.load);
     
     return dl;
-  }
+  };
+  
+  
+  /////////////////////
+  // Popup functions //
+  /////////////////////
   
   // Display a popup
-  main_object.popup = function(param) {
-    var g = null;
-    var id = null;
-    var position = [0, 0];
-    var text = '';
-    
-    if(!isUndefined(param)) {
-      if(!isUndefined(param.position)) {
-        position = param.position;
-      }
-      if(!isUndefined(param.text)) {
-        text = param.text;
-      }
-      if(!isUndefined(param.graphic)) {
-        g = param.graphic;
-      }
-      if(!isUndefined(param.id)) {
-        id = param.id;
-      }
-    }
-    
-    if(g === null) {
-      ERROR(lib_name+'.popup(): parameter graphic undefined');
-    }
-    else if(id === null) {
-      ERROR(lib_name+'.popup(): parameter id undefined');
-    }
+  main_object.showPopup = function(param) {
+    var funcName = lib_name+'.popup';
+    var g =         checkParam(funcName, param, 'graphic');
+    var id =        checkParam(funcName, param, 'id');
+    var position =  checkParam(funcName, param, 'position', [0, 0]);
+    var text =      checkParam(funcName, param, 'text',     '');
+    var duration =  checkParam(funcName, param, 'duration', 0);
     
     var popup = g.svg.select('#pop-up-'+id.toString());
     var bgNode = null;
@@ -1356,7 +1331,6 @@
                                    .attr('rx', '5')
                                    .attr('ry', '5')
                                    .attr('fill', 'white')
-                                   .attr('opacity', '0.5');
       textNode = popup.insert('text').attr('x', '10')
                                      .attr('y', '20');
     }
@@ -1365,43 +1339,26 @@
       textNode = popup.select('text');
     }
     
-    // Interrupt and cancel transition if any
-    bgNode.interrupt().transition();
-    textNode.interrupt().transition();
-    
+    // Set position, text and size
     popup.attr('transform', 'translate('+position[0]+','+position[1]+')');
-    textNode.attr('opacity', '1')
+    textNode.attr('opacity', '0')
             .text(text);
     var textDOM = textNode.node();
-    bgNode.attr('opacity', '0.7')
+    bgNode.attr('opacity', '0')
           .attr('width', textDOM.clientWidth + 20)
           .attr('height', textDOM.clientHeight + 15);
-  }
+    
+    // Show the popup
+    bgNode.interrupt().transition().duration(duration).attr('opacity', '0.7');
+    textNode.interrupt().transition().duration(duration).attr('opacity', '1');
+  };
   
   // Hide a pop-up
-  main_object.popdown = function(param) {
-    var g = null;
-    var id = null;
-    var duration = 500;
-    
-    if(!isUndefined(param)) {
-      if(!isUndefined(param.graphic)) {
-        g = param.graphic;
-      }
-      if(!isUndefined(param.id)) {
-        id = param.id;
-      }
-      if(!isUndefined(param.duration)) {
-        duration = param.duration;
-      }
-    }
-    
-    if(g === null) {
-      ERROR(lib_name+'.popdown(): parameter graphic undefined');
-    }
-    else if(id === null) {
-      ERROR(lib_name+'.popdown(): parameter id undefined');
-    }
+  main_object.hidePopup = function(param) {
+    var funcName = lib_name+'.popdown';
+    var g =         checkParam(funcName, param, 'graphic');
+    var id =        checkParam(funcName, param, 'id');
+    var duration =  checkParam(funcName, param, 'duration', 0);
     
     var popup = g.svg.select('#pop-up-'+id.toString());
     popup.select('rect').transition().duration(duration).attr('opacity', '0');
@@ -1410,43 +1367,34 @@
       .each("end", function() {
           popup.remove();
         });
-  }
-  
-  main_object.mouse = function(g) {
-    return d3.mouse(g.svg.node());
-  }
-  
+  };
   
   // Return if a pop-up exist with a  given id exist or not
   main_object.popupExist = function(param) {
-    var g = null;
-    var id = null;
-    
-    if(!isUndefined(param)) {
-      if(!isUndefined(param.graphic)) {
-        g = param.graphic;
-      }
-      if(!isUndefined(param.id)) {
-        id = param.id;
-      }
-    }
-    
-    if(g === null) {
-      ERROR(lib_name+'.popdown(): parameter graphic undefined');
-    }
-    else if(id === null) {
-      ERROR(lib_name+'.popdown(): parameter id undefined');
-    }
+    var funcName = lib_name+'.popupExist';
+    var g =         checkParam(funcName, param, 'graphic');
+    var id =        checkParam(funcName, param, 'id');
     
     return !g.svg.select('#pop-up-'+id.toString()).empty();
-  }
-
+  };
+  
+  
+  ////////////////////
+  // Event function //
+  ////////////////////
+  
+  // Return the position of the mouse in the graph
+  // [0, 0] being the position of the top left corner
+  main_object.mouse = function(g) {
+    return d3.mouse(g.svg.node());
+  };
+  
   
   ///////////////////////
   // Private functions //
   ///////////////////////
   
-  // 
+  // Data loader
   var DataLoader = function () {
     this.g = null;
     var me = this;
@@ -1461,17 +1409,18 @@
         me.g.onDataLoaded(dataset);
       }
     };
-  }
+  };
   
   // Add an element to the graphic
-  function addElement(g, Type, param) {
+  var addElement = function(g, Type, param, originFunc) {
     var elt = new Type;
     
     // copying attributes' values from the fallback element
     for(var attr in g.fallback_element) {
       if(!isUndefined(g.fallback_element[attr].type)) {
-        elt[attr] = {type:g.fallback_element[attr].type,
-                     value:g.fallback_element[attr].value};
+        elt[attr] = {type:        g.fallback_element[attr].type,
+                     value:       g.fallback_element[attr].value,
+                     originFunc:  g.fallback_element[attr].originFunc};
       }
     }
     for(var event in g.fallback_element.listeners) {
@@ -1487,62 +1436,66 @@
           elt[attr] = { type:'unknown',
                         value:param[attr]};
         }
+        elt[attr].originFunc = originFunc;
       }
     }
     g.elements.push(elt);
     g.lastElementAdded = elt;
-  }
+  };
   
   // Set an svg attribute (each element have its value)
-  function svgSetAttributePerElem(node, svgAttr, elt, attr) {
+  var svgSetAttributePerElem = function(node, svgAttr, elt, attr) {
     if(!isUndefined(elt[attr])) {
       node.attr(svgAttr, elt[attr].func);
     }
-  }
+  };
   
   // Set common svg attribute (each element have its value)
-  function svgSetCommonAttributesPerElem(node, elt) {
+  var svgSetCommonAttributesPerElem = function(node, elt) {
     svgSetAttributePerElem(node, 'stroke-width',     elt, 'stroke_width');
     svgSetAttributePerElem(node, 'stroke',           elt, 'stroke');
     svgSetAttributePerElem(node, 'stroke-dasharray', elt, 'stroke_dasharray');
     svgSetAttributePerElem(node, 'stroke-opacity',   elt, 'stroke_opacity');
     svgSetAttributePerElem(node, 'fill',             elt, 'fill');
     svgSetAttributePerElem(node, 'fill-opacity',     elt, 'fill_opacity');
-  }
+  };
   
   // Set an svg attribute (element of the same group have the same value)
-  function svgSetAttributePerGroup(node, svgAttr, elt, attr, datum) {
+  var svgSetAttributePerGroup = function(node, svgAttr, elt, attr, datum) {
     if(!isUndefined(elt[attr])) {
       node.attr(svgAttr, elt[attr].func(datum));
     }
-  }
+  };
   
   // Set common svg attribute (element of the same group have the same value)
-  function svgSetCommonAttributesPerGroup(node, elt, datum) {
+  var svgSetCommonAttributesPerGroup = function(node, elt, datum) {
     svgSetAttributePerGroup(node, 'stroke-width',     elt, 'stroke_width',     datum);
     svgSetAttributePerGroup(node, 'stroke',           elt, 'stroke',           datum);
     svgSetAttributePerGroup(node, 'stroke-dasharray', elt, 'stroke_dasharray', datum);
     svgSetAttributePerGroup(node, 'stroke-opacity',   elt, 'stroke_opacity',   datum);
     svgSetAttributePerGroup(node, 'fill',             elt, 'fill',             datum);
     svgSetAttributePerGroup(node, 'fill-opacity',     elt, 'fill_opacity',     datum);
-  }
+  };
   
   // Add padding to a continue interval
-  function addPadding(interval, padding) {
+  var addPadding = function(interval, padding) {
     if(interval[0] != interval[1]) {
       return [interval[0] - (interval[1] - interval[0]) * padding,
               interval[1] + (interval[1] - interval[0]) * padding];
     }
-    else if(interval[0] != 0) {
+    else if(interval[0] > 0) {
       return [0, interval[0] * 2];
+    }
+    else if(interval[0] < 0) {
+      return [interval[0] * 2, 0];
     }
     else {
       return [-1, 1];
     }
-  }
+  };
   
-  // Remove duplicate value of an Array
-  function RemoveDupArray(a){
+  // Sort and remove duplicate values of an Array
+  var RemoveDupArray = function(a){
     a.sort();
     for (var i = 1; i < a.length; i++){
       if (a[i-1] === a[i]) {
@@ -1550,17 +1503,10 @@
         i--;
       }
     }
-  }
-  
-  
-  // Generate an error message
-  function errorMessage(elt_name, attribute, type, expected) {
-    return elt_name+'.'+attribute+' don\'t support value of type \''+type+
-           '\'; Expected: '+expected;
-  }
+  };
   
   // Determinate on which dimension we have to force to ordinal scale
-  function getDimensionsInfo(coordSystem, temporalDim) {
+  var getDimensionsInfo = function(coordSystem, temporalDim) {
     var dim = [];
     var cs = coordSystem;
     
@@ -1587,10 +1533,10 @@
     }
     
     return dim;
-  }
+  };
   
-  // get aesthetic id from an attribute
-  function getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val) {
+  // Get aesthetic id from an attribute
+  var getAesId = function(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, attr_name, originFunc) {
     var id;
     
     // If the attribute is bind to an aestetic
@@ -1647,15 +1593,20 @@
       else
         id = func2Aes[attr_val];
     }
-    else
-      ERROR('Error: attribute bind to a \''+typeof attr_val+'\'');
+    else {
+      ERROR('In '+originFunc+', attribute '+attr_name+' of type \''+typeof attr_val+'\'\n'+
+            'Expected:\n'+
+            ' - constant value (string or number)\n'+
+            ' - function\n'+
+            ' - '+data_binding_prefix+'field (string)');
+    }
+      
       
     return id;
-  }
-  
+  };
   
   // Compute domains of an aestetic
-  function computeDomain(aes, dataset, type) {
+  var computeDomain = function(aes, dataset, type) {
     // Ordinal domain
     if(type == 'discret') {
       if(isUndefined(aes.ordinalDomain)) {
@@ -1680,10 +1631,10 @@
         }
       }
     }
-  }
+  };
   
   // Allocate split data array
-  function allocateSplitDataArray(splitSizes, id) {
+  var allocateSplitDataArray = function(splitSizes, id) {
     if(id == splitSizes.length) {
       return [];
     }
@@ -1694,9 +1645,10 @@
       }
       return array;
     }
-  }
+  };
   
-  function processRow(d) {
+  // Convert numerical string value into pure numerical value
+  var processRow = function(d) {
     for(var key in d) {
       var value = +d[key];
       if(!isNaN(value)) {
@@ -1704,35 +1656,82 @@
       }
     }
     return d;
-  }
+  };
   
-  function ABORT() {
+  // Check if a parameter is defined or not and return its value or default value if any
+  var checkParam = function(funcName, param, paramName, defaultValue) {
+    // Parameter value not set
+    if(isUndefined(param) || isUndefined(param[paramName])) {
+      // Not default value
+      if(isUndefined(defaultValue)) {
+        var msg = 'In function '+funcName+': Missing parameter';
+        if(!isUndefined(paramName)) {
+          msg += ' \''+paramName+'\'';
+        }
+        ERROR(msg);
+      }
+      // Default value
+      else {
+        return defaultValue;
+      }
+    }
+    // Parameter value set
+    else {
+      return param[paramName];
+    }
+  };
+  
+  // Generate an error message for aesthetic type error.
+  var errorAesMessage = function(funcName, attribute, type, expected) {
+    return 'In function '+funcName+': '+attribute+' can\'t be bound by values of type \''+type+
+           '\'\nExpected: '+expected;
+  };
+  
+  // Generate an error message for parameter type error.
+  var errorParamMessage = function(funcName, paramName, type, expected) {
+    return 'In function '+funcName+': '+paramName+' of type \''+type+
+           '\'\nExpected: '+expected;
+  };
+  
+  var ABORT = function() {
     throw 'Abort';
-  }
+  };
   
-  function ERROR(msg) {
+  var ERROR = function(msg) {
+    if(console.error) {
       console.error('Error: '+msg);
       ABORT();
-  }
+    }
+    else {
+      throw msg;
+    }
+  };
   
-  function WARNING(msg) {
-    console.warn(msg);
-  }
+  var WARNING = function(msg) {
+    if(console.warn) {
+      console.warn(msg);
+    }
+  };
   
   var ASSERT = function(condition, msg) {
-    console.assert(condition, msg);
-    if(!condition) {
-      ABORT();
+    if(console.assert) {
+      console.assert(condition, msg);
+      if(!condition) {
+        ABORT();
+      }
     }
-  }
+    else if(!condition) {
+      throw 'Assertion failed: '+msg;
+    }
+  };
   
   var LOG = function(msg) {
     console.log(msg)
-  }
+  };
   
-  function isUndefined(a) {
+  var isUndefined = function(a) {
     return typeof a === 'undefined';
-  }
+  };
   
   
   /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
@@ -1754,18 +1753,4 @@
     return formatted;
   };
   
-  /* The function to render the plot                     */
-  /* Automatically attaches itself to the window.onLoad  */
-  /* Options are: width (optional), height (optional), margin (margin), selector (mandatory) */
-  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
-  Graphic.prototype.plot = function(param) {
-    ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
-    
-    // debugger
-    var theGraphic = this;
-    window.addEventListener("load", function() { theGraphic.render(param); }, true);
-    
-    return this;
-  };
 }();
-

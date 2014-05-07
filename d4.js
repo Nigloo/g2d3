@@ -102,7 +102,7 @@
   Graphic.prototype.data = function(data, filter) {
     if(data === null) {
       ERROR(errorParamMessage('Graphic.data', 'data', 'null',
-        'Array  or value return by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
+        'Array  or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
     }
 
     if(!isUndefined(filter)) {
@@ -267,7 +267,7 @@
         ERROR('Can\'t plot without data');
       }
     }
-    console.log(this.elements);
+    
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
           width,
@@ -341,7 +341,7 @@
         switch(attr_type) {
           case 'dimension':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
             }
             if(isUndefined(this.dim[attr].aes)) {
               this.dim[attr].aes = [];
@@ -350,22 +350,22 @@
             break;
           case 'color':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
             }
             break;
           case 'symbol':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
+              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
             }
             break;
           case 'string':
             if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
+              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
             }
             break;
           case 'number':
             if(aes_ret_type != 'number') {
-              ERROR(errorAesMessage(this.elements[i].originFunc, attr, aes_ret_type, '\'number\''));
+              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'number\''));
             }
             break;
         }
@@ -666,7 +666,8 @@
       for(var j in this.dim) {
         if(this.dim[j].isSpacial) {
           if(isUndefined(this.elements[i][j])) {
-            // TODO: default value (first value of discret domain or min of continue one)
+            var min = this.dim[j].domain[0];
+            pos[j] = function () {return min;};
           }
           else {
             pos[j] = this.elements[i][j].aes.func;

@@ -1,5 +1,5 @@
 !function() {
-"use strict";
+'use strict';
   
   var lib_name = 'd4';
   
@@ -237,7 +237,6 @@
 
   // Render the graphic in svg
   Graphic.prototype.render = function(param) {
-    
     // Check parameters
     var funcName = 'Graphic.render';
     var selector =  checkParam(funcName, param, 'selector', 'body');
@@ -265,6 +264,7 @@
     if(this.dataset === null) {
       if(this.dataLoader != null) {
         this.render_param = param;
+        this.dataLoader.sendXhrRequest();
         return this;
       }
       else {
@@ -404,14 +404,16 @@
     \*                               */
     
     for(var i in this.dim) {
-      if(isUndefined(this.dim[i].aes))
+      if(isUndefined(this.dim[i].aes)) {
         ERROR('Error: dimension '+i+' unused');
+      }
       
       var domain;
       var ordinal;
       
-      if(this.dim[i].forceOrdinal)
+      if(this.dim[i].forceOrdinal) {
         ordinal = true;
+      }
       else {
         // Don't force ordinal (i.e. continue if only number values)
         var ordinal = false;
@@ -457,6 +459,83 @@
       
       this.dim[i].domain = domain;
       this.dim[i].ordinal = ordinal;
+    }
+    
+        
+    /*                *\
+     * Splitting data *
+    \*                */
+    
+    // Initialising current 'time' (i.e. position in spacial dimensions)
+    this.currentTime = [];
+    for(var i in this.dim) {
+      if(!this.dim[i].isSpacial) {
+        this.currentTime[i] = 0;
+      }
+    }
+    
+    // Sizes of each splits, sub-splits, etc
+    var splitSizes = [];
+    
+    // Splitting data according to temporal dimensions
+    this.splitTempDimId = [];
+    for(var i in this.currentTime) {
+      // Split
+      this.splitTempDimId.push(i);
+      splitSizes.push(this.dim[i].domain.length);
+    }
+    
+    // Splitting data according to spacial dimensions
+    splitSizes.push(this.elements.length);
+    this.splitSpacialDimId = [];
+    for(var i in this.dim) {
+      // Split
+      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
+        this.splitSpacialDimId.push(i);
+        splitSizes.push(this.dim[i].domain.length);
+      }
+    }
+    
+    // Splitting data according to group
+    var groupSizes = [];
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
+      groupSizes.push(this.elements[i].group.aes.ordinalDomain.length);
+    }
+    
+    
+    this.nestedata = allocateSplitDataArray(splitSizes, 0);
+    
+    var values = [];
+    for(var i = 0 ; i < this.dataset.length ; i++) {
+      var dataTempSubset = this.nestedata;
+      for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
+        // There is only one aesthetic per temporal dimension
+        var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i]);
+        var id = this.dim[this.splitTempDimId[j]].domain.indexOf(value);
+        dataTempSubset = dataTempSubset[id];
+      }
+      
+      for(var j = 0 ; j < this.elements.length ; j++) {
+        var dataSpacialSubset = dataTempSubset[j];
+        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
+          // There is only one aesthetic per temporal dimension
+          var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i]);
+          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
+          dataSpacialSubset = dataSpacialSubset[id];
+        }
+        
+        if(dataSpacialSubset.length == 0) {
+          for(var k = 0 ; k < groupSizes[j] ; k++) {
+            dataSpacialSubset.push([]);
+          }
+        }
+        
+        var value = this.elements[j].group.aes.func(this.dataset[i]);
+        var id = this.elements[j].group.aes.ordinalDomain.indexOf(value);
+        
+        dataSpacialSubset[id].push(this.dataset[i]);
+      }
     }
     
     
@@ -544,83 +623,6 @@
     
     
     /*                *\
-     * Splitting data *
-    \*                */
-    
-    // Initialising current 'time' (i.e. position in spacial dimensions)
-    this.currentTime = [];
-    for(var i in this.dim) {
-      if(!this.dim[i].isSpacial) {
-        this.currentTime[i] = 0;
-      }
-    }
-    
-    // Sizes of each splits, sub-splits, etc
-    var splitSizes = [];
-    
-    // Splitting data according to temporal dimensions
-    this.splitTempDimId = [];
-    for(var i in this.currentTime) {
-      // Split
-      this.splitTempDimId.push(i);
-      splitSizes.push(this.dim[i].domain.length);
-    }
-    
-    // Splitting data according to spacial dimensions
-    splitSizes.push(this.elements.length);
-    this.splitSpacialDimId = [];
-    for(var i in this.dim) {
-      // Split
-      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
-        this.splitSpacialDimId.push(i);
-        splitSizes.push(this.dim[i].domain.length);
-      }
-    }
-    
-    // Splitting data according to group
-    var groupSizes = [];
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
-      groupSizes.push(this.elements[i].group.aes.ordinalDomain.length);
-    }
-    
-    
-    this.nestedata = allocateSplitDataArray(splitSizes, 0);
-    
-    var values = [];
-    for(var i = 0 ; i < this.dataset.length ; i++) {
-      var dataTempSubset = this.nestedata;
-      for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
-        // There is only one aesthetic per temporal dimension
-        var value = this.dim[this.splitTempDimId[j]].aes[0].func(this.dataset[i]);
-        var id = this.dim[this.splitTempDimId[j]].domain.indexOf(value);
-        dataTempSubset = dataTempSubset[id];
-      }
-      
-      for(var j = 0 ; j < this.elements.length ; j++) {
-        var dataSpacialSubset = dataTempSubset[j];
-        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
-          // There is only one aesthetic per temporal dimension
-          var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i]);
-          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
-          dataSpacialSubset = dataSpacialSubset[id];
-        }
-        
-        if(dataSpacialSubset.length == 0) {
-          for(var k = 0 ; k < groupSizes[j] ; k++) {
-            dataSpacialSubset.push([]);
-          }
-        }
-        
-        var value = this.elements[j].group.aes.func(this.dataset[i]);
-        var id = this.elements[j].group.aes.ordinalDomain.indexOf(value);
-        
-        dataSpacialSubset[id].push(this.dataset[i]);
-      }
-    }
-    
-    
-    /*                *\
      * Generating svg *
     \*                */
     
@@ -658,7 +660,6 @@
     for(var i in this.currentTime) {
       dataToDisplay = dataToDisplay[this.currentTime[i]];
     }
-    
     
     // Draw elements
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -1248,43 +1249,15 @@
   main_object.loadFromFile = function(filename) {
     var dl = new DataLoader();
     
-    var progressListener = function(pe) {
-      if(pe.lengthComputable) {
-        var svg = dl.me.g.svg;
-        var width = svg.attr('width');
-        var height = svg.attr('height');
-        var barWidth = width / 2;
-        var barHeight = 50;
-        var margin = 2;
-        
-        var loadingBar = svg.select('#loading-bar');
-        if(loadingBar.empty()) {
-          loadingBar = svg.append('g').attr('id', 'loading-bar')
-                                      .attr('transform', 'translate('+((width/2)-(barWidth/2))+','+((height/2)-(barHeight/2))+')');
-          loadingBar.append('rect').attr('width', barWidth)
-                                   .attr('height', barHeight)
-                                   .attr('stroke', 'black')
-                                   .attr('stroke_width', 2)
-                                   .attr('fill', 'white')
-          loadingBar.append('rect').attr('class', 'bar')
-                                   .attr('x', margin)
-                                   .attr('y', margin)
-                                   .attr('width', 0)
-                                   .attr('height', barHeight - margin * 2)
-                                   .attr('fill', 'green');
-        }
-        var bar = loadingBar.select('.bar');
-        
-        bar.transition().attr('width', (barWidth - margin * 2) * (pe.loaded / pe.total));
-      }
-    };
+    var xhr = d3.csv(filename)
+                .row(processRow)
+                .on('beforesend', function(xhr){
+                  xhr.onprogress = getProgressListener(dl);
+                })
     
-    d3.csv(filename)
-    .row(processRow)
-    .on('beforesend', function(xhr){
-      xhr.onprogress = progressListener;
-    })
-    .get(dl.load);
+    dl.sendXhrRequest = function() {
+      xhr.get(this.load);
+    }
     
     return dl;
   };
@@ -1303,10 +1276,16 @@
     
     var httpRequestParam = 'host='+host+'&dbname='+dbname+'&user='+user+'&pwd='+pwd+'&request='+request;
     
-    d3.xhr('http://localhost')
-    .header('Content-Type', 'application/x-www-form-urlencoded')
-    .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
-    .post(httpRequestParam, dl.load);
+    var xhr = d3.xhr('http://localhost')
+                .header('Content-Type', 'application/x-www-form-urlencoded')
+                .on('beforesend', function(xhr){
+                  xhr.onprogress = getProgressListener(dl);
+                })
+                .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
+    
+    dl.sendXhrRequest = function() {
+      xhr.post(httpRequestParam, this.load);
+    }
     
     return dl;
   };
@@ -1369,7 +1348,7 @@
     popup.select('rect').transition().duration(duration).attr('opacity', '0');
     popup.select('text').transition().duration(duration).attr('opacity', '0')
     // Callback at the end of the transition
-      .each("end", function() {
+      .each('end', function() {
           popup.remove();
         });
   };
@@ -1400,6 +1379,22 @@
   };
   
   
+  ////////////////////////
+  // Interval functions //
+  ////////////////////////
+  
+  var Interval = function(val) {
+    this.toto = val;
+  }
+  
+  var interval = function(val) {
+    return new Interval(val);
+  }
+  interval.stack = function() {
+    return new Interval(1337);
+  }
+  
+  
   ///////////////////////
   // Private functions //
   ///////////////////////
@@ -1407,6 +1402,7 @@
   // Data loader
   var DataLoader = function () {
     this.g = null;
+    this.sendXhrRequest = null;
     var me = this;
     return {
       me:this,
@@ -1456,7 +1452,7 @@
   // Set an svg attribute (each element have its value)
   var svgSetAttributePerElem = function(node, svgAttr, elt, attr) {
     if(!isUndefined(elt[attr])) {
-      node.attr(svgAttr, elt[attr].func);
+      node.style(svgAttr, elt[attr].func);
     }
   };
   
@@ -1473,7 +1469,7 @@
   // Set an svg attribute (element of the same group have the same value)
   var svgSetAttributePerGroup = function(node, svgAttr, elt, attr, datum) {
     if(!isUndefined(elt[attr])) {
-      node.attr(svgAttr, elt[attr].func(datum));
+      node.style(svgAttr, elt[attr].func(datum));
     }
   };
   
@@ -1691,6 +1687,52 @@
     }
   };
   
+  // Get a listener that update a loading bar
+  var getProgressListener = function(dl) {
+    return function(pe) {
+      if(pe.lengthComputable) {
+        var svg = dl.me.g.svg;
+        var width = svg.attr('width');
+        var height = svg.attr('height');
+        var barWidth = width / 2;
+        var barHeight = 50;
+        var margin = 2;
+        
+        var loadingBar = svg.select('#loading-bar');
+        if(loadingBar.empty()) {
+          loadingBar = svg.append('g').attr('id', 'loading-bar')
+                                      .attr('transform', 'translate('+((width/2)-(barWidth/2))+','+((height/2)-(barHeight/2))+')');
+          loadingBar.append('rect').attr('width', barWidth)
+                                   .attr('height', barHeight)
+                                   .attr('stroke', 'black')
+                                   .attr('stroke_width', 2)
+                                   .attr('fill', 'white')
+          loadingBar.append('rect').attr('class', 'bar')
+                                   .attr('x', margin)
+                                   .attr('y', margin)
+                                   .attr('width', 0)
+                                   .attr('height', barHeight - margin * 2)
+                                   .attr('fill', 'green');
+        }
+        var bar = loadingBar.select('.bar');
+        
+        bar.transition().attr('width', (barWidth - margin * 2) * (pe.loaded / pe.total));
+      }
+    };
+  };
+  
+  // Generator that go through an Array hierarchy
+  var hierarchyIterator = function(h) {
+    if(h[0] instanceof Array) {
+      for(var i = 0 ; i < h.length ; i++) {
+        hierarchyIterator(h[i]);
+      }
+    }
+    else {
+      //yield h;
+    }
+  }
+  
   // Generate an error message for aesthetic type error.
   var errorAesMessage = function(funcName, attribute, type, expected) {
     return 'In function '+funcName+': '+attribute+' can\'t be bound by values of type \''+type+
@@ -1736,7 +1778,9 @@
   };
   
   var LOG = function(msg) {
-    console.log(msg)
+    if(console.log) {
+      console.log(msg)
+    }
   };
   
   var isUndefined = function(a) {

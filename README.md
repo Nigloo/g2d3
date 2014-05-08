@@ -1,4 +1,4 @@
 d4
 ==
 
-[Wiki](Home)
+[Wiki](https://github.com/Nigloo/d4/wiki)

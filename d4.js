@@ -1388,7 +1388,12 @@
   // Event function //
   ////////////////////
   
-  // Return the position of the mouse in the graph
+  // Return the current event if any, null otherwise
+  main_object.event = function() {
+    return d3.event;
+  };
+  
+  // Return the position of the mouse in the graphic
   // [0, 0] being the position of the top left corner
   main_object.mouse = function(g) {
     return d3.mouse(g.svg.node());

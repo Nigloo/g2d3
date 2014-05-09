@@ -337,44 +337,43 @@
         var attr_val = this.elements[i][attr].value;
         var originFunc = this.elements[i][attr].originFunc;
         
-        // Get the aestetic id
-        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, attr, originFunc);
-        
-        // Check data type return by this aesthetic
-        var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
-        switch(attr_type) {
-          case 'dimension':
-            if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
-            }
+        if(attr_type == 'dimension' && attr_val instanceof Interval) {
+          originFunc = lib_name+'.interval'+(attr_val.stacked ? '.stack' : '');
+          
+          var aesId1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary1.value, attr, originFunc);
+          var aesId2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary2.value, attr, originFunc);
+          
+          // Check data type return by this aesthetic
+          var aes_ret_type = typeof aes[aesId1].func(this.dataset[0]);
+          checkAesType('number', aes_ret_type, 'first param', originFunc);
+          aes_ret_type = typeof aes[aesId2].func(this.dataset[0]);
+          checkAesType('number', aes_ret_type, 'second param', originFunc);
+          
+          // TODO: continue...
+          
+          
+          
+          if(attr_val.stacked) {
+            
+          }
+        }
+        else {
+          // Get the aestetic id
+          var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, attr, originFunc);
+          
+          // Check data type return by this aesthetic
+          var aes_ret_type = typeof aes[aesId].func(this.dataset[0]);
+          checkAesType(attr_type, aes_ret_type, attr, originFunc);
+          
+          if(attr_type == 'dimension') {
             if(isUndefined(this.dim[attr].aes)) {
               this.dim[attr].aes = [];
             }
             this.dim[attr].aes.push(aes[aesId]);
-            break;
-          case 'color':
-            if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
-            }
-            break;
-          case 'symbol':
-            if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
-            }
-            break;
-          case 'string':
-            if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
-            }
-            break;
-          case 'number':
-            if(aes_ret_type != 'number') {
-              ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'number\''));
-            }
-            break;
+          }
+          
+          this.elements[i][attr].aes = aes[aesId];
         }
-        
-        this.elements[i][attr].aes = aes[aesId];
       }
     }
     
@@ -399,66 +398,34 @@
     const2Aes = undefined;
     
     
-    /*                               *\
-     * Computing dimensions' domains *
-    \*                               */
+    /*                                                         *\
+     * Computing dimensions' domains                           *
+     * EXCEPT the deepest spacial coordinate system dimensions *
+    \*                                                         */
     
     for(var i in this.dim) {
       if(isUndefined(this.dim[i].aes)) {
         ERROR('Error: dimension '+i+' unused');
       }
       
-      var domain;
-      var ordinal;
-      
-      if(this.dim[i].forceOrdinal) {
-        ordinal = true;
-      }
-      else {
-        // Don't force ordinal (i.e. continue if only number values)
-        var ordinal = false;
-        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-          if(typeof this.dim[i].aes[j].func(this.dataset[0]) != 'number') {
-            ordinal = true;
-            break;
-          }
-        }
+      if(!this.dim[i].forceOrdinal) {
+        continue;
       }
       
-      // Ordinal domain
-      if(ordinal) {
-        domain = [];
-        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-          // Compute discret domain
-          computeDomain(this.dim[i].aes[j], this.dataset, 'discret');
-          var dom = this.dim[i].aes[j].ordinalDomain;;
-          
-          for(var k = 0 ; k < dom.length ; k++)
-            domain.push(dom[k]);
-        }
-        RemoveDupArray(domain);
-      }
-      // Continue domain
-      else {
-        domain = [Infinity, -Infinity];
-        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-          // Compute continuous domain
-          computeDomain(this.dim[i].aes[j], this.dataset, 'continuous');
-          var dom = this.dim[i].aes[j].continuousDomain;
-          
-          if(dom[0] < domain[0])
-            domain[0] = dom[0];
-          if(dom[1] > domain[1])
-            domain[1] = dom[1];
-        }
+      var domain = [];
+      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        // Compute discret domain
+        computeDomain(this.dim[i].aes[j], this.dataset, 'discret');
+        var dom = this.dim[i].aes[j].discretDomain;
         
-        if(domain[0] == domain[1]) {
-          domain = addPadding(domain, linear_scale_padding);
-        }
+        for(var k = 0 ; k < dom.length ; k++)
+          domain.push(dom[k]);
       }
+      RemoveDupArray(domain);
+      
       
       this.dim[i].domain = domain;
-      this.dim[i].ordinal = ordinal;
+      this.dim[i].ordinal = true;
     }
     
         
@@ -500,7 +467,7 @@
     var groupSizes = [];
     for(var i = 0 ; i < this.elements.length ; i++) {
       computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
-      groupSizes.push(this.elements[i].group.aes.ordinalDomain.length);
+      groupSizes.push(this.elements[i].group.aes.discretDomain.length);
     }
     
     
@@ -532,10 +499,73 @@
         }
         
         var value = this.elements[j].group.aes.func(this.dataset[i]);
-        var id = this.elements[j].group.aes.ordinalDomain.indexOf(value);
+        var id = this.elements[j].group.aes.discretDomain.indexOf(value);
         
         dataSpacialSubset[id].push(this.dataset[i]);
       }
+    }
+    
+    
+    /*                                          *\
+     * Computing the deepest spacial coordinate *
+     * system dimensions' domains               *
+    \*                                          */
+    
+    for(var i in this.dim) {
+      if(this.dim[i].forceOrdinal) {
+        continue;
+      }
+      
+      var domain;
+      var ordinal;
+      
+      // Don't force ordinal (i.e. continue if only number values)
+      var ordinal = false;
+      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        if(typeof this.dim[i].aes[j].func(this.dataset[0]) != 'number') {
+          ordinal = true;
+          break;
+        }
+      }
+      
+      // Ordinal domain
+      var it = new HierarchyIterator(this.nestedata);
+      
+      if(ordinal) {
+        domain = [];
+        while(it.hasNext()) {
+          var dataSubset = it.next();
+          for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+            // Compute discret domain
+            for(var k = 0 ; k < dataSubset.length ; k++) {
+              domain.push(this.dim[i].aes[j].func(dataSubset[k]));
+            }
+          }
+        }
+        RemoveDupArray(domain);
+      }
+      // Continue domain
+      else {
+        domain = [Infinity, -Infinity];
+        while(it.hasNext()) {
+          var dataSubset = it.next();
+          for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+            // Compute continue domain
+            var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
+            
+            if(dom[0] < domain[0])
+              domain[0] = dom[0];
+            if(dom[1] > domain[1])
+              domain[1] = dom[1];
+          }
+        }
+        if(domain[0] == domain[1]) {
+          domain = addPadding(domain, linear_scale_padding);
+        }
+      }
+      
+      this.dim[i].domain = domain;
+      this.dim[i].ordinal = ordinal;
     }
     
     
@@ -591,7 +621,7 @@
               
               // Scaling
               var scale = d3.scale.ordinal()
-                                  .domain(attr_aes.ordinalDomain)
+                                  .domain(attr_aes.discretDomain)
                                   .range(d3.svg.symbolTypes);
               
               this.elements[i][attr].func = scale.compose(attr_aes.func);
@@ -696,130 +726,92 @@
       };
       var getY = Closure(this.spacialCoord, pos, this.margin.top);
       
-      
-      // Initilasing current position
-      var currentPos = [];
-      for(var j = 0 ; j < this.splitSpacialDimId.length ; j++) {
-        currentPos.push(0);
-      }
-      
-      var complete = false;
-      
-      while(!complete) {
-        var dataSubset = dataToDisplay[i];
-        for(var j = 0 ; j < currentPos.length ; j++) {
-          dataSubset = dataSubset[currentPos[j]];
+      var it = new HierarchyIterator(dataToDisplay[i]);
+      var id = 0;
+      while(it.hasNext()) {
+        var dataSubset = it.next();
+        var eltClass = 'etl-'+i+'-'+(id++);
+        
+        // Set attributes for each kind of elements
+        // Symbol
+        if(this.elements[i] instanceof Symbol) {
+          var symbol = d3.svg.symbol();
+          
+          if(!isUndefined(this.elements[i].type))
+            symbol.type(this.elements[i].type.func);
+            
+          if(!isUndefined(this.elements[i].size))
+            symbol.size(this.elements[i].size.func);
+          
+          var node = this.svg.selectAll('.'+eltClass)
+                         .data(dataSubset);
+          
+          // On enter
+          var onEnter = node.enter().append('path').attr('class', eltClass);
+          
+          svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
+          onEnter.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
+          onEnter.attr('d', symbol);
+          
+          var listeners = this.elements[i].listeners;
+          var g = this;
+          
+          var GetFunc = function(event) {
+            return function(d) {
+              listeners[event].call(this, d, g);
+            }
+          }
+          
+          for(var event in listeners) {
+            node.on(event, GetFunc(event));
+          }
+          
+          // On exit
+          node.exit().remove();
+          
+          // On update
+          var onUpdate = node.transition();
+          
+          svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
+          onUpdate.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
+          node.attr('d', symbol); // Transition bug here...
         }
         
-        var dataSubsetCopy = dataSubset;
-        var groupSize = this.elements[i].group.aes.ordinalDomain.length;
-        for(var j = 0 ; j < groupSize ; j++) {
-          dataSubset = dataSubsetCopy[j];
+        // Lines
+        else if(this.elements[i] instanceof Line) {
+          var interpolation;
+          if(dataSubset.length > 0)
+            interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
+          else
+            interpolation = '';
           
-          var eltClass = 'etl'+i;
-          for(var k = 0 ; k < currentPos.length ; k++) {
-            eltClass += currentPos[k];
+          var lineFunction = d3.svg.line()
+                               .x(getX)
+                               .y(getY)
+                               .interpolate(interpolation);
+          
+          var node;
+          // On enter
+          if(this.svg.select('.'+eltClass).empty()) {
+            node = this.svg.append('path').attr('class', eltClass);
           }
-          eltClass +=j
-          
-          // Set attributes for each kind of elements
-          // Symbol
-          if(this.elements[i] instanceof Symbol) {
-            var symbol = d3.svg.symbol();
-            
-            if(!isUndefined(this.elements[i].type))
-              symbol.type(this.elements[i].type.func);
-              
-            if(!isUndefined(this.elements[i].size))
-              symbol.size(this.elements[i].size.func);
-            
-            var node = this.svg.selectAll('.'+eltClass)
-                           .data(dataSubset);
-            
-            // On enter
-            var onEnter = node.enter().append('path').attr('class', eltClass);
-            
-            svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
-            onEnter.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
-            onEnter.attr('d', symbol);
-            
-            var listeners = this.elements[i].listeners;
-            var g = this;
-            
-            var GetFunc = function(event) {
-              return function(d) {
-                listeners[event].call(this, d, g);
-              }
-            }
-            
-            for(var event in listeners) {
-              node.on(event, GetFunc(event));
-            }
-            
-            // On exit
-            node.exit().remove();
-            
-            // On update
-            var onUpdate = node.transition();
-            
-            svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
-            onUpdate.attr('transform', function(d) {return 'translate('+getX(d)+','+getY(d)+')';});
-            node.attr('d', symbol); // Transition bug here...
+          // On update
+          else {
+            node = this.svg.select('.'+eltClass).transition();
           }
           
-          // Lines
-          else if(this.elements[i] instanceof Line) {
-            var interpolation;
-            if(dataSubset.length > 0)
-              interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
-            else
-              interpolation = '';
-            
-            var lineFunction = d3.svg.line()
-                                 .x(getX)
-                                 .y(getY)
-                                 .interpolate(interpolation);
-            
-            var node;
-            // On enter
-            if(this.svg.select('.'+eltClass).empty()) {
-              node = this.svg.append('path').attr('class', eltClass);
-            }
-            // On update
-            else {
-              node = this.svg.select('.'+eltClass).transition();
-            }
-            
-            node.attr("d", lineFunction(dataSubset));
-            
-            if(dataSubset.length > 0) {
-              svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0]);
-              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0]);
-            }
-            else {
-              svgSetCommonAttributesPerGroup(node, this.elements[i], null);
-              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', null);
-            }
-            
-            // Nothing to do on exit, there will just be an empty path
-          }
-        }
-        
-        var j = 0;
-        while(true) {
-          if(j >= currentPos.length) {
-            complete = true;
-            break;
-          }
+          node.attr("d", lineFunction(dataSubset));
           
-          currentPos[j]++;
-          if(currentPos[j] >= this.dim[this.splitSpacialDimId[j]].domain.length) {
-            currentPos[j] = 0;
-            j++;
+          if(dataSubset.length > 0) {
+            svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0]);
+            svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0]);
           }
           else {
-            break;
+            svgSetCommonAttributesPerGroup(node, this.elements[i], null);
+            svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', null);
           }
+          
+          // Nothing to do on exit, there will just be an empty path
         }
       }
     }
@@ -1383,17 +1375,18 @@
   // Interval functions //
   ////////////////////////
   
-  var Interval = function(val) {
-    this.toto = val;
-  }
+  main_object.interval = function(val1, val2) {
+    return new Interval(val1, val2, false);
+  };
+  main_object.interval.stack = function(val, origin) {
+    return new Interval(val, isUndefined(origin) ? 0 : origin, true);
+  };
   
-  var interval = function(val) {
-    return new Interval(val);
-  }
-  interval.stack = function() {
-    return new Interval(1337);
-  }
-  
+  var Interval = function(val1, val2, stacked) {
+    this.boundary1 = {value:val1};
+    this.boundary2 = {value:val2};
+    this.stacked = stacked;
+  };
   
   ///////////////////////
   // Private functions //
@@ -1577,7 +1570,7 @@
         
         aes.push({func:toFunction(attr_val),
                   // We set the domains while we know it's a constant value
-                  ordinalDomain:[attr_val]});
+                  discretDomain:[attr_val]});
         id = aes.length - 1;
         
         if(typeof attr_val === 'number')
@@ -1611,25 +1604,56 @@
     return id;
   };
   
+  // Check aesthetic type
+  var checkAesType = function(attr_type, aes_ret_type, attr, originFunc) {
+    switch(attr_type) {
+      case 'dimension':
+        if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+          ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'position (\'number\' or \'string\')'));
+        }
+        break;
+      case 'color':
+        if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+          ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'color (\'number\' or \'string\')'));
+        }
+        break;
+      case 'symbol':
+        if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+          ERROR(errorAesMessage(originFunc, attr, aes_ret_type, 'symbol (\'number\' or \'string\')'));
+        }
+        break;
+      case 'string':
+        if(aes_ret_type != 'number' && aes_ret_type != 'string') {
+          ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'string\' (\'number\' accepted)'));
+        }
+        break;
+      case 'number':
+        if(aes_ret_type != 'number') {
+          ERROR(errorAesMessage(originFunc, attr, aes_ret_type, '\'number\''));
+        }
+        break;
+    }
+  };
+  
   // Compute domains of an aestetic
   var computeDomain = function(aes, dataset, type) {
     // Ordinal domain
     if(type == 'discret') {
-      if(isUndefined(aes.ordinalDomain)) {
+      if(isUndefined(aes.discretDomain)) {
         var f = aes.func;
-        aes.ordinalDomain = [];
+        aes.discretDomain = [];
         for(var k = 0 ; k < dataset.length ; k++) {
-          aes.ordinalDomain.push(f(dataset[k]));
+          aes.discretDomain.push(f(dataset[k]));
         }
-        RemoveDupArray(aes.ordinalDomain);
+        RemoveDupArray(aes.discretDomain);
       }
     }
     // Continue domain
     else {
       if(isUndefined(aes.continuousDomain)) {
         // Compute continuous domain from ordinal one
-        if(!isUndefined(aes.ordinalDomain)) {
-          var ordDom = aes.ordinalDomain;
+        if(!isUndefined(aes.discretDomain)) {
+          var ordDom = aes.discretDomain;
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
         else {
@@ -1722,16 +1746,54 @@
   };
   
   // Generator that go through an Array hierarchy
-  var hierarchyIterator = function(h) {
-    if(h[0] instanceof Array) {
-      for(var i = 0 ; i < h.length ; i++) {
-        hierarchyIterator(h[i]);
+  var HierarchyIterator = function(h) {
+    this.h = h;
+    this.currentState = [];
+    
+    var i = h;
+    while(h[0] instanceof Array) {
+      this.currentState.push(0);
+      h = h[0];
+    }
+  };
+  HierarchyIterator.prototype.hasNext = function() {
+    return this.currentState != null;
+  };
+  HierarchyIterator.prototype.next = function() {
+    if(!this.hasNext()) {
+      throw StopIteration;
+    }
+    
+    var ret = this.h;
+    var size = new Array(this.currentState.length);
+    
+    // Get the current value
+    for(var i = 0 ; i < this.currentState.length ; i++) {
+      size[i] = ret.length;
+      ret = ret[this.currentState[i]];
+    }
+    
+    // Compute next state
+    var stop = false;
+    var i = this.currentState.length - 1;
+    while(!stop) {
+      this.currentState[i]++;
+      if(this.currentState[i] >= size[i]) {
+        this.currentState[i] = 0;
+        i--;
+        
+        if(i < 0) {
+          this.currentState = null;
+          stop = true;
+        }
+      }
+      else {
+        stop = true;
       }
     }
-    else {
-      //yield h;
-    }
-  }
+    
+    return ret;
+  };
   
   // Generate an error message for aesthetic type error.
   var errorAesMessage = function(funcName, attribute, type, expected) {

@@ -24,6 +24,7 @@
             
             var G = [];
             
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -35,11 +36,12 @@
             
             G.push(d4.graphic()
             .element({  x:function(d){return d.col1;},
-                        y:'data:col2',
+                        
                         stroke_width:function(d,i){return d.col4+1;},
                         stroke:function(d,i){return d.col4;},
                         fill:'none'})
             .line({     stroke_width:3,
+                        y:'data:col2',
                         stroke:function(){return 'blue';},
                         interpolation:'cardinal',
                         stroke_linecap:'round'})
@@ -228,18 +230,21 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             var dataset = [
-                {x:'a',   y:2},
-                {x:'b',   y:5},
-                {x:'c',   y:3},
-                {x:'d',   y:4}];
+                {x:'a',   y:2,  t:1},
+                {x:'b',   y:5,  t:1},
+                {x:'c',   y:3,  t:1},
+                {x:'d',   y:4,  t:1},
+                {x:'a',   y:4,  t:2},
+                {x:'b',   y:3,  t:2},
+                {x:'c',   y:2,  t:2},
+                {x:'d',   y:5,  t:2}];
             
             G.push(d4.graphic()
-            .symbol({   x:'data:x',
-                        y:'data:y',
-                        fill:'white',
-                        stroke_width:2,
-                        size:1000,
-                        stroke:'blue'})
+            .time({t:'data:t'})
+            .coord(d4.polar({radius:null, theta:'dim2'}))
+            .bar({  dim1:'data:x',
+                    dim2:d4.interval.stack('data:y'),
+                    fill:function(d,i){return i;}})
             .data({data:dataset})
             .plot({selector:"#graph7", width:1024, height:768, margin:50}));
             
@@ -276,6 +281,8 @@
         <input type="button" value="Next" onclick="next(6)"/>
         
         <div id="graph7"></div>
+        <input type="button" value="Previous" onclick="prev(7)"/>
+        <input type="button" value="Next" onclick="next(7)"/>
         
     </body>
 </html>   

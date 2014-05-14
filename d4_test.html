@@ -34,14 +34,13 @@
                 {col1:20,   col2:3,     col3:3000,  col4:2},
                 {col1:40,   col2:17,    col3:6000,  col4:3}];
             
-            G.push(d4.graphic()
+            G['1'] = d4.graphic()
             .element({  x:function(d){return d.col1;},
-                        
+                        y:'data:col2',
                         stroke_width:function(d,i){return d.col4+1;},
                         stroke:function(d,i){return d.col4;},
                         fill:'none'})
             .line({     stroke_width:3,
-                        y:'data:col2',
                         stroke:function(){return 'blue';},
                         interpolation:'cardinal',
                         stroke_linecap:'round'})
@@ -56,7 +55,7 @@
                         size:'data:col3',
                         stroke_dasharray:function(d){var a=1+d.col4*2;return 2*a+','+a;}})
             .data({data:dataset})
-            .plot({selector:"#graph1", width:1024, height:768, margin:50}));
+            .plot({selector:"#graph1", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +83,7 @@
             }
             
             
-            G.push(d4.graphic()
+            G['2'] = d4.graphic()
             .coord(d4.rect({x:'cat1',
                             // We don't redefine y, so it's default name will be 'y1'
                             // since 'y' is already taken by the sub-system
@@ -105,7 +104,7 @@
                         stroke_width:2,
                         type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
-            .plot({selector:"#graph2", width:800, height:600, margin:30}));
+            .plot({selector:"#graph2", width:800, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +118,7 @@
                         dataset.push({col1:i, col2:cat[j], col3:Math.random()*100});
                         
                         
-            G.push(d4.graphic()
+            G['3'] = d4.graphic()
             .coord(d4.rect({x:'cat',
                             y:null, // We don't want to use this dimension 
                             subSys: d4.rect({x:'sub_cat', y:'y'})
@@ -133,7 +132,7 @@
                     fill:function(d){return d.col2=='cat A'?'red':'blue';}
                     })
             .data({data:dataset})
-            .plot({selector:"#graph3", width:1000, height:1000, margin:50}));
+            .plot({selector:"#graph3", width:1000, height:1000, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +143,7 @@
                     dataset.push({col1:i, col2:t, col3:'v'+(i<10?'0':'')+i});
             
             
-            G.push(d4.graphic()
+            G['4'] = d4.graphic()
             .coord(d4.polar())
             .time({t:'data:col2'})
             .symbol({   theta:'data:col3',
@@ -155,12 +154,12 @@
                         stroke:'data:col1',
                         stroke_width:2})
             .data({data:d4.loadFromFile('test.csv')})
-            .plot({selector:"#graph4", width:1024, height:768, margin:50}));
+            .plot({selector:"#graph4", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            G.push(d4.graphic()
+            G['5'] = d4.graphic()
             .coord(d4.rect({subSys: d4.polar()}))
             .time({t:'data:col5'})
             .element({  x:'data:col1',
@@ -210,12 +209,12 @@
                                                 user:'user_test',
                                                 pwd:'123456',
                                                 request:'SELECT * FROM data_test'})})
-            .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40}));
+            .plot({selector:'#graph5', width:1000, height:1000, margin_left:50, margin_bottom:40});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            G.push(d4.graphic()
+            G['6'] = d4.graphic()
             .time({t:function(d){return parseInt(d.vn6 * 100)}})
             .coord(d4.polar())
             .symbol({   theta:'data:bn6',
@@ -224,39 +223,70 @@
                         stroke_width:2,
                         stroke:function(d){return d.sn6 > 0.5 ? 'red' : 'blue'}})
             .data({data:d4.loadFromFile('big.csv')})
-            .plot({selector:"#graph6", width:1024, height:768, margin:50}));
+            .plot({selector:"#graph6", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            var dataset = [
-                {x:'a',   y:2,  t:1},
-                {x:'b',   y:5,  t:1},
-                {x:'c',   y:3,  t:1},
-                {x:'d',   y:4,  t:1},
-                {x:'a',   y:4,  t:2},
-                {x:'b',   y:3,  t:2},
-                {x:'c',   y:2,  t:2},
-                {x:'d',   y:5,  t:2}];
-            
-            G.push(d4.graphic()
+            var dataset = [];
+            var cat = ['A', 'B', 'C', 'D', 'E', 'F'];
+            for(var t = 0 ; t < 5 ; t++)
+                for(var i = 0 ; i < cat.length ; i++)
+                    for(var y = 0 ; y < 5 ; y++)
+                        dataset.push({cat:cat[i], y:Math.random()*10, t:t});
+                        
+            G['7-1'] = d4.graphic()
+            .coord(d4.polar())
             .time({t:'data:t'})
-            .coord(d4.polar({radius:null, theta:'dim2'}))
-            .bar({  dim1:'data:x',
-                    dim2:d4.interval.stack('data:y'),
+            .bar({  theta:'data:cat',
+                    radius:d4.interval.stack('data:y'),
+                    group:'data:cat',
+                    stroke:'black',
                     fill:function(d,i){return i;}})
             .data({data:dataset})
-            .plot({selector:"#graph7", width:1024, height:768, margin:50}));
+            .plot({selector:"#graph7-1", width:600, height:600, margin:30});
+            
+            G['7-2'] = d4.graphic()
+            .coord(d4.polar())
+            .time({t:'data:t'})
+            .bar({  radius:'data:cat',
+                    theta:d4.interval.stack('data:y'),
+                    group:'data:cat',
+                    stroke:'black',
+                    fill:function(d,i){return i;}})
+            .data({data:dataset})
+            .plot({selector:"#graph7-2", width:600, height:600, margin:30});
+                        
+            G['7-3'] = d4.graphic()
+            .time({t:'data:t'})
+            .bar({  x:'data:cat',
+                    y:d4.interval.stack('data:y'),
+                    group:'data:cat',
+                    fill:function(d,i){return i;}})
+            .data({data:dataset})
+            .plot({selector:"#graph7-3", width:600, height:600, margin:30});
+            
+            G['7-4'] = d4.graphic()
+            .coord(d4.rect({x:'cat', y:null,
+                            subSys:d4.rect({x:'sub_cat'})}))
+            .time({t:'data:t'})
+            .bar({  cat:'data:cat',
+                    sub_cat:function(d,i){return i;},
+                    y:d4.interval(0, 'data:y'),
+                    //group:'data:cat',
+                    fill:function(d,i){return i;}})
+            .data({data:dataset})
+            .plot({selector:"#graph7-4", width:600, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             function prev(i) {
-                G[i-1].previousStep('t');
+                G[i].previousStep('t');
             }
             
             function next(i) {
-                G[i-1].nextStep('t');
+                G[i].nextStep('t');
             }
             
         </script>
@@ -269,20 +299,29 @@
         <div id="graph3"></div>
         
         <div id="graph4"></div>
-        <input type="button" value="Previous" onclick="prev(4)"/>
-        <input type="button" value="Next" onclick="next(4)"/>
+        <input type="button" value="Previous" onclick="prev('4')"/>
+        <input type="button" value="Next" onclick="next('4')"/>
         
         <div id="graph5"></div>
-        <input type="button" value="Previous" onclick="prev(5)"/>
-        <input type="button" value="Next" onclick="next(5)"/>
+        <input type="button" value="Previous" onclick="prev('5')"/>
+        <input type="button" value="Next" onclick="next('5')"/>
         
         <div id="graph6"></div>
-        <input type="button" value="Previous" onclick="prev(6)"/>
-        <input type="button" value="Next" onclick="next(6)"/>
+        <input type="button" value="Previous" onclick="prev('6')"/>
+        <input type="button" value="Next" onclick="next('6')"/>
         
-        <div id="graph7"></div>
-        <input type="button" value="Previous" onclick="prev(7)"/>
-        <input type="button" value="Next" onclick="next(7)"/>
+        <table>
+            <tr>
+                <td id="graph7-1"></td>
+                <td id="graph7-2"></td> 
+            </tr>
+            <tr>
+                <td id="graph7-3"></td>
+                <td id="graph7-4"></td> 
+            </tr>
+        </table>
+        <input type="button" value="Previous" onclick="prev('7-1');prev('7-2');prev('7-3');prev('7-4')"/>
+        <input type="button" value="Next" onclick="next('7-1');next('7-2');next('7-3');next('7-4')"/>
         
     </body>
 </html>   

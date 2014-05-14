@@ -1217,7 +1217,7 @@
                         .domain(addPadding(dim[this.dimName[i]].domain, linear_scale_padding))
                         .range(ranges[i])
                         .nice();
-        subSize[i] = 1;
+        subSize[i] = size[i] / (this.scale[i].domain()[1] - this.scale[i].domain()[0]);
       }
       
       if(this.dimName[i] != null) {
@@ -1392,7 +1392,7 @@
       this.scale['theta'] = d3.scale.linear()
                                     .domain(dim[this.dimName['theta']].domain)
                                     .range([0, 2*Math.PI]);
-      dim[this.dimName['theta']].band = 1;
+      dim[this.dimName['theta']].band = 2 * Math.PI / (this.scale['theta'].domain()[1] - this.scale['theta'].domain()[0]);
     }
     
     
@@ -1411,7 +1411,7 @@
                       .domain(dim[this.dimName['radius']].domain)
                       .range([0, this.boundary['radius'].max])
                       .nice();
-      dim[this.dimName['radius']].band = 1;
+      dim[this.dimName['radius']].band = this.boundary['radius'].max / (this.scale['radius'].domain()[1] - this.scale['radius'].domain()[0]);
     }
     
   };

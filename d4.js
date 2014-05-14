@@ -49,6 +49,7 @@
     this.splitTempDimId = null;
     this.splitSpacialDimId = null;
     this.dim = null;
+    this.timeSlider = null;
   };
   
   // Set element properties
@@ -214,6 +215,23 @@
     
     return this;
   };
+  
+  // Go to the specified value of the specified time dimension
+  Graphic.prototype.setTimeValue = function(timeDimension, value) {
+    if(isUndefined(timeDimension) ||
+       isUndefined(value) ||
+       this.currentTime === null) {
+      return this;
+    }
+    
+    var index = this.dim[timeDimension].domain.indexOf(value);
+    if(index >= 0 && this.currentTime[timeDimension] != index) {
+      this.currentTime[timeDimension] = index;
+      this.update();
+    }
+    
+    return this;
+  }
   
   // Go to the next value of the specified time dimension
   Graphic.prototype.nextStep = function(timeDimension) {
@@ -610,6 +628,97 @@
     }
     
     
+    /*                         *\
+     * Generating time sliders *
+    \*                         */
+    this.timeSlider = [];
+    var timeSliderInfo = [];
+    var nbSlider = 0;
+    var sliderHeight = 50;
+    var sliderSize = width - this.margin.left - this.margin.right;
+    
+    for(var i in this.dim) {
+      if(this.dim[i].isSpacial) {
+        continue;
+      }
+      
+      timeSliderInfo[i] = {};
+      timeSlider[i] = {};
+      
+      var values = this.dim[i].domain;
+      var dom = [];
+      for(var j = 1 ; j < values.length ; j++){
+          dom.push(j* sliderSize / (values.length - 1));
+      }
+      var mouseToValue = d3.scale.threshold()
+                                 .domain(dom)
+                                 .range(values);
+      var valueToMouse = d3.scale.ordinal()
+                                 .domain(values)
+                                 .rangePoints([0, sliderSize], 0);
+      console.log('domain: ',valueToMouse.domain());console.log('range: ',valueToMouse.range());
+      var axis = d3.svg.axis()
+                   .scale(valueToMouse)
+                   .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
+                   .orient('bottom')
+                   .tickSize(0)
+                   .tickPadding(12);
+      
+      var brush = d3.svg.brush()
+                    .x(valueToMouse)//maybe need identity
+                    .extent([0, 0]);
+                    
+      var g = this;
+      var timeDim = i;
+                    
+      var getOnBrushed = function(brush, handle) {
+        return function(){
+          var posX = brush.extent()[0];
+
+          if (d3.event.sourceEvent) { // not a programmatic event
+            posX = d3.mouse(this)[0];
+            
+            posX = posX.clamp(0, sliderSize);
+            
+            brush.extent([posX, posX]);
+          }
+          
+          handle.interrupt().transition();
+          handle.attr("cx", posX);
+          g.setTimeValue(timeDim, mouseToValue(posX));
+        }
+      };
+      
+      var getOnBrushEnd = function(brush, handle) {
+        return function(){
+          var posX = brush.extent()[0];
+
+          if (d3.event.sourceEvent) { // not a programmatic event
+            posX = d3.mouse(this)[0];
+            posX.clamp(0, sliderSize);
+            
+            posX = valueToMouse(mouseToValue(posX));
+            
+            brush.extent([posX, posX]);
+          }
+          
+          handle.interrupt().transition().attr("cx", posX);
+        }
+      };
+      
+      timeSliderInfo[i].axis = axis;
+      timeSliderInfo[i].brush = brush;
+      timeSliderInfo[i].getOnBrushed = getOnBrushed;
+      timeSliderInfo[i].getOnBrushEnd = getOnBrushEnd;
+      
+      timeSlider[i].valueToMouse = valueToMouse;
+      
+      nbSlider++;
+    }
+    // Reserve some space for sliders
+    this.margin.bottom += sliderHeight * nbSlider;
+    
+    
     /*                  *\
      * Computing scales *
     \*                  */
@@ -726,6 +835,56 @@
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
     //*/
+    
+    // Add time sliders
+    var offsetY = height - sliderHeight * nbSlider;
+    var handleSize = 9;
+    for(var i in timeSliderInfo) {
+      var slider = this.svg.append('g').attr('class', 'slider')
+                                       .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
+      this.timeSlider[i].svg = slider;
+                          
+      var axis = slider.append('g').attr('class', 'axis')
+                                   .attr('transform', 'translate(0,'+sliderHeight/2 +')')
+                                   .call(timeSliderInfo[i].axis)
+                                   .style('font', '10px sans-serif')
+                                   .style('-webkit-user-select', 'none')
+                                   .style('-moz-user-select', 'none')
+                                   .style('user-select', 'none');
+      
+      axis.select('.domain').style('fill', 'none')
+                            .style('stroke', '#000')
+                            .style('stroke-opacity', '0.3')
+                            .style('stroke-width', '10')
+                            .style('stroke-linecap', 'round')
+          .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
+                            .style('stroke', '#ddd')
+                            .style('stroke-opacity', '1')
+                            .style('stroke-width', '8');
+      
+      var brush = slider.append('g').attr('class', 'brush')
+                                    .call(timeSliderInfo[i].brush);
+      
+      brush.selectAll('.extent,.resize').remove();
+      brush.select('.background').attr('height', handleSize*2)
+                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize)+')');
+      
+      var handle = brush.append('circle').attr('class', 'handle')
+                                         .attr('transform', 'translate(0,'+sliderHeight/2 +')')
+                                         .attr('r', handleSize)
+                                         .style('fill', '#fff')
+                                         .style('stroke', '#000')
+                                         .style('stroke-opacity', '0.5')
+                                         .style('stroke-width', '1.25px')
+                                         .style('pointer-events', 'none');
+      
+      timeSliderInfo[i].brush.on('brush', timeSliderInfo[i].getOnBrushed(timeSliderInfo[i].brush, handle));
+      timeSliderInfo[i].brush.on('brushend', timeSliderInfo[i].getOnBrushEnd(timeSliderInfo[i].brush, handle));
+      
+      handle.call(timeSliderInfo[i].brush.event);
+      
+      offsetY += 100;
+    }
     
     // Draw elements
     this.update();
@@ -1078,7 +1237,7 @@
   
   /* The function to render the plot                     */
   /* Automatically attaches itself to the window.onLoad  */
-  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick            */
+  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick */
   Graphic.prototype.plot = function(param) {
     ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
     
@@ -1801,7 +1960,12 @@
   
   // Sort and remove duplicate values of an Array
   var RemoveDupArray = function(a){
-    a.sort();
+    if(typeof a[0] === 'number') {
+      a.sort(function(a, b){return a-b});
+    }
+    else {
+      a.sort();
+    }
     for (var i = 1; i < a.length; i++){
       if (a[i-1] === a[i]) {
         a.splice(i, 1);
@@ -2170,6 +2334,12 @@
   
   var isUndefined = function(a) {
     return typeof a === 'undefined';
+  };
+  
+  
+  /* From: http://strd6.com/2010/08/useful-javascript-game-extensions-clamp/ */
+  Number.prototype.clamp = function(min, max) {
+    return Math.min(Math.max(this, min), max);
   };
   
   

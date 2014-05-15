@@ -671,12 +671,8 @@
       var brush = d3.svg.brush()
                     .x(valueToMouse)
                     .extent([0, 0]);
-                    
-      var g = this;
-      var dim = this.dim;
-      var timeDim = i;
-                    
-      var getOnBrushed = function(brush, handle) {
+      
+      var getOnBrushed = function(brush, handle, g, timeDim, mouseToValue) {
         return function(){
           var posX = brush.extent()[0];
 
@@ -690,7 +686,7 @@
           
           handle.interrupt().transition();
           handle.attr("cx", posX);
-          var index = dim[timeDim].domain.indexOf(mouseToValue(posX));
+          var index = g.dim[timeDim].domain.indexOf(mouseToValue(posX));
           if(g.currentTime[timeDim] != index) {
             g.currentTime[timeDim] = index;
             g.updateElements();
@@ -698,7 +694,7 @@
         }
       };
       
-      var getOnBrushEnd = function(brush, handle) {
+      var getOnBrushEnd = function(brush, handle, mouseToValue, valueToMouse) {
         return function(){
           var posX = brush.extent()[0];
 
@@ -720,6 +716,7 @@
       timeSliderInfo[i].getOnBrushed = getOnBrushed;
       timeSliderInfo[i].getOnBrushEnd = getOnBrushEnd;
       
+      this.timeSlider[i].mouseToValue = mouseToValue;
       this.timeSlider[i].valueToMouse = valueToMouse;
       
       nbSlider++;
@@ -844,11 +841,11 @@
     // Add time sliders
     var offsetY = height - sliderHeight * nbSlider;
     var handleSize = 18;
-    for(var i in timeSliderInfo) {
+    for(var i in this.timeSlider) {
       var slider = this.svg.append('g').attr('class', 'slider')
                                        .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
       this.timeSlider[i].svg = slider;
-                          
+      
       var axis = slider.append('g').attr('class', 'axis')
                                    .attr('transform', 'translate(0,'+sliderHeight/2 +')')
                                    .call(timeSliderInfo[i].axis)
@@ -885,12 +882,18 @@
                                          .style('stroke-width', '1.25px')
                                          .style('pointer-events', 'none');
       
-      timeSliderInfo[i].brush.on('brush', timeSliderInfo[i].getOnBrushed(timeSliderInfo[i].brush, handle));
-      timeSliderInfo[i].brush.on('brushend', timeSliderInfo[i].getOnBrushEnd(timeSliderInfo[i].brush, handle));
+      timeSliderInfo[i].brush.on('brush', 
+        timeSliderInfo[i].getOnBrushed(timeSliderInfo[i].brush, handle,
+                                       this, i, this.timeSlider[i].mouseToValue));
+                                       
+      timeSliderInfo[i].brush.on('brushend',
+        timeSliderInfo[i].getOnBrushEnd(timeSliderInfo[i].brush, handle,
+                                        this.timeSlider[i].mouseToValue,
+                                        this.timeSlider[i].valueToMouse));
       
       handle.call(timeSliderInfo[i].brush.event);
       
-      offsetY += 100;
+      offsetY += sliderHeight;
     }
     
     // Draw elements

@@ -280,6 +280,25 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
+            var dataset = [];
+            var cat = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+            for(var i = 1 ; i <= 10 ; i++)
+                for(var j = 0 ; j < cat.length ; j++)
+                    dataset.push({x:cat[j], y:i});
+            
+            G['8'] = d4.graphic()
+            .time({ tx:'data:x',
+                    ty:'data:y'})
+            .symbol({   x:'data:x',
+                        y:'data:y',
+                        fill:'red',
+                        stroke:'black'})
+            .data({data:dataset})
+            .plot({selector:"#graph8", width:600, height:600, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
             function prev(i) {
                 G[i].previousStep('t');
             }
@@ -321,6 +340,8 @@
         </table>
         <input type="button" value="Previous" onclick="prev('7-1');prev('7-2');prev('7-3');prev('7-4')"/>
         <input type="button" value="Next" onclick="next('7-1');next('7-2');next('7-3');next('7-4')"/>
-        <div id = "test"></div>
+        
+        <div id="graph8"></div>
+        
     </body>
 </html>   

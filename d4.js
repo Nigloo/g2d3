@@ -39,7 +39,7 @@
     
     // Attributes used by onDataLoad method
     this.render_param = null;
-    this.data_filter = null;
+    this.data_process_function = [];
     
     // Attributes non null only after render
     this.margin = null;
@@ -114,13 +114,10 @@
   // Set dataset
   Graphic.prototype.data = function(param) {
     var funcName = 'Graphic.data';
-    var data =    checkParam(funcName, param, 'data');
-    var filter =  checkParam(funcName, param, 'filter', null);
-    
-    this.data_filter = filter;
+    var data = checkParam(funcName, param, 'data');
     
     if(data instanceof Array) {
-      this.onDataLoaded(data);
+      this.dataset = data;
     }
     else if(data instanceof Object && !isUndefined(data.me) && data.me instanceof DataLoader) {
       this.dataLoader = data;
@@ -134,16 +131,25 @@
     return this;
   };
   
+  // Add a data processing function
+  Graphic.prototype.processData = function(param) {
+    var funcName = 'Graphic.processData';
+    var func = checkParam(funcName, param, 'func');
+    
+    this.data_process_function.push(func);
+    
+    return this;
+  }
+  
   // Set data just loaded, filter them and render if needed;
   // Not supposed to be called by the user
   Graphic.prototype.onDataLoaded = function(data) {
-    if(this.data_filter != null) {
-      this.dataset = data.filter(this.data_filter);
-      this.data_filter = null;
+    // Process data
+    this.dataset = data;
+    for(var i = 0 ; i < this.data_process_function.length ; i++) {
+      this.dataset = this.data_process_function[i](this.dataset);
     }
-    else {
-      this.dataset = data;
-    }
+    this.data_process_function = [];
     
     if(this.render_param != null) {
       var param = this.render_param;
@@ -300,6 +306,9 @@
         ERROR('Can\'t plot without data');
       }
     }
+    else {
+      this.onDataLoaded(this.dataset);
+    }
     
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
@@ -345,6 +354,12 @@
     
     // Information on each dimension
     this.dim = getDimensionsInfo(this.spacialCoord, this.temporalDim);
+    var deepestCoordSysDim = [];
+    for(var i in this.dim) {
+      if(!this.dim[i].forceOrdinal) {
+        deepestCoordSysDim.push(i);
+      }
+    }
     // Aesthetics
     var aes = [];
     // Map data column name -> aesthetic id
@@ -366,7 +381,21 @@
         var attr_val = this.elements[i][attr].value;
         var originFunc = this.elements[i][attr].originFunc;
         
-        if(attr_type == 'dimension' && attr_val instanceof Interval) {
+        if(attr_val instanceof Interval && attr_type == 'dimension') {
+          if(!(this.elements[i] instanceof Bar)) {
+            ERROR(this.elements[i].elt_name+' can\'t have an interval as position ('+attr+')');
+          }
+          
+          if(deepestCoordSysDim.indexOf(attr) < 0) {
+            var msg = 'Attribute '+attr+' can\'t be an interval. Only ';
+            for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+              msg += j ? (j == deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
+              msg += deepestCoordSysDim[j];
+            }
+            msg += ' can be.';
+            ERROR(msg);
+          }
+          
           originFunc = lib_name+'.interval'+(attr_val.stacked ? '.stack' : '');
           
           var aesId1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary1.value, attr, originFunc);
@@ -652,7 +681,7 @@
       var values = this.dim[i].domain;
       var dom = [];
       for(var j = 1 ; j < values.length ; j++){
-        dom.push((j-0.2) * sliderSize / (values.length - 1));
+        dom.push(j * 0.9 * sliderSize / (values.length - 1));
       }
       var mouseToValue = d3.scale.threshold()
                                  .domain(dom)
@@ -871,7 +900,8 @@
       brush.select('.background').attr('width', sliderSize + handleSize)
                                  .attr('height', handleSize)
                                  .attr('x', -handleSize/2)
-                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')');
+                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
+                                 .style('cursor', 'auto');
       
       var handle = brush.append('circle').attr('class', 'handle')
                                          .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
@@ -895,10 +925,10 @@
       
       offsetY += sliderHeight;
     }
+    this.updateSliders();
     
     // Draw elements
     this.updateElements();
-    this.updateSliders();
     
     return this;
   };
@@ -1299,6 +1329,8 @@
   };
     
   var Symbol = function() {
+    this.elt_name = 'Symbol';
+    
     this.type = { type:'symbol',
                     value:'circle'};
     this.size = { type:'number',
@@ -1308,6 +1340,8 @@
   };
   
   var Line = function() {
+    this.elt_name = 'Line';
+    
     this.interpolation = {type:'string',
                           value:'linear'};
     this.stroke_linecap = {type:'string',
@@ -1317,6 +1351,8 @@
   };
   
   var Bar = function() {
+    this.elt_name = 'Bar';
+    
     // No specific attributes
      
     this.listeners = [];
@@ -1729,7 +1765,10 @@
   ///////////////////////
 
   // Load data from a csv file
-  main_object.loadFromFile = function(filename) {
+  main_object.loadFromFile = function(param) {
+    var funcName = lib_name+'.loadFromFile';
+    var filename = checkParam(funcName, param, 'file');
+    
     var dl = new DataLoader();
     
     var xhr = d3.csv(filename)
@@ -1772,6 +1811,27 @@
     
     return dl;
   };
+  
+  
+  ///////////////////////////////
+  // Data processing functions //
+  ///////////////////////////////
+
+  // Load data from a csv file
+  main_object.filter = function(param) {
+    var funcName = lib_name+'.filter';
+    var criteria = checkParam(funcName, param, 'criteria');
+    
+    return function(data) {
+      var filtered_data = [];
+      for(var i = 0 ; i < data.length ; i++) {
+        if(criteria(data[i], i)) {
+          filtered_data.push(data[i]);
+        }
+      }
+      return filtered_data;
+    }
+  }
   
   
   /////////////////////
@@ -2107,7 +2167,9 @@
         id = func2Aes[attr_val];
     }
     else {
-      ERROR('In '+originFunc+', attribute '+attr_name+' of type \''+typeof attr_val+'\'\n'+
+      var attr_type = (attr_val instanceof Interval) ? 'Interval' : typeof attr_val;
+      
+      ERROR('In '+originFunc+', attribute '+attr_name+' of type \''+attr_type+'\'\n'+
             'Expected:\n'+
             ' - constant value (string or number)\n'+
             ' - function\n'+

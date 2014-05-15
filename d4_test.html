@@ -152,7 +152,7 @@
                         fill:'white',
                         stroke:'data:col1',
                         stroke_width:2})
-            .data({data:d4.loadFromFile('test.csv')})
+            .data({data:d4.loadFromFile({file:'test.csv'})})
             .plot({selector:"#graph4", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -221,7 +221,7 @@
                         fill:'white',
                         stroke_width:2,
                         stroke:function(d){return d.sn6 > 0.5 ? 'red' : 'blue'}})
-            .data({data:d4.loadFromFile('big.csv')})
+            .data({data:d4.loadFromFile({file:'big.csv'})})
             .plot({selector:"#graph6", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,12 +277,14 @@
             .data({data:dataset})
             .plot({selector:"#graph7-4", width:600, height:600, margin:30});
             
+            
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-            for(var i = 1 ; i <= 10 ; i++)
+            for(var i = 1 ; i < 20 ; i++)
                 for(var j = 0 ; j < cat.length ; j++)
                     dataset.push({x:cat[j], y:i});
             
@@ -294,6 +296,7 @@
                         fill:'red',
                         stroke:'black'})
             .data({data:dataset})
+            .processData({func:d4.filter({criteria:function(d){return d.y <= 10;}})})
             .plot({selector:"#graph8", width:600, height:600, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////

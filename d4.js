@@ -227,7 +227,8 @@
     var index = this.dim[timeDimension].domain.indexOf(value);
     if(index >= 0 && this.currentTime[timeDimension] != index) {
       this.currentTime[timeDimension] = index;
-      this.update();
+      this.updateElements();
+      this.updateSliders();
     }
     
     return this;
@@ -241,7 +242,8 @@
     
     if(this.currentTime[timeDimension] < this.dim[timeDimension].domain.length-1){
       this.currentTime[timeDimension]++;
-      this.update();
+      this.updateElements();
+      this.updateSliders();
     }
     
     return this;
@@ -255,7 +257,8 @@
     
     if(this.currentTime[timeDimension] > 0){
       this.currentTime[timeDimension]--;
-      this.update();
+      this.updateElements();
+      this.updateSliders();
     }
     
     return this;
@@ -631,6 +634,7 @@
     /*                         *\
      * Generating time sliders *
     \*                         */
+    
     this.timeSlider = [];
     var timeSliderInfo = [];
     var nbSlider = 0;
@@ -643,12 +647,12 @@
       }
       
       timeSliderInfo[i] = {};
-      timeSlider[i] = {};
+      this.timeSlider[i] = {};
       
       var values = this.dim[i].domain;
       var dom = [];
       for(var j = 1 ; j < values.length ; j++){
-          dom.push(j* sliderSize / (values.length - 1));
+        dom.push((j-0.2) * sliderSize / (values.length - 1));
       }
       var mouseToValue = d3.scale.threshold()
                                  .domain(dom)
@@ -656,7 +660,7 @@
       var valueToMouse = d3.scale.ordinal()
                                  .domain(values)
                                  .rangePoints([0, sliderSize], 0);
-      console.log('domain: ',valueToMouse.domain());console.log('range: ',valueToMouse.range());
+      
       var axis = d3.svg.axis()
                    .scale(valueToMouse)
                    .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
@@ -665,10 +669,11 @@
                    .tickPadding(12);
       
       var brush = d3.svg.brush()
-                    .x(valueToMouse)//maybe need identity
+                    .x(valueToMouse)
                     .extent([0, 0]);
                     
       var g = this;
+      var dim = this.dim;
       var timeDim = i;
                     
       var getOnBrushed = function(brush, handle) {
@@ -685,7 +690,11 @@
           
           handle.interrupt().transition();
           handle.attr("cx", posX);
-          g.setTimeValue(timeDim, mouseToValue(posX));
+          var index = dim[timeDim].domain.indexOf(mouseToValue(posX));
+          if(g.currentTime[timeDim] != index) {
+            g.currentTime[timeDim] = index;
+            g.updateElements();
+          }
         }
       };
       
@@ -711,7 +720,7 @@
       timeSliderInfo[i].getOnBrushed = getOnBrushed;
       timeSliderInfo[i].getOnBrushEnd = getOnBrushEnd;
       
-      timeSlider[i].valueToMouse = valueToMouse;
+      this.timeSlider[i].valueToMouse = valueToMouse;
       
       nbSlider++;
     }
@@ -817,28 +826,24 @@
     \*                */
     
     // Add background
-    //*
     this.spacialCoord.drawBackground( this.svg,
                                       this.dim,
                                       this.margin.left,
                                       this.margin.top,
                                       width-this.margin.left-this.margin.right,
                                       height-this.margin.top-this.margin.bottom);
-    //*/
     
     // Add axis
-    //*
     this.spacialCoord.drawAxis( this.svg,
                                 this.dim,
                                 this.margin.left,
                                 this.margin.top,
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
-    //*/
     
     // Add time sliders
     var offsetY = height - sliderHeight * nbSlider;
-    var handleSize = 9;
+    var handleSize = 18;
     for(var i in timeSliderInfo) {
       var slider = this.svg.append('g').attr('class', 'slider')
                                        .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
@@ -866,12 +871,14 @@
                                     .call(timeSliderInfo[i].brush);
       
       brush.selectAll('.extent,.resize').remove();
-      brush.select('.background').attr('height', handleSize*2)
-                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize)+')');
+      brush.select('.background').attr('width', sliderSize + handleSize)
+                                 .attr('height', handleSize)
+                                 .attr('x', -handleSize/2)
+                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')');
       
       var handle = brush.append('circle').attr('class', 'handle')
-                                         .attr('transform', 'translate(0,'+sliderHeight/2 +')')
-                                         .attr('r', handleSize)
+                                         .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
+                                         .attr('r', handleSize/2)
                                          .style('fill', '#fff')
                                          .style('stroke', '#000')
                                          .style('stroke-opacity', '0.5')
@@ -887,14 +894,15 @@
     }
     
     // Draw elements
-    this.update();
+    this.updateElements();
+    this.updateSliders();
     
     return this;
   };
   
   
   // (Re)draw elements of the graphics
-  Graphic.prototype.update = function() {
+  Graphic.prototype.updateElements = function() {
     // Data belonging to the current time
     var dataToDisplay = this.nestedata;
     for(var i in this.currentTime) {
@@ -1234,6 +1242,21 @@
     return this;
   };
   
+  
+  // Update position of time sliders' cursor
+  Graphic.prototype.updateSliders = function() {
+    for(var i in this.timeSlider) {
+      var value = this.dim[i].domain[this.currentTime[i]];
+      var posX = this.timeSlider[i].valueToMouse(value);
+      
+      this.timeSlider[i].svg.select('.brush')
+                            .select('.handle')
+                            .transition()
+                            .attr('cx', posX);
+    }
+    
+    return this;
+  };
   
   /* The function to render the plot                     */
   /* Automatically attaches itself to the window.onLoad  */

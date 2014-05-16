@@ -543,29 +543,46 @@
       this.splitTempDimId.push(i);
       splitSizes.push(this.dim[i].domain.length);
     }
+    this.nestedata = allocateSplitDataArray(splitSizes, 0);
     
-    // Splitting data according to spacial dimensions
-    splitSizes.push(this.elements.length);
-    this.splitSpacialDimId = [];
-    for(var i in this.dim) {
-      // Split
-      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
-        this.splitSpacialDimId.push(i);
-        splitSizes.push(this.dim[i].domain.length);
-      }
-    }
-    
-    // Splitting data according to group
+    // Splitting data according to element and group
     var groupSizes = [];
     for(var i = 0 ; i < this.elements.length ; i++) {
       computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
       groupSizes.push(this.elements[i].group.aes.discretDomain.length);
     }
     
+    var it = new HierarchyIterator(this.nestedata);
+    while(it.hasNext()) {
+      var dataSubset = it.next();
+      
+      for(var i = 0 ; i < this.elements.length ; i++) {
+        dataSubset.push([]);
+        for(var j = 0 ; j < groupSizes[i] ; j++) {
+          dataSubset[i].push([]);
+        }
+      }
+    }
     
-    this.nestedata = allocateSplitDataArray(splitSizes, 0);
+    // Splitting data according to spacial dimensions
+    splitSizes = [];
+    this.splitSpacialDimId = [];
+    for(var i in this.dim) {
+      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
+        this.splitSpacialDimId.push(i);
+        splitSizes.push(this.dim[i].domain.length);
+      }
+    }
     
-    var values = [];
+    var it = new HierarchyIterator(this.nestedata);
+    while(it.hasNext()) {
+      var dataSubset = it.next();
+      var t = allocateSplitDataArray(splitSizes, 0);
+      for(var i = 0 ; i < t.length ; i++) {
+        dataSubset.push(t[i]);
+      }
+    }
+    
     for(var i = 0 ; i < this.dataset.length ; i++) {
       var dataTempSubset = this.nestedata;
       for(var j = 0 ; j < this.splitTempDimId.length ; j++) {
@@ -575,24 +592,21 @@
         dataTempSubset = dataTempSubset[id];
       }
       
+      
       for(var j = 0 ; j < this.elements.length ; j++) {
         var dataSpacialSubset = dataTempSubset[j];
+        
+        var groupValue = this.elements[j].group.aes.func(this.dataset[i], i);
+        var groupId = this.elements[j].group.aes.discretDomain.indexOf(groupValue);
+        var dataSpacialSubset = dataSpacialSubset[groupId];
+        
         for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
           var value = this.dim[this.splitSpacialDimId[k]].aes[j].func(this.dataset[i], i);
           var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
           dataSpacialSubset = dataSpacialSubset[id];
         }
         
-        if(dataSpacialSubset.length == 0) {
-          for(var k = 0 ; k < groupSizes[j] ; k++) {
-            dataSpacialSubset.push([]);
-          }
-        }
-        
-        var value = this.elements[j].group.aes.func(this.dataset[i], i);
-        var id = this.elements[j].group.aes.discretDomain.indexOf(value);
-        
-        dataSpacialSubset[id].push(this.dataset[i]);
+        dataSpacialSubset.push(this.dataset[i]);
       }
     }
     
@@ -680,8 +694,8 @@
       
       var values = this.dim[i].domain;
       var dom = [];
-      for(var j = 1 ; j < values.length ; j++){
-        dom.push(j * 0.9 * sliderSize / (values.length - 1));
+      for(var j = 0 ; j < values.length - 1 ; j++){
+        dom.push((j+0.8) * sliderSize / (values.length - 1));
       }
       var mouseToValue = d3.scale.threshold()
                                  .domain(dom)
@@ -932,7 +946,6 @@
     
     return this;
   };
-  
   
   // (Re)draw elements of the graphics
   Graphic.prototype.updateElements = function() {
@@ -1275,7 +1288,6 @@
     return this;
   };
   
-  
   // Update position of time sliders' cursor
   Graphic.prototype.updateSliders = function() {
     for(var i in this.timeSlider) {
@@ -1359,7 +1371,7 @@
   };
   
   ////////////////////////
-  // Coordonate Systems //
+  // Coordinate Systems //
   ////////////////////////
   
   main_object.rect = function(param) {
@@ -1817,7 +1829,7 @@
   // Data processing functions //
   ///////////////////////////////
 
-  // Load data from a csv file
+  // Filter data
   main_object.filter = function(param) {
     var funcName = lib_name+'.filter';
     var criteria = checkParam(funcName, param, 'criteria');
@@ -1833,6 +1845,85 @@
     }
   }
   
+  // Compute box plot data (quartiles, whiskers and outliers)
+  main_object.computeBoxPlotStat = function(param) {
+    var funcName = lib_name+'.computeBoxPlotStat';
+    var group_by = checkParam(funcName, param, 'group_by');
+    var stat_on = checkParam(funcName, param, 'stat_on');
+    
+    
+    return function(data) {
+      var groupByAes = [];
+    
+      // Aesthetics
+      var aes = [];
+      // Map data column name -> aesthetic id
+      var dataCol2Aes = {};
+      // Map function -> aesthetic id
+      var func2Aes = {};
+      // Map const value -> aesthetic id
+      var const2Aes = {};
+      
+      // Sizes of each splits, sub-splits, etc
+      var splitSizes = [];
+      
+      for(var i in group_by) {
+        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], 'group_by:'+i, funcName);
+        groupByAes[i] = aes[aesId];
+        computeDomain(groupByAes[i], data, 'discret');
+        splitSizes.push(groupByAes[i].discretDomain.length);
+      }
+      
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, 'stat_on', funcName);
+      var statOnAes = aes[aesId];
+      checkAesType('number', typeof statOnAes.func(data[0], 0), 'stat_on', funcName);
+      
+      var nestedata = allocateSplitDataArray(splitSizes, 0);
+      for(var i = 0 ; i < data.length ; i++) {
+        var dataSubset = nestedata;
+        
+        for(var j in group_by) {
+          var value = groupByAes[j].func(data[i], i);
+          var id = groupByAes[j].discretDomain.indexOf(value);
+          dataSubset = dataSubset[id];
+        }
+        
+        dataSubset.push(data[i]);
+      }
+      
+      var new_data = [];
+      
+      var it = new HierarchyIterator(nestedata);
+      while(it.hasNext()) {
+        var dataSubset = it.next();
+        
+        var values = [];
+        for(var i = 0 ; i < dataSubset.length ; i++) {
+          values.push(statOnAes.func(dataSubset[i], i));
+        }
+        values.sort(function(a, b){return a-b});
+        
+        
+        var new_datum = {};
+        for(var i in group_by) {
+          new_datum[i] = groupByAes[i].func(dataSubset[0], 0);
+        }
+        new_datum.quartile1 = d3.quantile(values, 0.25);
+        new_datum.quartile2 = d3.quantile(values, 0.50);
+        new_datum.quartile3 = d3.quantile(values, 0.75);
+        
+        var IQR = 1.5 * (new_datum.quartile3 - new_datum.quartile1);
+        var min = values[0];
+        var max = values[values.length-1];
+        new_datum.whiskers1 = Math.max(new_datum.quartile1 - 1.5*IQR, min);
+        new_datum.whiskers2 = Math.min(new_datum.quartile3 + 1.5*IQR, max);
+        
+        new_data.push(new_datum);
+      }
+      
+      return new_data;
+    };
+  }
   
   /////////////////////
   // Popup functions //
@@ -2321,7 +2412,7 @@
     };
   };
   
-  // Generator that go through an Array hierarchy
+  // Iterator that go through an Array hierarchy
   var HierarchyIterator = function(h) {
     this.h = h;
     this.currentState = [];
@@ -2349,21 +2440,26 @@
     }
     
     // Compute next state
-    var stop = false;
-    var i = this.currentState.length - 1;
-    while(!stop) {
-      this.currentState[i]++;
-      if(this.currentState[i] >= size[i]) {
-        this.currentState[i] = 0;
-        i--;
-        
-        if(i < 0) {
-          this.currentState = null;
+    if(this.currentState.length == 0) {
+      this.currentState = null;
+    }
+    else {
+      var stop = false;
+      var i = this.currentState.length - 1;
+      while(!stop) {
+        this.currentState[i]++;
+        if(this.currentState[i] >= size[i]) {
+          this.currentState[i] = 0;
+          i--;
+          
+          if(i < 0) {
+            this.currentState = null;
+            stop = true;
+          }
+        }
+        else {
           stop = true;
         }
-      }
-      else {
-        stop = true;
       }
     }
     

@@ -103,6 +103,7 @@
                         stroke_width:2,
                         type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
+            .processData({func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
             .plot({selector:"#graph2", width:800, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -302,6 +303,42 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
+            var dataset = [];
+            var cat = ['A', 'B', 'C', 'D', 'E'];
+            for(var t = 0 ; t < 10 ; t++)
+                for(var i = 0 ; i < cat.length ; i++)
+                    for(var j = 0 ; j < 100 ; j++)
+                        dataset.push({cat:cat[i], value:Math.random()*100, t:t});
+            
+            G['8'] = d4.graphic()
+            .time({t:'data:t'})
+            .element({  x:'data:categorie',
+                        fill:'white',
+                        stroke_width:1.5})
+            .symbol({   y:'data:quartile2',
+                        stroke:'black',
+                        type:'diamond'})
+            .symbol({   y:'data:quartile1',
+                        stroke:'red',
+                        type:'triangle-up'})
+            .symbol({   y:'data:quartile3',
+                        stroke:'red',
+                        type:'triangle-down'})
+            .symbol({   y:'data:whiskers1',
+                        stroke:'blue',
+                        type:'triangle-up'})
+            .symbol({   y:'data:whiskers2',
+                        stroke:'blue',
+                        type:'triangle-down'})
+            .data({data:dataset})
+            .processData({func:d4.computeBoxPlotStat({  group_by:{  categorie:function(d){return d.cat;},
+                                                                    t:'data:t'},
+                                                        stat_on:'data:value'})})
+            .plot({selector:"#graph9", width:1024, height:768, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
             function prev(i) {
                 G[i].previousStep('t');
             }
@@ -345,6 +382,8 @@
         <input type="button" value="Next" onclick="next('7-1');next('7-2');next('7-3');next('7-4')"/>
         
         <div id="graph8"></div>
+        
+        <div id="graph9"></div>
         
     </body>
 </html>   

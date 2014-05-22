@@ -10,6 +10,7 @@
   
   // Some constants
   var data_binding_prefix = 'data:';
+  var main_dataset_name = 'default_data';
   var ordinal_scale_padding = 1;
   var linear_scale_padding = 0.1;
   var coordSysMargin = 0.15;
@@ -59,23 +60,25 @@
     
     if(!isUndefined(param)) {
       for(var attr in param) {
-        if(!isUndefined(this.fallback_element[attr])) {
-          this.fallback_element[attr].value = param[attr];
+        if(!isUndefined(this.fallback_element.attrs[attr])) {
+          this.fallback_element.attrs[attr].value = param[attr];
         }
         else {
-          this.fallback_element[attr] = { type:'unknown',
-                                          value:param[attr]};
+          this.fallback_element.attrs[attr] = { type:'unknown',
+                                                value:param[attr]};
         }
       }
     }
     
     // Set the origin function (for error message)
-    for(var attr in this.fallback_element) {
-      if(!isUndefined(this.fallback_element[attr].type)) {
-        this.fallback_element[attr].originFunc = 'Graphic.element';
+    for(var attr in this.fallback_element.attrs) {
+      if(!isUndefined(this.fallback_element.attrs[attr].type)) {
+        this.fallback_element.attrs[attr].originFunc = 'Graphic.element';
       }
     }
 
+    this.fallback_element.datasetName = checkParam('Graphic.element', param, 'data', main_dataset_name);
+    
     return this;
   };
   
@@ -334,21 +337,16 @@
     \*                                              */
     
     for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i]) {
-        // Skip uninteresting attributes
-        if(isUndefined(this.elements[i][attr].type)) {
-          continue;
-        }
-        
+      for(var attr in this.elements[i].attrs) {
         // This attribute is a dimension
         if(this.spacialDimName.indexOf(attr) >= 0) {
-          this.elements[i][attr].type = 'dimension';
+          this.elements[i].attrs[attr].type = 'dimension';
         }
         
         // Useless attribute
-        if(this.elements[i][attr].type === 'unknown' ||
-           this.elements[i][attr].value == null) {
-          delete this.elements[i][attr];
+        if(this.elements[i].attrs[attr].type === 'unknown' ||
+           this.elements[i].attrs[attr].value == null) {
+          delete this.elements[i].attrs[attr];
         }
       }
     }
@@ -384,15 +382,10 @@
     
     // Aesthetics of elements
     for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i]) {
-        // Skip uninteresting attributes
-        if(isUndefined(this.elements[i][attr].type)) {
-          continue;
-        }
-        
-        var attr_type = this.elements[i][attr].type;
-        var attr_val = this.elements[i][attr].value;
-        var originFunc = this.elements[i][attr].originFunc;
+      for(var attr in this.elements[i].attrs) {
+        var attr_type = this.elements[i].attrs[attr].type;
+        var attr_val = this.elements[i].attrs[attr].value;
+        var originFunc = this.elements[i].attrs[attr].originFunc;
         
         if(attr_val instanceof Interval && attr_type == 'dimension') {
           if(!(this.elements[i] instanceof Bar)) {
@@ -517,7 +510,7 @@
             this.dim[attr].aes.push(aes[aesId]);
           }
           
-          this.elements[i][attr].aes = aes[aesId];
+          this.elements[i].attrs[attr].aes = aes[aesId];
         }
       }
       
@@ -525,7 +518,7 @@
         var originFunc = lib_name+'.boxplotStat';
         var nbBoxPlotStat = 0;
         for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-          if(this.elements[i][deepestCoordSysDim[j]].value instanceof BoxPlotStat) {
+          if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotStat) {
             nbBoxPlotStat++;
           }
         }
@@ -615,8 +608,9 @@
     // Splitting data according to element and group
     var groupSizes = [];
     for(var i = 0 ; i < this.elements.length ; i++) {
-      computeDomain(this.elements[i].group.aes, this.dataset, 'discret');
-      groupSizes.push(this.elements[i].group.aes.discretDomain.length);
+      var groupAes = this.elements[i].attrs.group.aes;
+      computeDomain(groupAes, this.dataset, 'discret');
+      groupSizes.push(groupAes.discretDomain.length);
     }
     
     var it = new HierarchyIterator(this.nestedata);
@@ -663,8 +657,9 @@
       for(var j = 0 ; j < this.elements.length ; j++) {
         var dataSpacialSubset = dataTempSubset[j];
         
-        var groupValue = this.elements[j].group.aes.func(this.dataset[i], i);
-        var groupId = this.elements[j].group.aes.discretDomain.indexOf(groupValue);
+        var groupAes = this.elements[j].attrs.group.aes;
+        var groupValue = groupAes.func(this.dataset[i], i);
+        var groupId = groupAes.discretDomain.indexOf(groupValue);
         var dataSpacialSubset = dataSpacialSubset[groupId];
         
         for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
@@ -846,16 +841,15 @@
     
     // For other attributes
     for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i]) {
-        // Skip uninteresting attributes and non-set attributes
-        if(isUndefined(this.elements[i][attr].type) ||
-           this.elements[i][attr].value == null ||
-           this.elements[i][attr].type === 'dimension') {
+      for(var attr in this.elements[i].attrs) {
+        // Skip non-set attributes
+        if(this.elements[i].attrs[attr].value == null ||
+           this.elements[i].attrs[attr].type === 'dimension') {
           continue;
         }
         
-        var attr_type = this.elements[i][attr].type;
-        var attr_aes = this.elements[i][attr].aes;
+        var attr_type = this.elements[i].attrs[attr].type;
+        var attr_aes = this.elements[i].attrs[attr].aes;
         var aes_ret_type = typeof attr_aes.func(this.dataset[0], 0);
         
         
@@ -863,7 +857,7 @@
           case 'color':
             if(aes_ret_type === 'string') {
               // No scaling
-              this.elements[i][attr].func = attr_aes.func;
+              this.elements[i].attrs[attr].func = attr_aes.func;
             }
             else {
               // Compute continuous domain
@@ -872,14 +866,14 @@
               // Scaling
               var scale = d3.scale.category10().domain(attr_aes.continuousDomain);
               
-              this.elements[i][attr].func = scale.compose(attr_aes.func);
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
             }
             break;
           
           case 'symbol':
             if(aes_ret_type === 'string') {
               // No scaling
-              this.elements[i][attr].func = attr_aes.func;
+              this.elements[i].attrs[attr].func = attr_aes.func;
             }
             else {
               // Compute discret domain
@@ -890,14 +884,14 @@
                                   .domain(attr_aes.discretDomain)
                                   .range(d3.svg.symbolTypes);
               
-              this.elements[i][attr].func = scale.compose(attr_aes.func);
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
             }
             break;
           
           case 'string':
             // No scaling
             if(aes_ret_type === 'string') {
-              this.elements[i][attr].func = attr_aes.func;
+              this.elements[i].attrs[attr].func = attr_aes.func;
             }
             else { // Just apply toString
               var applyToString = function (f) {
@@ -905,20 +899,20 @@
                   return f(d, i).toString();
                 }
               };
-              this.elements[i][attr].func = applyToString(attr_aes.func);
+              this.elements[i].attrs[attr].func = applyToString(attr_aes.func);
             }
             break;
           
           case 'number':
             // No scaling
-            this.elements[i][attr].func = attr_aes.func;
+            this.elements[i].attrs[attr].func = attr_aes.func;
             break;
         }
       }
       
       // Checking for unset dimension attribute
       for(var j in this.dim) {
-        if(isUndefined(this.elements[i][j]) && this.dim[j].isSpacial) {
+        if(isUndefined(this.elements[i].attrs[j]) && this.dim[j].isSpacial) {
           ERROR('No value found for the attribute '+j+' of '+getTypeName(this.elements[i]));
         }
       }
@@ -936,7 +930,7 @@
                                       this.margin.top,
                                       width-this.margin.left-this.margin.right,
                                       height-this.margin.top-this.margin.bottom);
-    /*
+    
     // Add axis
     this.spacialCoord.drawAxis( this.svg,
                                 this.dim,
@@ -944,7 +938,7 @@
                                 this.margin.top,
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
-    */
+    
     // Add time sliders
     var offsetY = height - sliderHeight * nbSlider;
     var handleSize = 18;
@@ -1084,9 +1078,9 @@
       
       for(var j in this.dim) {
         if(this.dim[j].isSpacial) {
-          if(!(this.elements[i][j].value instanceof Interval) &&
-             !(this.elements[i][j].value instanceof BoxPlotStat)) {
-            pos[j] = this.elements[i][j].aes.func;
+          if(!(this.elements[i].attrs[j].value instanceof Interval) &&
+             !(this.elements[i].attrs[j].value instanceof BoxPlotStat)) {
+            pos[j] = this.elements[i].attrs[j].aes.func;
           }
         }
       }
@@ -1119,11 +1113,11 @@
         if(this.elements[i] instanceof Symbol) {
           var symbol = d3.svg.symbol();
           
-          if(!isUndefined(this.elements[i].type))
-            symbol.type(this.elements[i].type.func);
+          if(!isUndefined(this.elements[i].attrs.type))
+            symbol.type(this.elements[i].attrs.type.func);
             
-          if(!isUndefined(this.elements[i].size))
-            symbol.size(this.elements[i].size.func);
+          if(!isUndefined(this.elements[i].attrs.size))
+            symbol.size(this.elements[i].attrs.size.func);
           
           var node = this.svg.selectAll('.'+eltClass)
                          .data(dataSubset);
@@ -1162,10 +1156,12 @@
         // Lines
         else if(this.elements[i] instanceof Line) {
           var interpolation;
-          if(dataSubset.length > 0)
-            interpolation = this.elements[i].interpolation.func(dataSubset[0], 0);
-          else
+          if(dataSubset.length > 0) {
+            interpolation = this.elements[i].attrs.interpolation.func(dataSubset[0], 0);
+          }
+          else {
             interpolation = '';
+          }
           
           var lineFunction = d3.svg.line()
                                .x(getX)
@@ -1231,15 +1227,15 @@
               var bound1 = null;
               var bound2 = null;
               
-              if(this.elements[i][dimName].value instanceof Interval) {
-                var interval = this.elements[i][dimName].value;
+              if(this.elements[i].attrs[dimName].value instanceof Interval) {
+                var interval = this.elements[i].attrs[dimName].value;
                 
                 bound1 = scale.compose(interval.boundary1.aes.func),
                 bound2 = scale.compose(interval.boundary2.aes.func);
               }
               else {
                 var band = this.dim[dimName].band / (1 + padding);
-                var func = this.elements[i][dimName].aes.func;
+                var func = this.elements[i].attrs[dimName].aes.func;
                 
                 var getFunc = function(s, f, e) {
                   return function(d, i){
@@ -1273,11 +1269,6 @@
             dim1 = 'theta';
             dim2 = 'radius';
             lim = 'max';
-            
-            if(!isUndefined(boundaryFunc['theta'])) {
-              boundaryFunc['theta'].min = convertAngle.compose(boundaryFunc['theta'].min);
-              boundaryFunc['theta'].max = convertAngle.compose(boundaryFunc['theta'].max);
-            }
           }
           else {
             ERROR('Bar not implemented for '+getTypeName(deepestCoordSys)+' coordinate system');
@@ -1330,7 +1321,7 @@
                                         
             var p = posFunc[originalDimName];
             
-            if(dimName == null || !(this.elements[i][dimName].value instanceof BoxPlotStat)) {
+            if(dimName == null || !(this.elements[i].attrs[dimName].value instanceof BoxPlotStat)) {
               if(dimName == null) {
                 var minBox = deepestCoordSys.boundary[originalDimName].min;
                 var maxBox = deepestCoordSys.boundary[originalDimName].max;
@@ -1355,7 +1346,7 @@
                 var scale = deepestCoordSys.scale[originalDimName];
                 
                 var band = this.dim[dimName].band / (1 + bar_padding);
-                var func = this.elements[i][dimName].aes.func;
+                var func = this.elements[i].attrs[dimName].aes.func;
                 
                 var getFunc = function(s, f, e) {
                   return function(d, i){
@@ -1421,7 +1412,7 @@
             }
             else {
               var scale = deepestCoordSys.scale[originalDimName];
-              var boxplotStat = this.elements[i][dimName].value;
+              var boxplotStat = this.elements[i].attrs[dimName].value;
               
               var q1 = scale.compose(boxplotStat.quartile1.aes.func);
               var q2 = scale.compose(boxplotStat.quartile2.aes.func);
@@ -1583,6 +1574,7 @@
         }
       }
     }
+    
     return this;
   };
   
@@ -1620,52 +1612,66 @@
   /////////////////////////
   
   function ElementBase() {
-    this.group =            { type:'string',
-                              value:'1'};
-    this.fill =             { type:'color',
-                              value:null};
-    this.fill_opacity =     { type:'number',
-                              value:null};
-    this.stroke_width =     { type:'number',
-                              value:null};
-    this.stroke =           { type:'color',
-                              value:null};
-    this.stroke_dasharray = { type:'string',
-                              value:null};
-    this.stroke_opacity =   { type:'number',
-                              value:null};
-                              
+    this.attrs = {
+        group:            { type:'string',
+                            value:'1'},
+        fill:             { type:'color',
+                            value:null},
+        fill_opacity:     { type:'number',
+                            value:null},
+        stroke_width:     { type:'number',
+                            value:null},
+        stroke:           { type:'color',
+                            value:null},
+        stroke_dasharray: { type:'string',
+                            value:null},
+        stroke_opacity:   { type:'number',
+                            value:null}
+      };
+    
     this.listeners = [];
+    this.datasetName = main_dataset_name;
+    this.dataset = null;
   };
     
   function Symbol() {
-    this.type = { type:'symbol',
-                    value:'circle'};
-    this.size = { type:'number',
-                    value:null};
+    this.attrs = {
+        type: { type:'symbol',
+                value:'circle'},
+        size: { type:'number',
+                value:null}
+      };
                     
     this.listeners = [];
+    this.dataset = null;
   };
   
   function Line() {
-    this.interpolation = {type:'string',
-                          value:'linear'};
-    this.stroke_linecap = {type:'string',
-                           value:null};
+    this.attrs = {
+        interpolation:  { type:'string',
+                          value:'linear'},
+        stroke_linecap: { type:'string',
+                           value:null}
+      };
      
     this.listeners = [];
+    this.dataset = null;
   };
   
   function Bar() {
     // No specific attributes
-     
+    this.attrs = {};
+    
     this.listeners = [];
+    this.dataset = null;
   };
   
   function BoxPlot() {
     // No specific attributes
-     
+    this.attrs = {};
+    
     this.listeners = [];
+    this.dataset = null;
   };
   
   ////////////////////////
@@ -2474,11 +2480,11 @@
     var elt = new Type;
     
     // copying attributes' values from the fallback element
-    for(var attr in g.fallback_element) {
-      if(!isUndefined(g.fallback_element[attr].type)) {
-        elt[attr] = {type:        g.fallback_element[attr].type,
-                     value:       g.fallback_element[attr].value,
-                     originFunc:  g.fallback_element[attr].originFunc};
+    for(var attr in g.fallback_element.attrs) {
+      if(!isUndefined(g.fallback_element.attrs[attr].type)) {
+        elt.attrs[attr] = { type:        g.fallback_element.attrs[attr].type,
+                            value:       g.fallback_element.attrs[attr].value,
+                            originFunc:  g.fallback_element.attrs[attr].originFunc};
       }
     }
     for(var event in g.fallback_element.listeners) {
@@ -2487,24 +2493,27 @@
     
     if(!isUndefined(param)) {
       for(var attr in param) {
-        if(!isUndefined(elt[attr])) {
-          elt[attr].value = param[attr];
+        if(!isUndefined(elt.attrs[attr])) {
+          elt.attrs[attr].value = param[attr];
         }
         else {
-          elt[attr] = { type:'unknown',
-                        value:param[attr]};
+          elt.attrs[attr] = { type:'unknown',
+                              value:param[attr]};
         }
-        elt[attr].originFunc = originFunc;
+        elt.attrs[attr].originFunc = originFunc;
       }
     }
+    
+    elt.datasetName = checkParam(originFunc, param, 'data', g.fallback_element.datasetName);
+    
     g.elements.push(elt);
     g.lastElementAdded = elt;
   };
   
   // Set an svg attribute (each element have its value)
   var svgSetAttributePerElem = function(node, svgAttr, elt, attr) {
-    if(!isUndefined(elt[attr])) {
-      node.style(svgAttr, elt[attr].func);
+    if(!isUndefined(elt.attrs[attr])) {
+      node.style(svgAttr, elt.attrs[attr].func);
     }
   };
   
@@ -2520,8 +2529,8 @@
   
   // Set an svg attribute (element of the same group have the same value)
   var svgSetAttributePerGroup = function(node, svgAttr, elt, attr, datum, i) {
-    if(!isUndefined(elt[attr])) {
-      node.style(svgAttr, elt[attr].func(datum, i));
+    if(!isUndefined(elt.attrs[attr])) {
+      node.style(svgAttr, elt.attrs[attr].func(datum, i));
     }
   };
   
@@ -3145,6 +3154,7 @@
   };
   
   var LOG = function(msg) {
+    return;
     if(console.log) {
       console.log(msg)
     }

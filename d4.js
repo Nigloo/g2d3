@@ -33,16 +33,17 @@
     this.spacialDimName = null;
     this.coord();
     this.temporalDim = null;
+    this.time();
     this.dataset = {};
     this.dataset[main_dataset_name] = null;
     this.dataLoader = null;
     this.elements = [];
     this.fallback_element = new ElementBase();
     this.lastElementAdded = this.fallback_element;
+    this.boxplot_function_called = false;
     
-    // Attributes used by onDataLoad method
+    
     this.render_param = null;
-    this.data_process_function = [];
     this.data_view_generator = [];
     
     // Attributes non null only after render
@@ -115,26 +116,37 @@
   
   // Add boxplot
   Graphic.prototype.boxplot = function(param) {
+    this.boxplot_function_called = true;
+    
     var funcName = 'Graphic.boxplot';
     var group_by = {};
     var stat_on = null;
     var stat_on_attr;
     
-    for(i in this.fallback_element.attrs) {
+    
+    var attr = {};
+    for(var i in this.fallback_element.attrs) {
       if(this.fallback_element.attrs[i].value != null) {
-        group_by[i] = this.fallback_element.attrs[i].value;
+        attr[i] = this.fallback_element.attrs[i].value;
       }
+    }
+    for(var i in param) {
+      attr[i] = param[i];
     }
     
-    for(i in param) {
-      if(param[i] instanceof BoxPlotStat) {
-        stat_on = param[i].value;
+    for(var i in attr) {
+      if(attr[i] instanceof BoxPlotStat) {
+        stat_on = attr[i].value;
         stat_on_attr = i;
       }
-      else {
-        group_by[i] = param[i];
+      else if(this.spacialDimName.indexOf(i) >= 0) {
+        group_by[i] = attr[i];
       }
     }
+    for(var i in this.temporalDim) {
+      group_by[i] = this.temporalDim[i];
+    }
+    group_by.group = attr.group;
     
     var groupByAes = [];
         
@@ -155,7 +167,7 @@
     var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName);
     var statOnAes = aes[aesId];
     
-    var getFilter = function(getDatum) {
+    var aggregate = function(getDatum) {
       return function(data) {
         // Sizes of each splits, sub-splits, etc
         var splitSizes = [];
@@ -199,17 +211,22 @@
             sortedDataSubset[i] = dataSubset[valuesIndex[i].index];
           }
           
-          new_data = d3.merge([new_data, getDatum(groupByAes, sortedDataSubset, values)]);
+          new_data = d3.merge([new_data, getDatum(sortedDataSubset, values)]);
         }
         
         return new_data;
       };
     };
     
-    var computeStat = function(groupByAes, dataSubset, values) {
+    var computeStat = function(dataSubset, values) {
       var new_datum = {};
-      for(var i in dataSubset[0]) {
-        new_datum[i] = dataSubset[0][i];
+      for(var i in group_by) {
+        if(typeof group_by[i] === 'string' && group_by[i].indexOf(data_binding_prefix) == 0) {
+          var column = group_by[i].substring(data_binding_prefix.length);
+          new_datum[column] = groupByAes[i].func(dataSubset[0], 0);
+        } else {
+          new_datum[i] = groupByAes[i].func(dataSubset[0], 0);
+        }
       }
       new_datum.quartile1 = d3.quantile(values, 0.25);
       new_datum.quartile2 = d3.quantile(values, 0.50);
@@ -224,7 +241,7 @@
       return [new_datum];
     };
     
-    var computeOutlier = function(groupByAes, dataSubset, values) {
+    var computeOutliers = function(dataSubset, values) {
       var new_data = [];
       var quartile1 = d3.quantile(values, 0.25);
       var quartile3 = d3.quantile(values, 0.75);
@@ -246,6 +263,17 @@
       return new_data;
     };
     
+    var temporalDim = this.temporalDim;
+    var getId = function(d) {
+      var id = '';
+      for(var i in groupByAes) {
+        if(!(i in temporalDim)) {
+          id += groupByAes[i].func(d, 0) + '-';
+        }
+      }
+      return id;
+    };
+    
     var name = 'boxplot';
     
     if((name+'.statistic') in this.dataset ||
@@ -259,8 +287,8 @@
       name = name+i;
     }
     
-    this.dataView({name:name+'.statistic', func:getFilter(computeStat)});
-    this.dataView({name:name+'.outlier',  func:getFilter(computeOutlier)});
+    this.dataView({name:name+'.statistic', func:aggregate(computeStat)});
+    this.dataView({name:name+'.outlier',  func:aggregate(computeOutliers)});
     
     var param = {};
     for(var i in group_by) {
@@ -276,6 +304,7 @@
     }
     param.data = name+'.outlier';
     param[stat_on_attr] = stat_on;
+    param.group = getId;
     this.symbol(param)
     .on({event:'mouseover', listener:function(d, g) {
       d4.showPopup({id:name+'-outlier-hover', graphic:g, position:d4.mouse(g), text:statOnAes.func(d,0).toString()});
@@ -329,25 +358,10 @@
     return this;
   };
   
-  // Add a data processing function TODO: deprecated?
-  Graphic.prototype.processData = function(param) {
-    var funcName = 'Graphic.processData';
-    var func = checkParam(funcName, param, 'func');
-    
-    this.data_process_function.push(func);
-    
-    return this;
-  }
-  
   // Set data just loaded, filter them and render if needed;
   // Not supposed to be called by the user
   Graphic.prototype.onDataLoaded = function(data) {
-    // Process data
     this.dataset[main_dataset_name] = data;
-    for(var i = 0 ; i < this.data_process_function.length ; i++) {
-      this.dataset[main_dataset_name] = this.data_process_function[i](this.dataset[main_dataset_name]);
-    }
-    this.data_process_function = [];
     
     if(this.render_param != null) {
       var param = this.render_param;
@@ -358,6 +372,10 @@
   
   // Set spacial coordinate system (Rect({x:'x', y:'y'}) by default)
   Graphic.prototype.coord = function(coordSys) {
+    if(this.boxplot_function_called) {
+      ERROR('impossible to call Graphic.coord after Graphic.boxplot');
+    }
+    
     if(isUndefined(coordSys)) {
       // Default coordinate system
       this.coord(new Rect());
@@ -410,6 +428,10 @@
   
   // Set temporal coordinate system (none by default)
   Graphic.prototype.time = function(param) {
+    if(this.boxplot_function_called) {
+      ERROR('impossible to call Graphic.time after Graphic.boxplot');
+    }
+    
     if(isUndefined(param)) {
       this.temporalDim = {};
     }
@@ -530,9 +552,13 @@
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
+      if(isDefined(this.dataset[name])) {
+        WARNING('Dataset '+name+' already defined');
+      }
       this.dataset[name] = func(this.dataset[main_dataset_name]);
     }
-    console.log(this.dataset);
+    this.data_view_generator = [];
+    
     // Check if dataset exist
     for(var i = 0 ; i < this.elements.length ; i++) {
       if(!(this.elements[i].datasetName in this.dataset)) {
@@ -577,7 +603,7 @@
       }
     }
     
-    console.log('ELEMET',this.elements);
+    
     /*                                               *\
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *

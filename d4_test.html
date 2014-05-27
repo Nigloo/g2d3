@@ -88,8 +88,7 @@
                             // since 'y' is already taken by the sub-system
                             subSys: d4.rect()
                             }))
-            .element({  data:'filtered_data',
-                        cat1:'data:col1',
+            .element({  cat1:'data:col1',
                         y1:'data:col2',
                         x:'data:col3',
                         y:'data:col4'})
@@ -104,7 +103,7 @@
                         stroke_width:2,
                         type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
-            .dataView({name:'filtered_data', func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
+            .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
             .plot({selector:"#graph2", width:800, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -326,7 +325,7 @@
                         fill:'white',
                         stroke:'black',
                         stroke_width:1.5})
-            .boxplot({  dim2:d4.boxplotStat('data:value'), t:'data:t'})
+            .boxplot({  dim2:d4.boxplotStat('data:value')})
             .data({data:dataset})
             .plot({selector:"#graph9", width:1024, height:768, margin:50});
             

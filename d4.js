@@ -43,6 +43,7 @@
     // Attributes used by onDataLoad method
     this.render_param = null;
     this.data_process_function = [];
+    this.data_view_generator = [];
     
     // Attributes non null only after render
     this.margin = null;
@@ -60,9 +61,9 @@
     this.fallback_element = new ElementBase();
     this.lastElementAdded = this.fallback_element;
     
-    if(!isUndefined(param)) {
+    if(isDefined(param)) {
       for(var attr in param) {
-        if(!isUndefined(this.fallback_element.attrs[attr])) {
+        if(isDefined(this.fallback_element.attrs[attr])) {
           this.fallback_element.attrs[attr].value = param[attr];
         }
         else {
@@ -74,7 +75,7 @@
     
     // Set the origin function (for error message)
     for(var attr in this.fallback_element.attrs) {
-      if(!isUndefined(this.fallback_element.attrs[attr].type)) {
+      if(isDefined(this.fallback_element.attrs[attr].type)) {
         this.fallback_element.attrs[attr].originFunc = 'Graphic.element';
       }
     }
@@ -105,12 +106,186 @@
     return this;
   };
   
-  // Add boxplot
-  Graphic.prototype.boxplot = function(param) {
+  // Add boxplot (without the outliers and without computing any stats)
+  Graphic.prototype.boxplotBox = function(param) {
     addElement(this, BoxPlot, param, 'Graphic.boxplot');
     
     return this;
   };
+  
+  // Add boxplot
+  Graphic.prototype.boxplot = function(param) {
+    var funcName = 'Graphic.boxplot';
+    var group_by = {};
+    var stat_on = null;
+    var stat_on_attr;
+    
+    for(i in this.fallback_element.attrs) {
+      if(this.fallback_element.attrs[i].value != null) {
+        group_by[i] = this.fallback_element.attrs[i].value;
+      }
+    }
+    
+    for(i in param) {
+      if(param[i] instanceof BoxPlotStat) {
+        stat_on = param[i].value;
+        stat_on_attr = i;
+      }
+      else {
+        group_by[i] = param[i];
+      }
+    }
+    
+    var groupByAes = [];
+        
+    // Aesthetics
+    var aes = [];
+    // Map data column name -> aesthetic id
+    var dataCol2Aes = {};
+    // Map function -> aesthetic id
+    var func2Aes = {};
+    // Map const value -> aesthetic id
+    var const2Aes = {};
+    
+    for(var i in group_by) {
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], main_dataset_name, 'group_by:'+i, funcName);
+      groupByAes[i] = aes[aesId];
+    }
+    
+    var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName);
+    var statOnAes = aes[aesId];
+    
+    var getFilter = function(getDatum) {
+      return function(data) {
+        // Sizes of each splits, sub-splits, etc
+        var splitSizes = [];
+        
+        for(var i in group_by) {
+          computeDomain(groupByAes[i], data, 'discret');
+          splitSizes.push(groupByAes[i].discretDomain.length);
+        }
+        
+        checkAesType('number', typeof statOnAes.func(data[0], 0), 'stat_on', funcName);
+        
+        var nestedata = allocateSplitDataArray(splitSizes, 0);
+        for(var i = 0 ; i < data.length ; i++) {
+          var dataSubset = nestedata;
+          
+          for(var j in group_by) {
+            var value = groupByAes[j].func(data[i], i);
+            var id = groupByAes[j].discretDomain.indexOf(value);
+            dataSubset = dataSubset[id];
+          }
+          
+          dataSubset.push(data[i]);
+        }
+        
+        var new_data = [];
+        
+        var it = new HierarchyIterator(nestedata);
+        while(it.hasNext()) {
+          var dataSubset = it.next();
+          
+          var valuesIndex = [];
+          for(var i = 0 ; i < dataSubset.length ; i++) {
+            valuesIndex.push({value:statOnAes.func(dataSubset[i], i), index:i});
+          }
+          valuesIndex.sort(function(a, b){return a.value-b.value});
+          
+          var values = [];
+          var sortedDataSubset = [];
+          for(var i = 0 ; i < valuesIndex.length ; i++) {
+            values[i] = valuesIndex[i].value;
+            sortedDataSubset[i] = dataSubset[valuesIndex[i].index];
+          }
+          
+          new_data = d3.merge([new_data, getDatum(groupByAes, sortedDataSubset, values)]);
+        }
+        
+        return new_data;
+      };
+    };
+    
+    var computeStat = function(groupByAes, dataSubset, values) {
+      var new_datum = {};
+      for(var i in dataSubset[0]) {
+        new_datum[i] = dataSubset[0][i];
+      }
+      new_datum.quartile1 = d3.quantile(values, 0.25);
+      new_datum.quartile2 = d3.quantile(values, 0.50);
+      new_datum.quartile3 = d3.quantile(values, 0.75);
+      
+      var IQR = new_datum.quartile3 - new_datum.quartile1;
+      var min = values[0];
+      var max = values[values.length-1];
+      new_datum.whisker1 = Math.max(new_datum.quartile1 - 1.5*IQR, min);
+      new_datum.whisker2 = Math.min(new_datum.quartile3 + 1.5*IQR, max);
+      
+      return [new_datum];
+    };
+    
+    var computeOutlier = function(groupByAes, dataSubset, values) {
+      var new_data = [];
+      var quartile1 = d3.quantile(values, 0.25);
+      var quartile3 = d3.quantile(values, 0.75);
+      
+      var IQR = quartile3 - quartile1;
+      var min = values[0];
+      var max = values[values.length-1];
+      var whisker1 = Math.max(quartile1 - 1.5*IQR, min);
+      var whisker2 = Math.min(quartile3 + 1.5*IQR, max);
+      
+      // We can loop like this because values are sorted
+      for(var i = 0 ; values[i] < whisker1 ; i++) {
+        new_data.push(dataSubset[i]);
+      }
+      for(var i = dataSubset.length -1 ; values[i] > whisker2 ; i--) {
+        new_data.push(dataSubset[i]);
+      }
+      
+      return new_data;
+    };
+    
+    var name = 'boxplot';
+    
+    if((name+'.statistic') in this.dataset ||
+       (name+'.outlier') in this.dataset)
+    {
+      var i = 1;
+      while((name+i+'.statistic') in this.dataset ||
+            (name+i+'.outlier') in this.dataset) {
+        i++;
+      }
+      name = name+i;
+    }
+    
+    this.dataView({name:name+'.statistic', func:getFilter(computeStat)});
+    this.dataView({name:name+'.outlier',  func:getFilter(computeOutlier)});
+    
+    var param = {};
+    for(var i in group_by) {
+      param[i] = group_by[i];
+    }
+    param.data = name+'.statistic';
+    param[stat_on_attr] = d4.boxplotBoxStat();
+    this.boxplotBox(param);
+    
+    param = {};
+    for(var i in group_by) {
+      param[i] = group_by[i];
+    }
+    param.data = name+'.outlier';
+    param[stat_on_attr] = stat_on;
+    this.symbol(param)
+    .on({event:'mouseover', listener:function(d, g) {
+      d4.showPopup({id:name+'-outlier-hover', graphic:g, position:d4.mouse(g), text:statOnAes.func(d,0).toString()});
+    }})
+    .on({event:'mouseout',  listener:function(d, g) {
+      d4.hidePopup({id:name+'-outlier-hover', graphic:g, duration:500});
+    }});
+    
+    return this;
+  }
   
   // Add listener
   Graphic.prototype.on = function(param) {
@@ -131,7 +306,7 @@
     if(data instanceof Array) {
       this.dataset[[main_dataset_name]] = data;
     }
-    else if(data instanceof Object && !isUndefined(data.me) && data.me instanceof DataLoader) {
+    else if(data instanceof Object && isDefined(data.me) && data.me instanceof DataLoader) {
       this.dataLoader = data;
       data.me.g = this;
     }
@@ -143,7 +318,18 @@
     return this;
   };
   
-  // Add a data processing function
+  // A new data set generated from the main dataset
+  Graphic.prototype.dataView = function(param) {
+    var funcName = 'Graphic.dataView';
+    var name = checkParam(funcName, param, 'name');
+    var func = checkParam(funcName, param, 'func');
+    
+    this.data_view_generator.push({name:name, func:func});
+    
+    return this;
+  };
+  
+  // Add a data processing function TODO: deprecated?
   Graphic.prototype.processData = function(param) {
     var funcName = 'Graphic.processData';
     var func = checkParam(funcName, param, 'func');
@@ -340,8 +526,19 @@
     /*                                                *\
      * Generation of data views (per element dataset) *
     \*                                                */
-    
-    // TODO
+    TIMER_BEGIN('Generation of data views');
+    for(var i = 0 ; i < this.data_view_generator.length ; i++) {
+      var name = this.data_view_generator[i].name;
+      var func = this.data_view_generator[i].func;
+      this.dataset[name] = func(this.dataset[main_dataset_name]);
+    }
+    console.log(this.dataset);
+    // Check if dataset exist
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      if(!(this.elements[i].datasetName in this.dataset)) {
+        ERROR('Data view '+this.elements[i].datasetName+' of element '+i+' ('+getTypeName(this.elements[i])+') is not defined');
+      }
+    }
     
     // Temporal dimension dataset
     var time_dataset = [];
@@ -357,6 +554,8 @@
       }
     }
     this.dataset[time_dataset_name] = time_dataset;
+    TIMER_END('Generation of data views');
+    
     
     /*                                              *\
      * Detection of attributes which are dimensions *
@@ -378,7 +577,7 @@
       }
     }
     
-    
+    console.log('ELEMET',this.elements);
     /*                                               *\
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *
@@ -486,7 +685,7 @@
           this.dim[attr].aes.push(attr_val.boundary2.aes);
           this.dim[attr].aesElemId.push(i);
         }
-        else if(attr_val instanceof BoxPlotStat && attr_type == 'dimension') {
+        else if(attr_val instanceof BoxPlotBoxStat && attr_type == 'dimension') {
           originFunc = lib_name+'.boxplotStat';
           
           if(!(this.elements[i] instanceof BoxPlot)) {
@@ -550,7 +749,7 @@
         var originFunc = lib_name+'.boxplotStat';
         var nbBoxPlotStat = 0;
         for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-          if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotStat) {
+          if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotBoxStat) {
             nbBoxPlotStat++;
           }
         }
@@ -1096,7 +1295,7 @@
       for(var j in this.dim) {
         if(this.dim[j].isSpacial) {
           if(!(this.elements[i].attrs[j].value instanceof Interval) &&
-             !(this.elements[i].attrs[j].value instanceof BoxPlotStat)) {
+             !(this.elements[i].attrs[j].value instanceof BoxPlotBoxStat)) {
             pos[j] = this.elements[i].attrs[j].aes.func;
           }
         }
@@ -1136,10 +1335,10 @@
         if(this.elements[i] instanceof Symbol) {
           var symbol = d3.svg.symbol();
           
-          if(!isUndefined(this.elements[i].attrs.type))
+          if(isDefined(this.elements[i].attrs.type))
             symbol.type(this.elements[i].attrs.type.func);
             
-          if(!isUndefined(this.elements[i].attrs.size))
+          if(isDefined(this.elements[i].attrs.size))
             symbol.size(this.elements[i].attrs.size.func);
           
           var node = this.svg.selectAll('.'+eltClass)
@@ -1344,7 +1543,7 @@
                                         
             var p = posFunc[originalDimName];
             
-            if(dimName == null || !(this.elements[i].attrs[dimName].value instanceof BoxPlotStat)) {
+            if(dimName == null || !(this.elements[i].attrs[dimName].value instanceof BoxPlotBoxStat)) {
               if(dimName == null) {
                 var minBox = deepestCoordSys.boundary[originalDimName].min;
                 var maxBox = deepestCoordSys.boundary[originalDimName].max;
@@ -1736,7 +1935,7 @@
       }
     }
     
-    if(!isUndefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
+    if(isDefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
       ERROR(errorParamMessage(lib_name+'.rect', 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
     }
     else {
@@ -1981,7 +2180,7 @@
       }
     }
     
-    if(!isUndefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
+    if(isDefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
       ERROR(errorParamMessage(lib_name+'.polar', 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
     }
     else {
@@ -2454,23 +2653,31 @@
   // BoxPlot parameter function //
   ////////////////////////////////
   
-  main_object.boxplotStat = function(param) {
-    var funcName = lib_name+'.boxplotStat';
+  main_object.boxplotBoxStat = function(param) {
+    var funcName = lib_name+'.boxplotBoxStat';
     var q1 = checkParam(funcName, param, 'quartile1', data_binding_prefix+'quartile1');
     var q2 = checkParam(funcName, param, 'quartile2', data_binding_prefix+'quartile2');
     var q3 = checkParam(funcName, param, 'quartile3', data_binding_prefix+'quartile3');
     var w1  = checkParam(funcName, param, 'whisker1',  data_binding_prefix+'whisker1');
     var w2  = checkParam(funcName, param, 'whisker2',  data_binding_prefix+'whisker2');
     
-    return new BoxPlotStat(q1, q2, q3, w1, w2);
+    return new BoxPlotBoxStat(q1, q2, q3, w1, w2);
   };
   
-  function BoxPlotStat(q1, q2, q3, w1, w2) {
+  function BoxPlotBoxStat(q1, q2, q3, w1, w2) {
     this.quartile1 = {value:q1};
     this.quartile2 = {value:q2};
     this.quartile3 = {value:q3};
     this.whisker1 = {value:w1};
     this.whisker2 = {value:w2};
+  };
+  
+  main_object.boxplotStat = function(param) {
+    return new BoxPlotStat(param);
+  };
+  
+  function BoxPlotStat(v) {
+    this.value = v;
   };
   
   
@@ -2502,7 +2709,7 @@
     
     // copying attributes' values from the fallback element
     for(var attr in g.fallback_element.attrs) {
-      if(!isUndefined(g.fallback_element.attrs[attr].type)) {
+      if(isDefined(g.fallback_element.attrs[attr].type)) {
         elt.attrs[attr] = { type:        g.fallback_element.attrs[attr].type,
                             value:       g.fallback_element.attrs[attr].value,
                             originFunc:  g.fallback_element.attrs[attr].originFunc};
@@ -2512,9 +2719,9 @@
       elt.listeners[event] = g.fallback_element.listeners[event];
     }
     
-    if(!isUndefined(param)) {
+    if(isDefined(param)) {
       for(var attr in param) {
-        if(!isUndefined(elt.attrs[attr])) {
+        if(isDefined(elt.attrs[attr])) {
           elt.attrs[attr].value = param[attr];
         }
         else {
@@ -2533,7 +2740,7 @@
   
   // Set an svg attribute (each element have its value)
   var svgSetAttributePerElem = function(node, svgAttr, elt, attr) {
-    if(!isUndefined(elt.attrs[attr])) {
+    if(isDefined(elt.attrs[attr])) {
       node.style(svgAttr, elt.attrs[attr].func);
     }
   };
@@ -2550,7 +2757,7 @@
   
   // Set an svg attribute (element of the same group have the same value)
   var svgSetAttributePerGroup = function(node, svgAttr, elt, attr, datum, i) {
-    if(!isUndefined(elt.attrs[attr])) {
+    if(isDefined(elt.attrs[attr])) {
       node.style(svgAttr, elt.attrs[attr].func(datum, i));
     }
   };
@@ -3000,7 +3207,7 @@
     else {
       if(isUndefined(aes.continuousDomain)) {
         // Compute continuous domain from ordinal one
-        if(!isUndefined(aes.discretDomain)) {
+        if(isDefined(aes.discretDomain)) {
           var ordDom = aes.discretDomain;
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
@@ -3043,7 +3250,7 @@
       // Not default value
       if(isUndefined(defaultValue)) {
         var msg = 'In function '+funcName+': Missing parameter';
-        if(!isUndefined(paramName)) {
+        if(isDefined(paramName)) {
           msg += ' \''+paramName+'\'';
         }
         ERROR(msg);
@@ -3216,6 +3423,10 @@
   
   var isUndefined = function(a) {
     return typeof a === 'undefined';
+  };
+  
+  var isDefined = function(a) {
+    return !isUndefined(a);
   };
   
   var getTypeName = function(a) {

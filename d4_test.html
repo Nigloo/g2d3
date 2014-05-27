@@ -88,7 +88,8 @@
                             // since 'y' is already taken by the sub-system
                             subSys: d4.rect()
                             }))
-            .element({  cat1:'data:col1',
+            .element({  data:'filtered_data',
+                        cat1:'data:col1',
                         y1:'data:col2',
                         x:'data:col3',
                         y:'data:col4'})
@@ -103,7 +104,7 @@
                         stroke_width:2,
                         type:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
-            .processData({func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
+            .dataView({name:'filtered_data', func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
             .plot({selector:"#graph2", width:800, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -284,7 +285,7 @@
             
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-            for(var i = 1 ; i < 20 ; i++)
+            for(var i = 1 ; i <= 10 ; i++)
                 for(var j = 0 ; j < cat.length ; j++)
                     dataset.push({x:cat[j], y:i});
             
@@ -296,7 +297,6 @@
                         fill:'red',
                         stroke:'black'})
             .data({data:dataset})
-            .processData({func:d4.filter({criteria:function(d){return d.y <= 10;}})})
             .plot({selector:"#graph8", width:600, height:600, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -305,9 +305,12 @@
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E'];
             for(var t = 0 ; t < 10 ; t++)
-                for(var i = 0 ; i < cat.length ; i++)
-                    for(var j = 0 ; j < 100 ; j++)
-                        dataset.push({cat:cat[i], value:Math.random()*100, t:t});
+                for(var i = 0 ; i < cat.length ; i++) {
+                    for(var j = 0 ; j < 90 ; j++)
+                        dataset.push({cat:cat[i], value:parseInt(Math.random()*100), t:t});
+                    for(var j = 0 ; j < 10 ; j++)
+                        dataset.push({cat:cat[i], value:parseInt(Math.random()*300)-100, t:t});
+                }
             
             G['8'] = d4.graphic()
             .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
@@ -319,24 +322,14 @@
             //.coord(d4.polar({ theta: null,   radius:'dim2'}))
             //.coord(d4.polar({ theta: 'dim2', radius:null}))
             .time({t:'data:t'})
-            .element({  dim1:'data:categorie',
+            .element({  dim1:'data:cat',
                         fill:'white',
                         stroke:'black',
                         stroke_width:1.5})
-            .boxplot({  dim2:d4.boxplotStat()})
-            //.symbol({   dim2:'data:quartile2'})
+            .boxplot({  dim2:d4.boxplotStat('data:value'), t:'data:t'})
             .data({data:dataset})
-            //.processData({func:d4.filter({criteria:function(d){return d.cat=='A'}})})
-            .processData({func:d4.computeBoxPlotStat({  group_by:{  categorie:function(d){return d.cat;},
-                                                                    t:'data:t'},
-                                                        stat_on:'data:value'})})
             .plot({selector:"#graph9", width:1024, height:768, margin:50});
             
-            /*
-            .boxplot({data: filter("toto", function(){}),  dim2:d4.boxplotStat()})
-            .symbol({data: filter(function(d, g){ bpData = getDataSet("toto");  }), 
-            .text({data: get("toto"), label: 'data:median', x: 'x', y: 'median')
-            */
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             

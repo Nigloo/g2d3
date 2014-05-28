@@ -15,6 +15,10 @@
                 font-family: sans-serif;
                 font-size: 11px;
             }
+            
+            .whisker_limit {
+                visibility: hidden;
+            }
         </style>
         <script type="text/javascript" src="d3.v3.js"></script>
         <script type="text/javascript" src="d4.js"></script>
@@ -23,7 +27,7 @@
             "use strict";
             
             var G = [];
-            
+            /*
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -282,7 +286,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            */
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E'];
             for(var t = 0 ; t < 10 ; t++)
@@ -294,7 +298,7 @@
                 }
             
             G['8'] = d4.graphic()
-            .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
+            .coord(d4.rect({  x:     'x', y:     'y'}))
             //.coord(d4.rect({  y:     'dim1', x:     'dim2'}))
             //.coord(d4.polar({ theta: 'dim1', radius:'dim2'}))
             //.coord(d4.polar({ radius:'dim1', theta: 'dim2'}))
@@ -303,11 +307,15 @@
             //.coord(d4.polar({ theta: null,   radius:'dim2'}))
             //.coord(d4.polar({ theta: 'dim2', radius:null}))
             .time({t:'data:t'})
-            .element({  dim1:'data:cat',
-                        fill:'white',
-                        stroke:'black',
-                        stroke_width:1.5})
-            .boxplot({  dim2:d4.boxplotStat('data:value')})
+            .element({  x:'data:cat',
+                        fill:'#FF5050',
+                        stroke:'#FF5050',
+                        stroke_width:1.5,
+                        stroke_dasharray:'0'})
+            .boxplot({  y:d4.boxplotStat('data:value')})
+            .symbol({size:200, y:'data:quartile2', data:'boxplot.statistic',
+                    fill:'white',
+                    label:'data:quartile2'})
             .data({data:dataset})
             .plot({selector:"#graph9", width:1024, height:768, margin:50});
             

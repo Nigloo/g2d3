@@ -306,20 +306,13 @@
     param[stat_on_attr] = stat_on;
     param.group = getId;
     param.label = stat_on;
-    this.symbol(param)
-    .on({event:'mouseover', listener:function(d, g) {
-      d4.showPopup({id:name+'-outlier-hover', graphic:g, position:d4.mouse(g), text:statOnAes.func(d,0).toString()});
-    }})
-    .on({event:'mouseout',  listener:function(d, g) {
-      d4.hidePopup({id:name+'-outlier-hover', graphic:g, duration:500});
-    }});
+    this.symbol(param);
     
     return this;
   }
   
   // Add listener
   Graphic.prototype.on = function(param) {
-    return this;
     var funcName = 'Graphic.on';
     var event =     checkParam(funcName, param, 'event');
     var listener =  checkParam(funcName, param, 'listener');
@@ -587,7 +580,7 @@
     this.dataset[time_dataset_name] = time_dataset;
     TIMER_END('Generation of data views');
     
-    
+    console.log(this.dataset);
     /*                                              *\
      * Detection of attributes which are dimensions *
      * Deletion of useless attributes               *
@@ -608,7 +601,7 @@
       }
     }
     
-    console.log('ELEMENTS ',this.elements);
+    
     /*                                               *\
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *
@@ -797,7 +790,6 @@
         }
       }
     }
-    
     
     // Aesthetics of temporal dimensions
     for(var i in this.temporalDim) {

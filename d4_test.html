@@ -180,30 +180,8 @@
                                                     }}})
             .symbol({   fill:'data:col3',
                         type:'data:col4',
-                        stroke:'black'})
-            .on({event:'mouseover', listener:function(d, g) {
-                                var id = d.col1+'-'+d.col2+'-'+d.col3+'-'+d.col4+'-'+d.col5;
-                                var pos = d4.mouse(g);
-                                
-                                if(!d4.popupExist({id:id, graphic:g})) {
-                                    d4.showPopup({id:'hover', graphic:g, position:pos, text:d.col3.toString()});
-                                }
-                            }})
-            .on({event:'mouseout',  listener:function(d, g) {
-                                d4.hidePopup({id:'hover', graphic:g, duration:500});
-                            }})
-            .on({event:'click',     listener:function(d, g) {
-                                var id = d.col1+'-'+d.col2+'-'+d.col3+'-'+d.col4+'-'+d.col5;
-                                var pos = d4.mouse(g);
-                                
-                                if(d4.popupExist({id:id, graphic:g})) {
-                                    d4.hidePopup({id:id, graphic:g});
-                                }
-                                else {
-                                    d4.showPopup({id:id, graphic:g, position:pos, text:d.col3.toString()});
-                                    d4.hidePopup({id:'hover', graphic:g});
-                                }
-                            }})
+                        stroke:'black',
+                        label:'data:col3'})
             .data({data:d4.loadFromDatabase({   host:'localhost',
                                                 dbname:'test_db',
                                                 user:'user_test',
@@ -242,7 +220,8 @@
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
-                    fill:function(d,i){return i;}})
+                    fill:function(d,i){return i;},
+                    label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph7-1", width:600, height:600, margin:30});
             
@@ -253,7 +232,8 @@
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
-                    fill:function(d,i){return i;}})
+                    fill:function(d,i){return i;},
+                    label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph7-2", width:600, height:600, margin:30});
                         
@@ -263,7 +243,8 @@
             .bar({  dim1:'data:cat',
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
-                    fill:function(d,i){return i;}})
+                    fill:function(d,i){return i;},
+                    label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph7-3", width:600, height:600, margin:30});
             
@@ -275,7 +256,8 @@
                     dim2:d4.interval(0, 'data:y'),
                     sub_cat:function(d,i){return i;},
                     //group:'data:cat',
-                    fill:function(d,i){return i;}})
+                    fill:function(d,i){return i;},
+                    label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph7-4", width:600, height:600, margin:30});
             

@@ -305,6 +305,7 @@
     param.data = name+'.outlier';
     param[stat_on_attr] = stat_on;
     param.group = getId;
+    param.label = stat_on;
     this.symbol(param)
     .on({event:'mouseover', listener:function(d, g) {
       d4.showPopup({id:name+'-outlier-hover', graphic:g, position:d4.mouse(g), text:statOnAes.func(d,0).toString()});
@@ -318,6 +319,7 @@
   
   // Add listener
   Graphic.prototype.on = function(param) {
+    return this;
     var funcName = 'Graphic.on';
     var event =     checkParam(funcName, param, 'event');
     var listener =  checkParam(funcName, param, 'listener');
@@ -455,6 +457,7 @@
       this.currentTime[timeDimension] = index;
       this.updateElements();
       this.updateSliders();
+      removePopups(this);
     }
     
     return this;
@@ -470,6 +473,7 @@
       this.currentTime[timeDimension]++;
       this.updateElements();
       this.updateSliders();
+      removePopups(this);
     }
     
     return this;
@@ -485,6 +489,7 @@
       this.currentTime[timeDimension]--;
       this.updateElements();
       this.updateSliders();
+      removePopups(this);
     }
     
     return this;
@@ -603,7 +608,7 @@
       }
     }
     
-    
+    console.log('ELEMENTS ',this.elements);
     /*                                               *\
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *
@@ -1048,6 +1053,7 @@
           if(g.currentTime[timeDim] != index) {
             g.currentTime[timeDim] = index;
             g.updateElements();
+            removePopups(g);
           }
         }
       };
@@ -1356,6 +1362,39 @@
         var dataSubset = it.next();
         var eltClass = 'etl-'+i+'-'+(id++);
         
+        var getOnMouseOver = function(g, eltClass, getText) {
+          return function(d, i) {
+            var eltId = eltClass+'-'+i;
+            var timeId = getTimeId(g.currentTime);
+            var pos = d4.mouse(g);
+            
+            if(!d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+                d4.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
+            }
+          };
+        };
+        
+        var getOnMouseOut = function(g) {
+          return function(d, i) {
+            d4.hidePopup({id:'hover', graphic:g, duration:500});
+          };
+        };
+        
+        var getOnClick = function(g, eltClass, getText) {
+          return function(d, i) {
+            var eltId = eltClass+'-'+i;
+            var timeId = getTimeId(g.currentTime);
+            
+            if(d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+              d4.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
+            }
+            else {
+              d4.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:d4.mouse(g), text:getText(d)});
+              d4.hidePopup({id:'hover', graphic:g});
+            }
+          };
+        };
+        
         // Set attributes for each kind of elements
         // Symbol
         if(this.elements[i] instanceof Symbol) {
@@ -1377,19 +1416,6 @@
           onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
           onEnter.attr('d', symbol);
           
-          var listeners = this.elements[i].listeners;
-          var g = this;
-          
-          var GetFunc = function(event) {
-            return function(d) {
-              listeners[event].call(this, d, g);
-            }
-          }
-          
-          for(var event in listeners) {
-            node.on(event, GetFunc(event));
-          }
-          
           // On exit
           node.exit().remove();
           
@@ -1399,6 +1425,23 @@
           svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
           onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
           node.attr('d', symbol); // Transition bug here...
+          
+          // Event
+          if(isDefined(this.elements[i].attrs.label)){
+            node.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
+            node.on('mouseout',   getOnMouseOut(this));
+            node.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
+          }
+          var listeners = this.elements[i].listeners;
+          var GetFunc = function(event) {
+            return function(d) {
+              listeners[event].call(this, d, g);
+            }
+          }
+          
+          for(var event in listeners) {
+            node.on(event, GetFunc(event));
+          }
         }
         
         // Lines
@@ -1540,6 +1583,23 @@
           
           // On exit
           node.exit.remove();
+          
+          // Event
+          if(isDefined(this.elements[i].attrs.label)){
+            node.enter.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
+            node.enter.on('mouseout',   getOnMouseOut(this));
+            node.enter.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
+          }
+          var listeners = this.elements[i].listeners;
+          var GetFunc = function(event) {
+            return function(d) {
+              listeners[event].call(this, d, g);
+            }
+          }
+          
+          for(var event in listeners) {
+            node.enter.on(event, GetFunc(event));
+          }
         }
       
         // BoxPlot
@@ -1548,6 +1608,7 @@
           var whiskers_ratio = (1 - whiskers_size) / 2;
           
           var posFunc = [];
+          var boxplotStat = null;
           
           for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
             var dimName = deepestCoordSysDim[j].name;
@@ -1558,6 +1619,10 @@
                                         box:{},
                                         // Median Line
                                         median:{},
+                                        // First quartile line
+                                        q1:{},
+                                        // Third quartile line
+                                        q3:{},
                                         // Line between the first quartile and the first whisker (min)
                                         w1:{},
                                         // Line between the third quartile and the second whisker (max)
@@ -1653,6 +1718,8 @@
               }
               
               p.median = p.box;
+              p.q1 = p.box;
+              p.q3 = p.box;
               p.w1.max = p.w1.min;
               p.w1.dist = getConst(0);
               p.w2 = p.w1;
@@ -1660,7 +1727,7 @@
             }
             else {
               var scale = deepestCoordSys.scale[originalDimName];
-              var boxplotStat = this.elements[i].attrs[dimName].value;
+              boxplotStat = this.elements[i].attrs[dimName].value;
               
               var q1 = scale.compose(boxplotStat.quartile1.aes.func);
               var q2 = scale.compose(boxplotStat.quartile2.aes.func);
@@ -1677,9 +1744,15 @@
               p.box.min = getMin(q1, q3);
               p.box.max = getMax(q1, q3);
               p.box.dist = getDist(q1, q3);
+              p.q1.min = q1;
+              p.q1.max = q1;
+              p.q1.dist = getConst(0);
               p.median.min = q2;
               p.median.max = q2;
               p.median.dist = getConst(0);
+              p.q3.min = q3;
+              p.q3.max = q3;
+              p.q3.dist = getConst(0);
               p.w2.min = getMin(q3, w2);
               p.w2.max = getMax(q3, w2);
               p.w2.dist = getDist(q3, w2);
@@ -1708,6 +1781,11 @@
           }
           
           var whiskers_dasharray = '5 5'
+          var applyToString = function(f) {
+            return function(d, i) {
+              return f(d, i).toString();
+            }
+          }
           
           // The box
           var nodeBox = this.svg.selectAll('.'+eltClass+'.box')
@@ -1724,6 +1802,47 @@
           svgSetCommonAttributesPerElem(nodeBox.enter, this.elements[i]);
           svgSetCommonAttributesPerElem(nodeBox.update, this.elements[i]);
           nodeBox.exit.remove();
+          
+          // Event
+          var nodeQ1 = this.svg.selectAll('.'+eltClass+'.quartile1-mask')
+                              .data(dataSubset);
+          nodeQ1 = drawSegment( nodeQ1,
+                          deepestCoordSys,
+                          eltClass+' quartile1-mask',
+                          getX,
+                          getY,
+                          posFunc[dim1].q1.min,
+                          posFunc[dim2].q1.min,
+                          posFunc[dim1].q1.max,
+                          posFunc[dim2].q1.max);
+          nodeQ1.enter.style('fill', 'none');
+          nodeQ1.enter.style('stroke-width', 5);
+          nodeQ1.enter.style('stroke', 'red');
+          nodeQ1.enter.style('visibility', 'hidden');
+          nodeQ1.enter.style('pointer-events', 'all');
+          nodeQ1.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
+          nodeQ1.enter.on('mouseout',   getOnMouseOut(this));
+          nodeQ1.enter.on('click',      getOnClick(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
+          
+          var nodeQ3 = this.svg.selectAll('.'+eltClass+'.quartile3-mask')
+                              .data(dataSubset);
+          nodeQ3 = drawSegment( nodeQ3,
+                          deepestCoordSys,
+                          eltClass+' quartile3-mask',
+                          getX,
+                          getY,
+                          posFunc[dim1].q3.min,
+                          posFunc[dim2].q3.min,
+                          posFunc[dim1].q3.max,
+                          posFunc[dim2].q3.max);
+          nodeQ3.enter.style('fill', 'none');
+          nodeQ3.enter.style('stroke-width', 5);
+          nodeQ3.enter.style('stroke', 'red');
+          nodeQ3.enter.style('visibility', 'hidden');
+          nodeQ3.enter.style('pointer-events', 'all');
+          nodeQ3.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
+          nodeQ3.enter.on('mouseout',   getOnMouseOut(this));
+          nodeQ3.enter.on('click',      getOnClick(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
           
           // Median
           var nodeMedian = this.svg.selectAll('.'+eltClass+'.median')
@@ -1742,6 +1861,27 @@
           svgSetCommonAttributesPerElem(nodeMedian.update, this.elements[i]);
           nodeMedian.update.style('fill', 'none');
           nodeMedian.exit.remove();
+          
+          // Event
+          var nodeMedianMask = this.svg.selectAll('.'+eltClass+'.median-mask')
+                              .data(dataSubset);
+          nodeMedianMask = drawSegment( nodeMedianMask,
+                          deepestCoordSys,
+                          eltClass+' median-mask',
+                          getX,
+                          getY,
+                          posFunc[dim1].median.min,
+                          posFunc[dim2].median.min,
+                          posFunc[dim1].median.max,
+                          posFunc[dim2].median.max);
+          nodeMedianMask.enter.style('stroke-width', 5);
+          nodeMedianMask.enter.style('stroke', 'red');
+          nodeMedianMask.enter.style('visibility', 'hidden');
+          nodeMedianMask.enter.style('pointer-events', 'all');
+          nodeMedianMask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
+          nodeMedianMask.enter.on('mouseout',   getOnMouseOut(this));
+          nodeMedianMask.enter.on('click',      getOnClick(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
+          
           
           // First whisker
           var nodeWisker1 = this.svg.selectAll('.'+eltClass+'.whisker.min')
@@ -1801,6 +1941,27 @@
           nodeWiskerLimit1.update.style('fill', 'none');
           nodeWiskerLimit1.exit.remove();
           
+          // Event
+          var nodeW1Mask = this.svg.selectAll('.'+eltClass+'.whisker-mask.min')
+                              .data(dataSubset);
+          nodeW1Mask = drawSegment( nodeW1Mask,
+                          deepestCoordSys,
+                          eltClass+' whisker-mask min',
+                          getX,
+                          getY,
+                          posFunc[dim1].wl1.min,
+                          posFunc[dim2].wl1.min,
+                          posFunc[dim1].wl1.max,
+                          posFunc[dim2].wl1.max);
+          nodeW1Mask.enter.style('fill', 'none');
+          nodeW1Mask.enter.style('stroke-width', 5);
+          nodeW1Mask.enter.style('stroke', 'red');
+          nodeW1Mask.enter.style('visibility', 'hidden');
+          nodeW1Mask.enter.style('pointer-events', 'all');
+          nodeW1Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
+          nodeW1Mask.enter.on('mouseout',   getOnMouseOut(this));
+          nodeW1Mask.enter.on('click',      getOnClick(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
+          
           // Second whisker limite
           var nodeWiskerLimit2 = this.svg.selectAll('.'+eltClass+'.whisker_limit.max')
                               .data(dataSubset);
@@ -1818,6 +1979,27 @@
           svgSetCommonAttributesPerElem(nodeWiskerLimit2.update, this.elements[i]);
           nodeWiskerLimit2.update.style('fill', 'none');
           nodeWiskerLimit2.exit.remove();
+          
+          // Event
+          var nodeW2Mask = this.svg.selectAll('.'+eltClass+'.whisker-mask.max')
+                              .data(dataSubset);
+          nodeW2Mask = drawSegment( nodeW2Mask,
+                          deepestCoordSys,
+                          eltClass+' whisker-mask max',
+                          getX,
+                          getY,
+                          posFunc[dim1].wl2.min,
+                          posFunc[dim2].wl2.min,
+                          posFunc[dim1].wl2.max,
+                          posFunc[dim2].wl2.max);
+          nodeW2Mask.enter.style('fill', 'none');
+          nodeW2Mask.enter.style('stroke-width', 5);
+          nodeW2Mask.enter.style('stroke', 'red');
+          nodeW2Mask.enter.style('visibility', 'hidden');
+          nodeW2Mask.enter.style('pointer-events', 'all');
+          nodeW2Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
+          nodeW2Mask.enter.on('mouseout',   getOnMouseOut(this));
+          nodeW2Mask.enter.on('click',      getOnClick(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
           
         }
         else {
@@ -1877,13 +2059,15 @@
         stroke_dasharray: { type:'string',
                             value:null},
         stroke_opacity:   { type:'number',
+                            value:null},
+        label:            { type:'string',
                             value:null}
       };
     
     this.listeners = [];
     this.datasetName = main_dataset_name;
   };
-    
+  
   function Symbol() {
     this.attrs = {
         type: { type:'symbol',
@@ -2575,19 +2759,28 @@
   
   // Display a popup
   main_object.showPopup = function(param) {
-    var funcName = lib_name+'.popup';
+    var funcName = lib_name+'.showPopup';
     var g =         checkParam(funcName, param, 'graphic');
     var id =        checkParam(funcName, param, 'id');
+    id = (id instanceof Array) ? id : [id];
     var position =  checkParam(funcName, param, 'position', [0, 0]);
     var text =      checkParam(funcName, param, 'text',     '');
     var duration =  checkParam(funcName, param, 'duration', 0);
     
-    var popup = g.svg.select('#pop-up-'+id.toString());
+    id.unshift('pop-up');
+    var selector = '';
+    for(var i = 0 ; i < id.length ; i++) {
+      selector += '.'+id[i];
+    }
+    var popup = g.svg.select(selector);
     var bgNode = null;
     var textNode = null;
     
     if(popup.empty()) {
-      popup = g.svg.insert('g').attr('id', 'pop-up-'+id.toString());
+      popup = g.svg.insert('g');
+      for(var i = 0 ; i < id.length ; i++) {
+        popup.classed(id[i].toString(), true);
+      }
       bgNode = popup.insert('rect').attr('x', '0')
                                    .attr('y', '0')
                                    .attr('rx', '5')
@@ -2617,12 +2810,18 @@
   
   // Hide a pop-up
   main_object.hidePopup = function(param) {
-    var funcName = lib_name+'.popdown';
+    var funcName = lib_name+'.hidePopup';
     var g =         checkParam(funcName, param, 'graphic');
     var id =        checkParam(funcName, param, 'id');
+    id = (id instanceof Array) ? id : [id];
     var duration =  checkParam(funcName, param, 'duration', 0);
     
-    var popup = g.svg.select('#pop-up-'+id.toString());
+    id.unshift('pop-up');
+    var selector = '';
+    for(var i = 0 ; i < id.length ; i++) {
+      selector += '.'+id[i];
+    }
+    var popup = g.svg.select(selector);
     popup.select('rect').transition().duration(duration).attr('opacity', '0');
     popup.select('text').transition().duration(duration).attr('opacity', '0')
     // Callback at the end of the transition
@@ -2636,8 +2835,14 @@
     var funcName = lib_name+'.popupExist';
     var g =         checkParam(funcName, param, 'graphic');
     var id =        checkParam(funcName, param, 'id');
+    id = (id instanceof Array) ? id : [id];
     
-    return !g.svg.select('#pop-up-'+id.toString()).empty();
+    id.unshift('pop-up');
+    var selector = '';
+    for(var i = 0 ; i < id.length ; i++) {
+      selector += '.'+id[i];
+    }
+    return !g.svg.select(selector).empty();
   };
   
   
@@ -3043,24 +3248,6 @@
     }
   };
   
-  // Compute min and max of an Array after applying a function
-  var extent = function(a, f){
-    var ret = [Infinity, -Infinity];
-    
-    for(var i = 0 ; i < a.length ; i++) {
-      var val = f(a[i], i);
-      
-      if(val < ret[0]) {
-        ret[0] = val;
-      }
-      if(val > ret[1]) {
-        ret[1] = val;
-      }
-    }
-    
-    return ret;
-  }
-  
   // Determinate on which dimension we have to force to ordinal scale
   var getDimensionsInfo = function(coordSystem, temporalDim) {
     var dim = [];
@@ -3238,7 +3425,7 @@
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
         else {
-          aes.continuousDomain = extent(dataset, aes.func);
+          aes.continuousDomain = d3.extent(dataset, aes.func);
         }
       }
     }
@@ -3384,6 +3571,20 @@
     
     return ret;
   };
+  
+  // Get a unique string for a given current time
+  var getTimeId = function(currentTime) {
+    var id  = 'time';
+    for(var i in currentTime) {
+      id += '-'+currentTime[i];
+    }
+    return id;
+  };
+  
+  // Remove all automatically shown pop-up
+  var removePopups = function(g) {
+    g.svg.selectAll('.pop-up.bound-to-time').remove();
+  }
   
   // Generate an error message for aesthetic type error.
   var errorAesMessage = function(funcName, attribute, type, expected) {

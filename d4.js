@@ -12,10 +12,6 @@
   var data_binding_prefix = 'data:';
   var main_dataset_name = 'default_data';
   var time_dataset_name = 'time_data';
-  var ordinal_scale_padding = 1;
-  var linear_scale_padding = 0.1;
-  var coordSysMargin = 0.15;
-  var bar_padding = 1;
   
   
   ///////////////////////
@@ -43,6 +39,16 @@
     this.boxplot_function_called = false;
     
     
+    this.drawBackground = true;
+    this.transition_enabled = true;
+    this.display_timers = false;
+    
+    this.ordinal_scale_padding = 1;
+    this.linear_scale_padding = 0.1;
+    this.coordSysMargin = 0.15;
+    this.bar_padding = 1;
+    
+    
     this.render_param = null;
     this.data_view_generator = [];
     
@@ -55,6 +61,15 @@
     this.splitSpacialDimId = null;
     this.dim = null;
     this.timeSlider = null;
+  };
+  
+  // TODO: remove
+  Graphic.prototype.hack = function(param) {
+    for(var i in param) {
+      this[i] = param[i];
+    }
+    
+    return this;
   };
   
   // Set element properties
@@ -291,6 +306,9 @@
     this.dataView({name:name+'.outlier',  func:aggregate(computeOutliers)});
     
     var param = {};
+    for(i in attr) {
+      param[i] = attr[i];
+    }
     for(var i in group_by) {
       param[i] = group_by[i];
     }
@@ -298,10 +316,6 @@
     param[stat_on_attr] = d4.boxplotBoxStat();
     this.boxplotBox(param);
     
-    param = {};
-    for(var i in group_by) {
-      param[i] = group_by[i];
-    }
     param.data = name+'.outlier';
     param[stat_on_attr] = stat_on;
     param.group = getId;
@@ -326,7 +340,7 @@
   Graphic.prototype.data = function(param) {
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
-    TIMER_BEGIN('Loading');
+    TIMER_BEGIN('Loading', this.display_timers);
     if(data instanceof Array) {
       this.dataset[[main_dataset_name]] = data;
     }
@@ -382,6 +396,7 @@
       
       while(coordSys != null) {
         coordSyss.push(coordSys);
+        coordSys.g = this;
         
         if(coordSys instanceof Polar && coordSys.subSys != null) {
           ERROR('Impossible to have a sub coordinate system in a Polar system');
@@ -527,7 +542,7 @@
     else {
       this.onDataLoaded(this.dataset[main_dataset_name]);
     }
-    TIMER_END('Loading');
+    TIMER_END('Loading', this.display_timers);
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
           width,
@@ -546,7 +561,7 @@
     /*                                                *\
      * Generation of data views (per element dataset) *
     \*                                                */
-    TIMER_BEGIN('Generation of data views');
+    TIMER_BEGIN('Generation of data views', this.display_timers);
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
@@ -578,9 +593,9 @@
       }
     }
     this.dataset[time_dataset_name] = time_dataset;
-    TIMER_END('Generation of data views');
+    TIMER_END('Generation of data views', this.display_timers);
     
-    console.log(this.dataset);
+    
     /*                                              *\
      * Detection of attributes which are dimensions *
      * Deletion of useless attributes               *
@@ -606,7 +621,7 @@
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *
     \*                                               */
-    TIMER_BEGIN('Standardization aesthethics');
+    TIMER_BEGIN('Standardization aesthethics', this.display_timers);
     // Information on each dimension
     this.dim = getDimensionsInfo(this.spacialCoord, this.temporalDim);
     var deepestCoordSysDim = [];
@@ -810,14 +825,14 @@
     dataCol2Aes = undefined;
     func2Aes = undefined;
     const2Aes = undefined;
-    TIMER_END('Standardization aesthethics');
+    TIMER_END('Standardization aesthethics', this.display_timers);
     
     
     /*                                                         *\
      * Computing dimensions' domains                           *
      * EXCEPT the deepest spacial coordinate system dimensions *
     \*                                                         */
-    TIMER_BEGIN('Dimension domain 1');
+    TIMER_BEGIN('Dimension domain 1', this.display_timers);
     for(var i in this.dim) {
       if(isUndefined(this.dim[i].aes)) {
         ERROR('Error: dimension '+i+' unused');
@@ -844,13 +859,13 @@
       this.dim[i].ordinal = true;
     }
     
-    TIMER_END('Dimension domain 1');
+    TIMER_END('Dimension domain 1', this.display_timers);
     
     
     /*                                 *\
      * Splitting data for each element *
     \*                                 */
-    TIMER_BEGIN('Split');
+    TIMER_BEGIN('Split', this.display_timers);
     // Initialising current 'time' (i.e. position in spacial dimensions)
     this.currentTime = [];
     for(var i in this.dim) {
@@ -915,14 +930,14 @@
         dataSubset.push(dataset[j]);
       }
     }
-    TIMER_END('Split');
+    TIMER_END('Split', this.display_timers);
     
     
     /*                                          *\
      * Computing the deepest spacial coordinate *
      * system dimensions' domains               *
     \*                                          */
-    TIMER_BEGIN('Dimension domain 2');
+    TIMER_BEGIN('Dimension domain 2', this.display_timers);
     for(var i in this.dim) {
       if(this.dim[i].forceOrdinal) {
         continue;
@@ -966,7 +981,6 @@
           while(it.hasNext()) {
             var dataSubset = it.next();
             // Compute continue domain
-            for(var k=0;k<dataset.length;k++)
             var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
             
             if(dom[0] < domain[0])
@@ -976,20 +990,20 @@
           }
         }
         if(domain[0] == domain[1]) {
-          domain = addPadding(domain, linear_scale_padding);
+          domain = addPadding(domain, this.linear_scale_padding);
         }
       }
       
       this.dim[i].domain = domain;
       this.dim[i].ordinal = ordinal;
     }
-    TIMER_END('Dimension domain 2');
+    TIMER_END('Dimension domain 2', this.display_timers);
     
     
     /*                         *\
      * Generating time sliders *
     \*                         */
-    TIMER_BEGIN('Sliders');
+    TIMER_BEGIN('Sliders', this.display_timers);
     this.timeSlider = [];
     var timeSliderInfo = [];
     var nbSlider = 0;
@@ -1079,13 +1093,13 @@
     }
     // Reserve some space for sliders
     this.margin.bottom += sliderHeight * nbSlider;
-    TIMER_END('Sliders');
+    TIMER_END('Sliders', this.display_timers);
     
     
     /*                  *\
      * Computing scales *
     \*                  */
-    TIMER_BEGIN('Scales');
+    TIMER_BEGIN('Scales', this.display_timers);
     // For the coordinate system
     this.spacialCoord.computeScale( this.dim, 
                                     width - this.margin.left - this.margin.right,
@@ -1162,20 +1176,26 @@
         }
       }
     }
-    TIMER_END('Scales');
+    TIMER_END('Scales', this.display_timers);
     
     
     /*                *\
      * Generating svg *
     \*                */
-    TIMER_BEGIN('SVG');
+    TIMER_BEGIN('SVG', this.display_timers);
+    
+    // Removve loading bar
+    this.svg.select('#loading-bar').remove();
+    
     // Add background
-    this.spacialCoord.drawBackground( this.svg,
-                                      this.dim,
-                                      this.margin.left,
-                                      this.margin.top,
-                                      width-this.margin.left-this.margin.right,
-                                      height-this.margin.top-this.margin.bottom);
+    if(this.drawBackground) {
+      this.spacialCoord.drawBackground( this.svg,
+                                        this.dim,
+                                        this.margin.left,
+                                        this.margin.top,
+                                        width-this.margin.left-this.margin.right,
+                                        height-this.margin.top-this.margin.bottom);
+    }
     
     // Add axis
     this.spacialCoord.drawAxis( this.svg,
@@ -1247,7 +1267,7 @@
     
     // Draw elements
     this.updateElements();
-    TIMER_END('SVG');
+    TIMER_END('SVG', this.display_timers);
     return this;
   };
   
@@ -1412,11 +1432,16 @@
           node.exit().remove();
           
           // On update
-          var onUpdate = node.transition();
-          
+          var onUpdate = null;
+          if(this.transition_enabled) {
+            onUpdate = node.transition();
+          }
+          else {
+            onUpdate = node;
+          }
           svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
           onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
-          node.attr('d', symbol); // Transition bug here...
+          node.attr('d', symbol);
           
           // Event
           if(isDefined(this.elements[i].attrs.label)){
@@ -1458,7 +1483,10 @@
           }
           // On update
           else {
-            node = this.svg.select('.'+eltClass).transition();
+            node = this.svg.select('.'+eltClass);
+            if(this.transition_enabled) {
+              node = node.transition();
+            }
           }
           
           node.attr("d", lineFunction(dataSubset));
@@ -1481,7 +1509,7 @@
           var padding = null;
           
           if(deepestCoordSys instanceof Rect) {
-            padding = bar_padding;
+            padding = this.bar_padding;
           }
           else if(deepestCoordSys instanceof Polar) {
             padding = 0;
@@ -1559,6 +1587,7 @@
           
           node = drawBox( node,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass,
                           getX,
                           getY,
@@ -1650,7 +1679,7 @@
               else {
                 var scale = deepestCoordSys.scale[originalDimName];
                 
-                var band = this.dim[dimName].band / (1 + bar_padding);
+                var band = this.dim[dimName].band / (1 + this.bar_padding);
                 var func = this.elements[i].attrs[dimName].aes.func;
                 
                 var getFunc = function(s, f, e) {
@@ -1784,6 +1813,7 @@
                               .data(dataSubset);
           nodeBox = drawBox( nodeBox,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' box',
                           getX,
                           getY,
@@ -1800,6 +1830,7 @@
                               .data(dataSubset);
           nodeQ1 = drawSegment( nodeQ1,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' quartile1-mask',
                           getX,
                           getY,
@@ -1820,6 +1851,7 @@
                               .data(dataSubset);
           nodeQ3 = drawSegment( nodeQ3,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' quartile3-mask',
                           getX,
                           getY,
@@ -1841,6 +1873,7 @@
                               .data(dataSubset);
           nodeMedian = drawSegment( nodeMedian,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' median',
                           getX,
                           getY,
@@ -1859,6 +1892,7 @@
                               .data(dataSubset);
           nodeMedianMask = drawSegment( nodeMedianMask,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' median-mask',
                           getX,
                           getY,
@@ -1880,6 +1914,7 @@
                               .data(dataSubset);
           nodeWisker1 = drawSegment( nodeWisker1,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker min',
                           getX,
                           getY,
@@ -1900,6 +1935,7 @@
                               .data(dataSubset);
           nodeWisker2 = drawSegment( nodeWisker2,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker max',
                           getX,
                           getY,
@@ -1920,6 +1956,7 @@
                               .data(dataSubset);
           nodeWiskerLimit1 = drawSegment( nodeWiskerLimit1,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker_limit min',
                           getX,
                           getY,
@@ -1938,6 +1975,7 @@
                               .data(dataSubset);
           nodeW1Mask = drawSegment( nodeW1Mask,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker-mask min',
                           getX,
                           getY,
@@ -1959,6 +1997,7 @@
                               .data(dataSubset);
           nodeWiskerLimit2 = drawSegment( nodeWiskerLimit2,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker_limit max',
                           getX,
                           getY,
@@ -1977,6 +2016,7 @@
                               .data(dataSubset);
           nodeW2Mask = drawSegment( nodeW2Mask,
                           deepestCoordSys,
+                          this.transition_enabled,
                           eltClass+' whisker-mask max',
                           getX,
                           getY,
@@ -2110,6 +2150,7 @@
   
   /////// CARTESIAN ///////
   function Rect(param) {
+    this.g = null;
     this.dimName = [];
     this.scale = [];
     this.boundary = [];
@@ -2162,18 +2203,18 @@
       else if(this.subSys != null) {
         this.scale[i] = d3.scale.ordinal()
                         .domain(dim[this.dimName[i]].domain)
-                        .rangeRoundBands(ranges[i], coordSysMargin);
+                        .rangeRoundBands(ranges[i], this.g.coordSysMargin);
         subSize[i] = this.scale[i].rangeBand();
       }
       else if(dim[this.dimName[i]].ordinal) {
         this.scale[i] = d3.scale.ordinal()
                         .domain(dim[this.dimName[i]].domain)
-                        .rangePoints(ranges[i], ordinal_scale_padding);
-        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimName[i]].domain.length - 1 + ordinal_scale_padding);
+                        .rangePoints(ranges[i], this.g.ordinal_scale_padding);
+        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimName[i]].domain.length - 1 + this.g.ordinal_scale_padding);
       }
       else {
         this.scale[i] = d3.scale.linear()
-                        .domain(addPadding(dim[this.dimName[i]].domain, linear_scale_padding))
+                        .domain(addPadding(dim[this.dimName[i]].domain, this.g.linear_scale_padding))
                         .range(ranges[i])
                         .nice();
         subSize[i] = size[i] / (this.scale[i].domain()[1] - this.scale[i].domain()[0]);
@@ -2299,40 +2340,64 @@
     }
   };
   
-  Rect.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height) {
+  Rect.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height, dimToDraw) {
+    var drawSubSysAxis = true;
+    
     // X axis
-    if(this.dimName['x'] != null) {
-      var xAxis = d3.svg.axis()
-                  .scale(this.scale['x'])
-                  .orient('bottom');
-      
-      if(!dim[this.dimName['x']].ordinal) {
-        xAxis.ticks(5);
+    if(isUndefined(dimToDraw) || dimToDraw == 'x') {
+      if(this.dimName['x'] != null) {
+        var xAxis = d3.svg.axis()
+                    .scale(this.scale['x'])
+                    .orient('bottom');
+        
+        if(!dim[this.dimName['x']].ordinal) {
+          xAxis.ticks(5);
+        }
+        
+        
+        svg.append('g')
+           .attr('class', 'axis')
+           .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
+           .call(xAxis);
       }
-      
-      
-      svg.append('g')
-         .attr('class', 'axis')
-         .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-         .call(xAxis);
-    }
-                  
-    // Y axis
-    if(this.dimName['y'] != null) {
-      var yAxis = d3.svg.axis()
-                  .scale(this.scale['y'])
-                  .orient('left');
-      
-      if(!dim[this.dimName['y']].ordinal) {
-        yAxis.ticks(5);
+      else {
+        if(this.subSys instanceof Rect) {
+          this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'x');
+          drawSubSysAxis = false;
+        }
       }
-      
-      svg.append('g')
-         .attr('class', 'axis')
-         .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-         .call(yAxis);
     }
     
+    // Y axis
+    if(isUndefined(dimToDraw) || dimToDraw == 'y') {
+      if(this.dimName['y'] != null) {
+        var yAxis = d3.svg.axis()
+                    .scale(this.scale['y'])
+                    .orient('left');
+        
+        if(!dim[this.dimName['y']].ordinal) {
+          yAxis.ticks(5);
+        }
+        
+        svg.append('g')
+           .attr('class', 'axis')
+           .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
+           .call(yAxis);
+      }
+      else {
+        if(this.subSys instanceof Rect) {
+          this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'y');
+          drawSubSysAxis = false;
+        }
+      }
+    }
+    
+    if(drawSubSysAxis) {
+      this.drawSubSysAxis(svg, dim, offsetX, offsetY, width, height);
+    }
+  };
+  
+  Rect.prototype.drawSubSysAxis = function(svg, dim, offsetX, offsetY, width, height) {
     if(this.subSys != null) {
       var size = {x:width,
                   y:height};
@@ -2350,10 +2415,11 @@
         }
       }
     }
-  };
+  }
   
   /////// POLAR ///////
   function Polar(param) {
+    this.g = null;
     this.dimName = [];
     this.scale = [];
     this.boundary = [];
@@ -2591,6 +2657,8 @@
     }
   };
   
+  Polar.prototype.drawSubSysAxis = function(svg, dim, offsetX, offsetY, width, height) {
+  }
   
   ///////////////////////
   // Loading functions //
@@ -2605,9 +2673,7 @@
     
     var xhr = d3.csv(filename)
                 .row(processRow)
-                .on('beforesend', function(xhr){
-                  xhr.onprogress = getProgressListener(dl);
-                })
+                .on('progress', getProgressListener(dl));
     
     dl.sendXhrRequest = function() {
       xhr.get(this.load);
@@ -2916,7 +2982,6 @@
     return {
       me:this,
       load:function (error, dataset) {
-        me.g.svg.select('#loading-bar').remove();
         if(error != null) {
           ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
         }
@@ -3003,12 +3068,11 @@
    * limBound1 | width  | endAngle    |
    * limBound2 | height | outerRadius |
    */
-  var drawBox = function(node, deepestCoordSys, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  var drawBox = function(node, deepestCoordSys, transition_enabled, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     
     if(deepestCoordSys instanceof Rect) {
       // On enter
       var onEnter = node.enter().append('rect').attr('class', eltClass);
-      
       onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       onEnter.attr('x', bound1);
       onEnter.attr('y', bound2);
@@ -3016,7 +3080,13 @@
       onEnter.attr('height', limBound2);
       
       // On update
-      var onUpdate = node.transition();
+      var onUpdate = null;
+      if(transition_enabled) {
+        onUpdate = node.transition();
+      }
+      else {
+        onUpdate = node;
+      }
       onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       onUpdate.attr('x', bound1);
       onUpdate.attr('y', bound2);
@@ -3055,7 +3125,13 @@
         });
       
       // On update
-      var onUpdate = node.transition();
+      var onUpdate = null;
+      if(transition_enabled) {
+        onUpdate = node.transition();
+      }
+      else {
+        onUpdate = node;
+      }
       onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       onUpdate.attrTween('d', function(d, i) {
           var startAngle =  bound1(d, i);
@@ -3091,7 +3167,7 @@
   }
   
   // Draw a 'Segment' (Line or Arc)
-  var drawSegment = function(node, deepestCoordSys, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  var drawSegment = function(node, deepestCoordSys, transition_enabled, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     var onEnter = null;
     var onUpdate = null;
     var onExit = null;
@@ -3106,7 +3182,13 @@
       onEnter.attr('y2', limBound2);
       
       // On update
-      onUpdate = node.transition();
+      var onUpdate = null;
+      if(transition_enabled) {
+        onUpdate = node.transition();
+      }
+      else {
+        onUpdate = node;
+      }
       onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       onUpdate.attr('x1', bound1);
       onUpdate.attr('y1', bound2);
@@ -3122,7 +3204,13 @@
       onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       
       // On update
-      onUpdate = node.transition();
+      var onUpdate = null;
+      if(transition_enabled) {
+        onUpdate = node.transition();
+      }
+      else {
+        onUpdate = node;
+      }
       onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
       
       // On exit
@@ -3226,12 +3314,31 @@
   
   // Sort and remove duplicate values of an Array
   var RemoveDupArray = function(a){
-    if(typeof a[0] === 'number') {
-      a.sort(function(a, b){return a-b});
-    }
-    else {
-      a.sort();
-    }
+    var compare = function(a, b) {
+      if(typeof a === 'number') {
+        if(typeof b === 'number') {
+          return a - b;
+        }
+        else {
+          return -1;
+        }
+      }
+      else {
+        if(typeof b === 'number') {
+          return 1;
+        }
+        else {
+          for (var i=0,n=Math.max(a.length, b.length); i<n && a.charAt(i) === b.charAt(i); ++i);
+          if (i === n) {
+            return 0;
+          }
+          return a.charAt(i) > b.charAt(i) ? 1 : -1;
+        }
+      }
+    };
+
+    a.sort(compare);
+      
     for (var i = 1; i < a.length; i++){
       if (a[i-1] === a[i]) {
         a.splice(i, 1);
@@ -3473,8 +3580,8 @@
   
   // Get a listener that update a loading bar
   var getProgressListener = function(dl) {
-    return function(pe) {
-      if(pe.lengthComputable) {
+    return function() {
+      if(d3.event && d3.event.lengthComputable) {
         var svg = dl.me.g.svg;
         var width = svg.attr('width');
         var height = svg.attr('height');
@@ -3490,7 +3597,7 @@
                                    .attr('height', barHeight)
                                    .attr('stroke', 'black')
                                    .attr('stroke_width', 2)
-                                   .attr('fill', 'white')
+                                   .attr('fill', 'white');
           loadingBar.append('rect').attr('class', 'bar')
                                    .attr('x', margin)
                                    .attr('y', margin)
@@ -3499,8 +3606,7 @@
                                    .attr('fill', 'green');
         }
         var bar = loadingBar.select('.bar');
-        
-        bar.transition().attr('width', (barWidth - margin * 2) * (pe.loaded / pe.total));
+        bar.attr('width', (barWidth - margin * 2) * (d3.event.loaded / d3.event.total));
       }
     };
   };
@@ -3628,14 +3734,14 @@
     }
   };
   
-  var TIMER_BEGIN = function(name) {
-    if(console.time) {
+  var TIMER_BEGIN = function(name, display) {
+    if(display && console.time) {
       console.time(name)
     }
   };
   
-  var TIMER_END = function(name) {
-    if(console.timeEnd) {
+  var TIMER_END = function(name, display) {
+    if(display && console.timeEnd) {
       console.timeEnd(name)
     }
   };
@@ -3657,7 +3763,6 @@
     return Math.min(Math.max(this, min), max);
   };
   
-  
   /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
   Function.prototype.compose = function(g) {
     var fn = this;
@@ -3666,13 +3771,12 @@
     };
   };
   
-  
   /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
   String.prototype.format = function() {
     var formatted = this;
     for (var i = 0; i < arguments.length; i++) {
-        var regexp = new RegExp('\\{'+i+'\\}', 'gi');
-        formatted = formatted.replace(regexp, arguments[i]);
+      var regexp = new RegExp('\\{'+i+'\\}', 'gi');
+      formatted = formatted.replace(regexp, arguments[i]);
     }
     return formatted;
   };

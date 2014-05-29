@@ -3604,6 +3604,7 @@
                                    .attr('width', 0)
                                    .attr('height', barHeight - margin * 2)
                                    .attr('fill', 'green');
+                                   //.node().progress = 0;
         }
         var bar = loadingBar.select('.bar');
         bar.attr('width', (barWidth - margin * 2) * (d3.event.loaded / d3.event.total));

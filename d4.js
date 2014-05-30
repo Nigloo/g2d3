@@ -2731,7 +2731,7 @@
     }
   }
   
-  // Compute box plot data (quartiles, whiskers and outliers)
+  // Compute box plot data (quartiles, whiskers)
   main_object.computeBoxPlotStat = function(param) {
     var funcName = lib_name+'.computeBoxPlotStat';
     var group_by = checkParam(funcName, param, 'group_by');
@@ -2810,6 +2810,130 @@
       return new_data;
     };
   }
+  
+  main_object.groupBy = function(param) {
+    var funcName = lib_name+'.groupBy';
+    var group_by = param;
+    var groupByAes = [];
+    
+    var getNewData = function(groupedData) {
+      var new_data = [];
+      for(var i = 0 ; i < groupedData.length ; i++) {
+        if(groupedData[i].length > 0) {
+          var datum = {};
+          for(var j in group_by) {
+            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          }
+          new_data.push(datum);
+        }
+      }
+      return new_data;
+    };
+    
+    // Aesthetics
+    var aes = [];
+    // Map data column name -> aesthetic id
+    var dataCol2Aes = {};
+    // Map function -> aesthetic id
+    var func2Aes = {};
+    // Map const value -> aesthetic id
+    var const2Aes = {};
+    
+    for(var i in group_by) {
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], main_dataset_name, 'group_by:'+i, funcName);
+      groupByAes[i] = aes[aesId];
+    }
+    
+    // GroupBy
+    var groupByFunction = function(data) {
+      // Sizes of each splits, sub-splits, etc
+      var splitSizes = [];
+      
+      for(var i in group_by) {
+        computeDomain(groupByAes[i], data, 'discret');
+        splitSizes.push(groupByAes[i].discretDomain.length);
+      }
+      
+      var nestedata = allocateSplitDataArray(splitSizes, 0);
+      for(var i = 0 ; i < data.length ; i++) {
+        var dataSubset = nestedata;
+        
+        for(var j in group_by) {
+          var value = groupByAes[j].func(data[i], i);
+          var id = groupByAes[j].discretDomain.indexOf(value);
+          dataSubset = dataSubset[id];
+        }
+        
+        dataSubset.push(data[i]);
+      }
+      
+      var groupedData = [];
+      
+      var it = new HierarchyIterator(nestedata);
+      while(it.hasNext()) {
+        groupedData.push(it.next());
+      }
+      
+      return getNewData(groupedData);
+    };
+    
+    // Count
+    groupByFunction.count = function() {
+      getNewData = function(groupedData) {
+        var new_data = [];
+        for(var i = 0 ; i < groupedData.length ; i++) {
+          var datum = {};
+          for(var j in group_by) {
+            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          }
+          datum.count = groupedData[i].length;
+          new_data.push(datum);
+        }
+        return new_data;
+      };
+      
+      return groupByFunction;
+    };
+    
+    // Proportion
+    groupByFunction.proportion = function(param) {
+      var funcName = lib_name+'.groupBy().proportion';
+      var statOnFunc = null;
+      
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, '', funcName);
+      statOnFunc = aes[aesId].func;
+      
+      getNewData = function(groupedData) {
+        var new_data = [];
+        var counts = [];
+        var total = 0;
+        checkAesType('number', typeof statOnFunc(groupedData[0][0], 0), '', funcName);
+        
+        for(var i = 0 ; i < groupedData.length ; i++) {
+          counts[i] = 0;
+          
+          for(var j = 0 ; j < groupedData[i].length ; j++) {
+            counts[i] += statOnFunc(groupedData[i][j], j);
+          }
+          total += counts[i];
+        }
+        
+        for(var i = 0 ; i < groupedData.length ; i++) {
+          var datum = {};
+          for(var j in group_by) {
+            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          }
+          datum.proportion = total / counts[i];
+          new_data.push(datum);
+        }
+        return new_data;
+      };
+      
+      return groupByFunction;
+    };
+    
+    return groupByFunction;
+  };
   
   /////////////////////
   // Popup functions //

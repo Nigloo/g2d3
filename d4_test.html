@@ -26,6 +26,26 @@
             
             "use strict";
             
+            var dataset = [];
+            var cat1 = ['A', 'B'];
+            var cat2 = [10, 20];
+            cat1[1.3] = 42;
+            console.log(cat1);
+            for(var i = 0 ; i < cat1.length ; i++) {
+                for(var j = 0 ; j < cat2.length ; j++) {
+                    for(var k = 0 ; k < 5 ; k++) {
+                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:k});
+                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:k+5});
+                    }
+                }
+            }
+            
+            var f = d4.groupBy({x:'data:col1', y:'data:col2'}).count();
+            
+            console.log('DATA', f(dataset));
+            
+            return;
+            
             var G = [];
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +95,6 @@
                     }
                 }
             }
-            dataset.sort(function(d1, d2){return d1.col3 - d2.col3;});
             
             var group = function(d) {
                 return (d.col4 < 2) ? 1 : 2;
@@ -163,7 +182,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             G['5'] = d4.graphic()
-            .hack({transition_enabled:false})
+            .hack({ transition_enabled:false,
+                    display_timers:true})
             .time({t:function(d){return parseInt(d.vn6 * 100)}})
             .coord(d4.polar())
             .symbol({   theta:'data:bn6',
@@ -265,7 +285,6 @@
                 }
             
             G['8'] = d4.graphic()
-            .hack({display_timers:true})
             .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
             //.coord(d4.rect({  y:     'dim1', x:     'dim2'}))
             //.coord(d4.polar({ theta: 'dim1', radius:'dim2'}))

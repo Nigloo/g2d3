@@ -46,13 +46,28 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            function prev(i) {
-                G[i].previousStep('t');
+            var marriage_status = ['Unknown','Married','Married, Spouse Absent','Separated','Divorced','Widowed','Single'];
+            function marriageStatus(d) {
+                return marriage_status[d.marst];
             }
             
-            function next(i) {
-                G[i].nextStep('t');
-            }
+            d4.graphic()
+            .hack({ bar_padding:0, drawBackground:false})
+            .coord(d4.rect({x:'x', y:null,
+                            subSys:d4.rect({x:'sub_cat', y:'y'})}))
+            .time({ year:'data:year',
+                    age:'data:age'})
+            .bar({  x:marriageStatus,
+                    sub_cat:function(d){return d.sex.toString();},
+                    y:d4.interval(0, 'data:people'),
+                    fill:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
+                    label:'data:people'})
+            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+            .plot({selector:"#graph2", width:960, height:500, margin:20, margin_left:80});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
             
         </script>
     </head>
@@ -61,5 +76,8 @@
             <h2>United States Population Pyramid</h2>
         </div>
         
+        <div id="graph2">
+            <h2>United States Census Marriage</h2>
+        </div>
     </body>
 </html>   

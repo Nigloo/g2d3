@@ -29,8 +29,7 @@
             var dataset = [];
             var cat1 = ['A', 'B'];
             var cat2 = [10, 20];
-            cat1[1.3] = 42;
-            console.log(cat1);
+            
             for(var i = 0 ; i < cat1.length ; i++) {
                 for(var j = 0 ; j < cat2.length ; j++) {
                     for(var k = 0 ; k < 5 ; k++) {
@@ -40,11 +39,11 @@
                 }
             }
             
-            var f = d4.groupBy({x:'data:col1', y:'data:col2'}).count();
+            var f = d4.groupBy({x:'data:col1', y:'data:col2'}).proportion({z:'data:col3', weight:'data:col4'});
             
             console.log('DATA', f(dataset));
             
-            return;
+            throw 'return';
             
             var G = [];
             

@@ -29,7 +29,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            /*
             d4.graphic()
             .hack({ bar_padding:0, drawBackground:false})
             .coord(d4.rect({x:'x', y:null,
@@ -67,8 +67,29 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
+            */
+            var sex_string = ['', 'Male', 'Female'];
+            function sex(d) {
+                return sex_string[d.sex];
+            }
             
+            d4.graphic()
+            .hack({ bar_padding:0, drawBackground:false})
+            .coord(d4.rect({y:null,
+                            subSys:d4.polar({radius:null})}))
+            .time({ year:'data:year'})
+            .bar({  x:sex,
+                    theta:d4.interval.stack('data:proportion'),
+                    fill:'data:marst',
+                    label:'data:marst'})
+            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+            .dataView({name:'default_data', func:d4.groupBy({year:'data:year', sex:'data:sex'}).proportion({marst:'data:marst', weight:'data:people'})})
+            .plot({selector:"#graph3", width:960, height:500, margin:20, margin_left:80});
             
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+          
+          
         </script>
     </head>
     <body>
@@ -78,6 +99,9 @@
         
         <div id="graph2">
             <h2>United States Census Marriage</h2>
+        </div>
+        <div id="graph3">
+            <h2>United States Census Marriage Pie</h2>
         </div>
     </body>
 </html>   

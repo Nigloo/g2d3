@@ -565,12 +565,14 @@
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
+      console.log('name: ',name);
       if(isDefined(this.dataset[name])) {
         WARNING('Dataset '+name+' already defined');
       }
       this.dataset[name] = func(this.dataset[main_dataset_name]);
     }
     this.data_view_generator = [];
+    console.log('DATASET: ',this.dataset);
     
     // Check if dataset exist
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -691,31 +693,40 @@
             var func = aes[aesId1].func;
             var origin = aes[aesId2].func;
             
-            var context = { lastI:null,
-                            boundary1:null,
-                            boundary2:null};
-            var updateBoundaries = function(d, i) {
-              if(i != context.lastI) {
-                if(i == 0) {
-                  context.boundary2 = origin(d, i);
+            var getFunctions = function(func, origin) {
+              var context = { lastI:null,
+                              boundary1:null,
+                              boundary2:null};
+              var updateBoundaries = function(d, i) {
+                if(i != context.lastI) {
+                  if(i == 0) {
+                    context.boundary2 = origin(d, i);
+                  }
+                  
+                  context.boundary1 = context.boundary2;
+                  context.boundary2 = context.boundary1 + func(d, i);
+                  context.lastI = i;
                 }
-                
-                context.boundary1 = context.boundary2;
-                context.boundary2 = context.boundary1 + func(d, i);
-                context.lastI = i;
-              }
-            };
-            
-            attr_val.boundary1.aes = {func:function(d, i) {
-                updateBoundaries(d, i);
-                return context.boundary1;
+              };
+              
+              return [
+                function(d, i) {
+                  updateBoundaries(d, i);
+                  return context.boundary1;
               },
+                function(d, i) {
+                  updateBoundaries(d, i);
+                  return context.boundary2;
+                }
+              ];
+            }
+            
+            var funcs = getFunctions(aes[aesId1].func, aes[aesId2].func);
+            
+            attr_val.boundary1.aes = {func:funcs[0],
               datasetName:datasetName};
             
-            attr_val.boundary2.aes = {func:function(d, i) {
-                updateBoundaries(d, i);
-                return context.boundary2;
-              },
+            attr_val.boundary2.aes = {func:funcs[1],
               datasetName:datasetName};
           }
           
@@ -981,17 +992,27 @@
           while(it.hasNext()) {
             var dataSubset = it.next();
             // Compute continue domain
-            var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
+            var dom = extent(dataSubset, this.dim[i].aes[j].func);
             
             if(dom[0] < domain[0])
               domain[0] = dom[0];
             if(dom[1] > domain[1])
               domain[1] = dom[1];
+            
+            if(dom[1]>1){
+            console.log('dom[',dom[0],',', dom[1],'] ',dataSubset);
+            for(var z =0;z<dataSubset.length;z++){
+            var D = this.dim[i].aes[j].func(dataSubset[z],z);
+            console.log(D);
+            }
+            }
+            
           }
         }
         if(domain[0] == domain[1]) {
           domain = addPadding(domain, this.linear_scale_padding);
         }
+        console.log(i,domain);
       }
       
       this.dim[i].domain = domain;
@@ -2898,34 +2919,87 @@
     // Proportion
     groupByFunction.proportion = function(param) {
       var funcName = lib_name+'.groupBy().proportion';
-      var statOnFunc = null;
+      var weight =    checkParam(funcName, param, 'weight', 1);
+      var aggreg_on = {};
       
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, '', funcName);
-      statOnFunc = aes[aesId].func;
+      for(var i in param) {
+        if(i != 'weight') {
+          aggreg_on[i] = param[i];
+        }
+      }
+      
+      var aggregOnAes = [];
+      for(var i in aggreg_on) {
+        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, aggreg_on[i], main_dataset_name, i, funcName);
+        aggregOnAes[i] = aes[aesId];
+      }
+      
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName);
+      var weightFunc = aes[aesId].func;
       
       getNewData = function(groupedData) {
         var new_data = [];
-        var counts = [];
-        var total = 0;
-        checkAesType('number', typeof statOnFunc(groupedData[0][0], 0), '', funcName);
+        checkAesType('number', typeof weightFunc(groupedData[0][0], 0), 'weight', funcName);
+        var data = d3.merge(groupedData);
+        var splitSizes = [];
+        for(var i in aggreg_on) {
+          computeDomain(aggregOnAes[i], data, 'discret');
+          splitSizes.push(aggregOnAes[i].discretDomain.length);
+        }
         
         for(var i = 0 ; i < groupedData.length ; i++) {
-          counts[i] = 0;
+          var nestedata = allocateSplitDataArray(splitSizes, 0);
           
           for(var j = 0 ; j < groupedData[i].length ; j++) {
-            counts[i] += statOnFunc(groupedData[i][j], j);
+            var dataSubset = nestedata;
+            
+            for(var k in aggreg_on) {
+              var value = aggregOnAes[k].func(groupedData[i][j], j);
+              var id = aggregOnAes[k].discretDomain.indexOf(value);
+              dataSubset = dataSubset[id];
+            }
+            
+            dataSubset.push(groupedData[i][j]);
           }
-          total += counts[i];
+          
+          var total = 0;
+          var counts = [];
+          var it = new HierarchyIterator(nestedata);
+          var j = 0;
+          while(it.hasNext()) {
+            dataSubset = it.next();
+            if(dataSubset.length > 0) {
+              counts[j] = 0;
+              for(var k = 0 ; k < dataSubset.length ; k++) {
+                counts[j] += weightFunc(dataSubset[k], k);
+              }
+              
+              total += counts[j];
+              j++;
+            }
+          }
+          
+          it = new HierarchyIterator(nestedata);
+          j = 0;
+          while(it.hasNext()) {
+            dataSubset = it.next();
+            if(dataSubset.length > 0) {
+              var datum = {};
+              
+              for(var k in group_by) {
+                datum[k] = groupByAes[k].func(dataSubset[0], 0);
+              }
+              for(var k in aggreg_on) {
+                datum[k] = aggregOnAes[k].func(dataSubset[0], 0);
+              }
+              
+              datum.proportion = counts[j] / total;
+              new_data.push(datum);
+              j++;
+            }
+          }
         }
         
-        for(var i = 0 ; i < groupedData.length ; i++) {
-          var datum = {};
-          for(var j in group_by) {
-            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
-          }
-          datum.proportion = total / counts[i];
-          new_data.push(datum);
-        }
         return new_data;
       };
       
@@ -3648,7 +3722,7 @@
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
         else {
-          aes.continuousDomain = d3.extent(dataset, aes.func);
+          aes.continuousDomain = extent(dataset, aes.func);
         }
       }
     }
@@ -3740,6 +3814,21 @@
   var convertAngle = function(angle) {
     return (Math.PI/2 - angle);
   };
+  
+  var extent = function(a, f) {
+    var ret = [Infinity, -Infinity];
+    for(var i = 0 ; i < a.length ; i++) {
+      var val = f(a[i], i);
+      if(val < ret[0]) {
+        ret[0] = val;
+      }
+      if(val > ret[1]) {
+        ret[i] = val;
+      }
+    }
+    
+    return ret;
+  }
   
   // Iterator that go through an Array hierarchy
   var HierarchyIterator = function(h) {

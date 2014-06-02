@@ -153,17 +153,21 @@
       if(attr[i] instanceof BoxPlotStat) {
         stat_on = attr[i].value;
         stat_on_attr = i;
+        delete attr[i];
       }
       else if(this.spacialDimName.indexOf(i) >= 0) {
         group_by[i] = attr[i];
+        delete attr[i];
       }
     }
     for(var i in this.temporalDim) {
       group_by[i] = this.temporalDim[i];
     }
     group_by.group = attr.group;
+    delete attr.group;
     
     var groupByAes = [];
+    var attrAes = [];
         
     // Aesthetics
     var aes = [];
@@ -177,6 +181,10 @@
     for(var i in group_by) {
       var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], main_dataset_name, 'group_by:'+i, funcName);
       groupByAes[i] = aes[aesId];
+    }
+    for(var i in attr) {
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr[i], main_dataset_name, 'group_by:'+i, funcName);
+      attrAes[i] = aes[aesId];
     }
     
     var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName);
@@ -243,6 +251,13 @@
           new_datum[i] = groupByAes[i].func(dataSubset[0], 0);
         }
       }
+      new_datum._calculated_values = [];
+      var id = 0;
+      for(var i in attr) {
+        new_datum._calculated_values[id] = attrAes[i].func(dataSubset[0], 0);
+        id++;
+      }
+      
       new_datum.quartile1 = d3.quantile(values, 0.25);
       new_datum.quartile2 = d3.quantile(values, 0.50);
       new_datum.quartile3 = d3.quantile(values, 0.75);
@@ -305,17 +320,36 @@
     this.dataView({name:name+'.statistic', func:aggregate(computeStat)});
     this.dataView({name:name+'.outlier',  func:aggregate(computeOutliers)});
     
+    
+    var getAttr = function(id) {
+      return function(d){
+        return d._calculated_values[id];
+      }
+    }
+    
     var param = {};
+    var id = 0;
+    for(i in attr) {
+      param[i] = getAttr(id);
+      id++;
+    }
+    for(var i in group_by) {
+      if(typeof group_by[i] === 'string' && group_by[i].indexOf(data_binding_prefix) == 0) {
+        param[i] = group_by[i];
+      } else {
+        param[i] = data_binding_prefix+i;
+      }
+    }
+    param.data = name+'.statistic';
+    param[stat_on_attr] = d4.boxplotBoxStat();
+    this.boxplotBox(param);
+    
     for(i in attr) {
       param[i] = attr[i];
     }
     for(var i in group_by) {
       param[i] = group_by[i];
     }
-    param.data = name+'.statistic';
-    param[stat_on_attr] = d4.boxplotBoxStat();
-    this.boxplotBox(param);
-    
     param.data = name+'.outlier';
     param[stat_on_attr] = stat_on;
     param.group = getId;
@@ -565,14 +599,13 @@
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
-      console.log('name: ',name);
+      
       if(isDefined(this.dataset[name])) {
         WARNING('Dataset '+name+' already defined');
       }
       this.dataset[name] = func(this.dataset[main_dataset_name]);
     }
     this.data_view_generator = [];
-    console.log('DATASET: ',this.dataset);
     
     // Check if dataset exist
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -602,7 +635,6 @@
      * Detection of attributes which are dimensions *
      * Deletion of useless attributes               *
     \*                                              */
-    
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i].attrs) {
         // This attribute is a dimension
@@ -683,57 +715,17 @@
           aes_ret_type = typeof aes[aesId2].func(dataset[0], 0);
           checkAesType('number', aes_ret_type, 'second param', originFunc);
           
+          attr_val.boundary1.aes = aes[aesId1];
+          attr_val.boundary2.aes = aes[aesId2];
+          
           // Not stacked
           if(!attr_val.stacked) {
-            attr_val.boundary1.aes = aes[aesId1];
-            attr_val.boundary2.aes = aes[aesId2];
+            this.dim[attr].aes.push(attr_val.boundary1.aes);
+            this.dim[attr].aesElemId.push(i);
+            this.dim[attr].aes.push(attr_val.boundary2.aes);
+            this.dim[attr].aesElemId.push(i);
           }
-          // Stacked
-          else {
-            var func = aes[aesId1].func;
-            var origin = aes[aesId2].func;
-            
-            var getFunctions = function(func, origin) {
-              var context = { lastI:null,
-                              boundary1:null,
-                              boundary2:null};
-              var updateBoundaries = function(d, i) {
-                if(i != context.lastI) {
-                  if(i == 0) {
-                    context.boundary2 = origin(d, i);
-                  }
-                  
-                  context.boundary1 = context.boundary2;
-                  context.boundary2 = context.boundary1 + func(d, i);
-                  context.lastI = i;
-                }
-              };
-              
-              return [
-                function(d, i) {
-                  updateBoundaries(d, i);
-                  return context.boundary1;
-              },
-                function(d, i) {
-                  updateBoundaries(d, i);
-                  return context.boundary2;
-                }
-              ];
-            }
-            
-            var funcs = getFunctions(aes[aesId1].func, aes[aesId2].func);
-            
-            attr_val.boundary1.aes = {func:funcs[0],
-              datasetName:datasetName};
-            
-            attr_val.boundary2.aes = {func:funcs[1],
-              datasetName:datasetName};
-          }
-          
-          this.dim[attr].aes.push(attr_val.boundary1.aes);
-          this.dim[attr].aesElemId.push(i);
-          this.dim[attr].aes.push(attr_val.boundary2.aes);
-          this.dim[attr].aesElemId.push(i);
+          // We will compute function for stacked interval after having split data
         }
         else if(attr_val instanceof BoxPlotBoxStat && attr_type == 'dimension') {
           originFunc = lib_name+'.boxplotStat';
@@ -944,6 +936,56 @@
     TIMER_END('Split', this.display_timers);
     
     
+    
+    /*                                      *\
+     * Computing stacked interval functions *
+    \*                                      */
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        var attr_val = this.elements[i].attrs[attr].value;
+        if(attr_val instanceof Interval && attr_val.stacked) {
+          var dataset = this.dataset[this.elements[i].datasetName];
+          var originFunc = attr_val.boundary2.aes.func;
+          var stepFunc = attr_val.boundary1.aes.func;
+          
+          if(isUndefined(dataset[0]._calculated_values)) {
+            for(var j = 0 ; j < dataset.length ; j++) {
+              dataset[j]._calculated_values = [];
+            }
+          }
+          var Id = dataset[0]._calculated_values.length;
+          
+          var it = new HierarchyIterator(this.nestedData[i]);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            
+            if(dataSubset.length > 0) {
+              dataSubset[0]._calculated_values[Id] = originFunc(dataSubset[0], 0);
+              dataSubset[0]._calculated_values[Id+1] = stepFunc(dataSubset[0], 0);
+            }
+            for(var j = 1 ; j < dataSubset.length ; j++) {
+              dataSubset[j]._calculated_values[Id] = dataSubset[j-1]._calculated_values[Id+1];
+              dataSubset[j]._calculated_values[Id+1] = dataSubset[j]._calculated_values[Id] + stepFunc(dataSubset[j], j);
+            }
+          }
+          
+          var getFunc = function(Id) {
+            return function(d) {
+              return d._calculated_values[Id];
+            };
+          };
+          
+          attr_val.boundary1.aes.func = getFunc(Id);
+          attr_val.boundary2.aes.func = getFunc(Id+1);
+          
+          this.dim[attr].aes.push(attr_val.boundary1.aes);
+          this.dim[attr].aesElemId.push(i);
+          this.dim[attr].aes.push(attr_val.boundary2.aes);
+          this.dim[attr].aesElemId.push(i);
+        }
+      }
+    }
+    
     /*                                          *\
      * Computing the deepest spacial coordinate *
      * system dimensions' domains               *
@@ -992,27 +1034,17 @@
           while(it.hasNext()) {
             var dataSubset = it.next();
             // Compute continue domain
-            var dom = extent(dataSubset, this.dim[i].aes[j].func);
+            var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
             
             if(dom[0] < domain[0])
               domain[0] = dom[0];
             if(dom[1] > domain[1])
               domain[1] = dom[1];
-            
-            if(dom[1]>1){
-            console.log('dom[',dom[0],',', dom[1],'] ',dataSubset);
-            for(var z =0;z<dataSubset.length;z++){
-            var D = this.dim[i].aes[j].func(dataSubset[z],z);
-            console.log(D);
-            }
-            }
-            
           }
         }
         if(domain[0] == domain[1]) {
           domain = addPadding(domain, this.linear_scale_padding);
         }
-        console.log(i,domain);
       }
       
       this.dim[i].domain = domain;
@@ -2892,7 +2924,10 @@
       
       var it = new HierarchyIterator(nestedata);
       while(it.hasNext()) {
-        groupedData.push(it.next());
+        var dataSubset = it.next();
+        if(dataSubset.length > 0) {
+          groupedData.push(dataSubset);
+        }
       }
       
       return getNewData(groupedData);
@@ -3006,6 +3041,52 @@
       return groupByFunction;
     };
     
+    //Sum
+    groupByFunction.sum = function(param) {
+      var funcName = lib_name+'.groupBy().sum';
+      var sum_attr_name = null;
+      var sum_attr_func = null;
+      
+      for(var i in param) {
+        if(sum_attr_name == null) {
+          sum_attr_name = i;
+          sum_attr_func = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, param[i], main_dataset_name, i, funcName)].func;
+        }
+        else {
+          WARNING('More than 1 parameter passed to '+funcName+': '+i+' ignored');
+        }
+      }
+      
+      if(sum_attr_name == null) {
+        sum_attr_name = 'sum';
+        sum_attr_func = function(){return 1;};
+      }
+      
+      getNewData = function(groupedData) {
+        var new_data = [];
+        checkAesType('number', typeof sum_attr_func(groupedData[0][0], 0), sum_attr_name, funcName);
+        
+        for(var i = 0 ; i < groupedData.length ; i++) {
+          var sum = 0;
+          
+          for(var j = 0 ; j < groupedData[i].length ; j++) {
+            sum += sum_attr_func(groupedData[i][j], j);
+          }
+          
+          var datum = {};
+          for(var j in group_by) {
+            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          }
+          datum[sum_attr_name] = sum;
+          new_data.push(datum);
+        }
+        return new_data;
+      };
+      
+      return groupByFunction;
+    };
+    
+    
     return groupByFunction;
   };
   
@@ -3033,7 +3114,7 @@
     var textNode = null;
     
     if(popup.empty()) {
-      popup = g.svg.insert('g');
+      popup = g.svg.insert('g').style('pointer-events', 'none');
       for(var i = 0 ; i < id.length ; i++) {
         popup.classed(id[i].toString(), true);
       }
@@ -3722,7 +3803,7 @@
           aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
         }
         else {
-          aes.continuousDomain = extent(dataset, aes.func);
+          aes.continuousDomain = d3.extent(dataset, aes.func);
         }
       }
     }
@@ -3814,21 +3895,6 @@
   var convertAngle = function(angle) {
     return (Math.PI/2 - angle);
   };
-  
-  var extent = function(a, f) {
-    var ret = [Infinity, -Infinity];
-    for(var i = 0 ; i < a.length ; i++) {
-      var val = f(a[i], i);
-      if(val < ret[0]) {
-        ret[0] = val;
-      }
-      if(val > ret[1]) {
-        ret[i] = val;
-      }
-    }
-    
-    return ret;
-  }
   
   // Iterator that go through an Array hierarchy
   var HierarchyIterator = function(h) {

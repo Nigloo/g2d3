@@ -26,25 +26,6 @@
             
             "use strict";
             
-            var dataset = [];
-            var cat1 = ['A', 'B'];
-            var cat2 = [10, 20];
-            
-            for(var i = 0 ; i < cat1.length ; i++) {
-                for(var j = 0 ; j < cat2.length ; j++) {
-                    for(var k = 0 ; k < 5 ; k++) {
-                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:k});
-                        dataset.push({col1:cat1[i], col2:cat2[j], col3:k, col4:k+5});
-                    }
-                }
-            }
-            
-            var f = d4.groupBy({x:'data:col1', y:'data:col2'}).proportion({z:'data:col3', weight:'data:col4'});
-            
-            console.log('DATA', f(dataset));
-            
-            throw 'return';
-            
             var G = [];
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -348,5 +329,6 @@
         <div id="graph7"></div>
         
         <div id="graph8"></div>
+        <div id="graph42"></div>
     </body>
 </html>   

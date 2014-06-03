@@ -3641,12 +3641,16 @@
   
   // Sort and remove duplicate values of an Array
   var RemoveDupArray = function(a){
-    a.sort(main_object.compare);
-      
-    for (var i = 1; i < a.length; i++){
-      if (a[i-1] === a[i]) {
+    var alreadyIn = {};
+    
+    for (var i = 0 ; i < a.length;){
+      var val = a[i];
+      if(alreadyIn[val]) {
         a.splice(i, 1);
-        i--;
+      }
+      else {
+        alreadyIn[val] = true;
+        i++;
       }
     }
   };
@@ -3808,7 +3812,7 @@
   
   // Compute domains of an aestetic
   var computeDomain = function(aes, dataset, type) {
-    // Ordinal domain
+    // Discret domain
     if(type == 'discret') {
       if(isUndefined(aes.discretDomain)) {
         var f = aes.func;
@@ -3824,8 +3828,7 @@
       if(isUndefined(aes.continuousDomain)) {
         // Compute continuous domain from ordinal one
         if(isDefined(aes.discretDomain)) {
-          var ordDom = aes.discretDomain;
-          aes.continuousDomain = [ordDom[0], ordDom[ordDom.length-1]];
+          aes.continuousDomain = d3.extent(aes.discretDomain);
         }
         else {
           aes.continuousDomain = d3.extent(dataset, aes.func);

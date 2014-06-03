@@ -4,13 +4,15 @@
         <meta charset="utf-8">
         <title>D4 Examples</title>
         <style>
-            .axis path,
-            .axis line {
+            .axis.x path,
+            .axis.x line,
+            .axis.y path,
+            .axis.y line {
                 fill: none;
                 stroke: black;
                 shape-rendering: crispEdges;
             }
-
+            
             .axis text {
                 font-family: sans-serif;
                 font-size: 11px;
@@ -20,8 +22,8 @@
                 visibility: hidden;
             }
             
-            #graph6 .axis circle,
-            #graph6 .axis line {
+            .axis.radius circle,
+            .axis.theta line {
                 fill: none;
                 stroke: grey;
                 stroke-dasharray: 5 5;
@@ -183,15 +185,44 @@
                         label:function(d){return d.Type+' for '+d.Function+': $'+d.Budget+'K'}})
             .symbol({   radius:0,size:0})
             .data({data:d4.loadFromFile({file:'data/AllocatedBudgetVersusActualSpending.csv'})})
-            .dataView({name:'default_data', func:d4.sort({comparator:
-                function(a, b) {
-                    return d4.compare(a.Function, b.Function);
-                }})})
-            .plot({selector:"#graph6", width:960, height:500, margin:20, margin_left:80});
+            .plot({selector:"#graph6", width:800, height:600});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+                        
+            var getColor = function(d){
+                return  d.operation == 'Opening Balance' || d.operation == 'Closing Balance' ? 'blue' : 
+                        d.amount > 0 ? 'green' : 'red';
+            };
+            var getAmount = function(d){
+                return d.operation == 'Closing Balance' ? -d.amount : d.amount;
+            }
+            
+            d4.graphic()
+            .hack({drawBackground:false,bar_padding:0})
+            .bar({  x:'data:operation',
+                    y:d4.interval.stack(getAmount),
+                    fill:getColor,
+                    label:'data:amount'})
+            .data({data:d4.loadFromFile({file:'data/WaterfallChartData.csv'})})
+            .plot({selector:"#graph7", width:900, height:500, margin_left:60});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
+            d4.graphic()
+            .hack({drawBackground:false})
+            .coord(d4.polar())
+            .bar({  theta:'data:nutriment',
+                    radius:d4.interval('data:quantity', 0),
+                    stroke:'blue',
+                    fill:'blue',
+                    fill_opacity:0.3})
+            .data({data:d4.loadFromFile({file:'data/AppleNutriment.csv'})})
+            .plot({selector:"#graph8", width:800, height:600, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
           
           
         </script>
@@ -222,6 +253,14 @@
         </table>
         <div id="graph6">
             <h2>Allocated Budget Versus Actual Spending for a given Organization</h2>
+        </div>
+        
+        <div id="graph7">
+            <h2>Waterfall Chart</h2>
+        </div>
+        
+        <div id="graph8">
+            <h2>Apple Nutriment</h2>
         </div>
     </body>
 </html>   

@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
-        <title>D4 Test</title>
+        <title>D4 Examples</title>
         <style>
             .axis path,
             .axis line {
@@ -19,6 +19,14 @@
             .whisker_limit {
                 visibility: hidden;
             }
+            
+            #graph6 .axis circle,
+            #graph6 .axis line {
+                fill: none;
+                stroke: grey;
+                stroke-dasharray: 5 5;
+            }
+            
         </style>
         <script type="text/javascript" src="d3.v3.js"></script>
         <script type="text/javascript" src="d4.js"></script>
@@ -154,7 +162,36 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-          
+            
+            var getColor = function(d){
+                return d.Type == 'Allocated Budget' ? 'blue' : 'red';
+            };
+            
+            d4.graphic()
+            .hack({drawBackground:false})
+            .coord(d4.polar())
+            .element({  theta:'data:Function',
+                        radius:'data:Budget',
+                        group:'data:Type',
+                        stroke:getColor})
+            .line({     interpolation:'linear-closed',
+                        stroke_width:2,
+                        fill:getColor,
+                        fill_opacity:0.2})
+            .symbol({   fill:'white',
+                        size:25,
+                        label:function(d){return d.Type+' for '+d.Function+': $'+d.Budget+'K'}})
+            .symbol({   radius:0,size:0})
+            .data({data:d4.loadFromFile({file:'data/AllocatedBudgetVersusActualSpending.csv'})})
+            .dataView({name:'default_data', func:d4.sort({comparator:
+                function(a, b) {
+                    return d4.compare(a.Function, b.Function);
+                }})})
+            .plot({selector:"#graph6", width:960, height:500, margin:20, margin_left:80});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
           
           
         </script>
@@ -176,12 +213,15 @@
         <table>
             <tr>
                 <td id="graph5-1">
-                    <h2>Height of 507 Individuals Gender</h2>
+                    <h2>Height of 507 Individuals by Gender</h2>
                 </td>
                 <td id="graph5-2">
                     <h2>Weight of 507 Individuals by Gender</h2>
                 </td> 
             </tr>
         </table>
+        <div id="graph6">
+            <h2>Allocated Budget Versus Actual Spending for a given Organization</h2>
+        </div>
     </body>
 </html>   

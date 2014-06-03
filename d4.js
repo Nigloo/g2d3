@@ -2409,7 +2409,7 @@
         
         
         svg.append('g')
-           .attr('class', 'axis')
+           .attr('class', 'axis x')
            .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
            .call(xAxis);
       }
@@ -2433,7 +2433,7 @@
         }
         
         svg.append('g')
-           .attr('class', 'axis')
+           .attr('class', 'axis y')
            .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
            .call(yAxis);
       }
@@ -2639,12 +2639,12 @@
   Polar.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height) {
     var maxRadius = d3.min([width / 2, height / 2]);
     
-    var axisNode = svg.append('g');
-    axisNode.attr('class', 'axis')
-            .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');                     
-    
     // Radius 'axis'
     if(this.dimName['radius'] != null) {
+      var axisNode = svg.append('g');
+      axisNode.attr('class', 'axis radius')
+              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
+      
       var ticks;
       
       if(dim[this.dimName['radius']].ordinal) {
@@ -2659,12 +2659,14 @@
       }
       
       for(var i = 0 ; i < ticks.length ; i++) {
-        axisNode.append('circle')
+        var tickNode = axisNode.append('g').attr('class', 'tick');
+        
+        tickNode.append('circle')
                 .attr('r', this.scale['radius'](ticks[i]) || 1)
                 .attr('fill', 'none')
                 .attr('stroke', 'black');
         
-        axisNode.append('text')
+        tickNode.append('text')
                 .text(ticks[i])
                 .attr('x', this.scale['radius'](ticks[i]) + 5)
                 .attr('y', -5)
@@ -2674,6 +2676,10 @@
     
     // Theta axis
     if(this.dimName['theta'] != null) {
+      var axisNode = svg.append('g');
+      axisNode.attr('class', 'axis theta')
+              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
+      
       var ticks;
       
       if(dim[this.dimName['theta']].ordinal) {
@@ -2688,9 +2694,11 @@
       }
       
       for(var i = 0 ; i < ticks.length ; i++) {
+        var tickNode = axisNode.append('g').attr('class', 'tick');
+        
         var x = Math.cos(this.scale['theta'](ticks[i])) * maxRadius;
         var y = -Math.sin(this.scale['theta'](ticks[i])) * maxRadius;
-        axisNode.append('line')
+        tickNode.append('line')
                 .attr('x1', 0)
                 .attr('y1', 0)
                 .attr('x2', x)
@@ -2700,7 +2708,7 @@
         x = Math.cos(this.scale['theta'](ticks[i])) * (maxRadius + 15);
         y = -Math.sin(this.scale['theta'](ticks[i])) * (maxRadius + 15);
         var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
-        axisNode.append('text')
+        tickNode.append('text')
                 .text(tick)
                 .attr('transform', 'translate('+x+','+y+')')
                 .attr('text-anchor', 'middle')
@@ -2864,6 +2872,7 @@
     };
   }
   
+  // Aggregate data
   main_object.groupBy = function(param) {
     var funcName = lib_name+'.groupBy';
     var group_by = param;
@@ -3089,6 +3098,45 @@
     
     return groupByFunction;
   };
+  
+  // Sort data
+  main_object.sort = function(param) {
+    var funcName = lib_name+'.sort';
+    var comparator = checkParam(funcName, param, 'comparator');
+    
+    return function(data) {
+      var sorted_data = new Array(data.length);
+      for(var i = 0 ; i < data.length ; i++) {
+        sorted_data[i] = data[i];
+      }
+      
+      return sorted_data.sort(comparator);
+    }
+  };
+  main_object.compare = function(a, b) {
+    if(typeof a === 'number') {
+      if(typeof b === 'number') {
+        return a - b;
+      }
+      else {
+        return -1;
+      }
+    }
+    else {
+      if(typeof b === 'number') {
+        return 1;
+      }
+      else {
+        main_object.stringCompare
+        for (var i=0,n=Math.max(a.length, b.length); i<n && a.charAt(i) === b.charAt(i); ++i);
+        if (i === n) {
+          return 0;
+        }
+        return a.charAt(i) > b.charAt(i) ? 1 : -1;
+      }
+    }
+  };
+  
   
   /////////////////////
   // Popup functions //
@@ -3593,30 +3641,7 @@
   
   // Sort and remove duplicate values of an Array
   var RemoveDupArray = function(a){
-    var compare = function(a, b) {
-      if(typeof a === 'number') {
-        if(typeof b === 'number') {
-          return a - b;
-        }
-        else {
-          return -1;
-        }
-      }
-      else {
-        if(typeof b === 'number') {
-          return 1;
-        }
-        else {
-          for (var i=0,n=Math.max(a.length, b.length); i<n && a.charAt(i) === b.charAt(i); ++i);
-          if (i === n) {
-            return 0;
-          }
-          return a.charAt(i) > b.charAt(i) ? 1 : -1;
-        }
-      }
-    };
-
-    a.sort(compare);
+    a.sort(main_object.compare);
       
     for (var i = 1; i < a.length; i++){
       if (a[i-1] === a[i]) {

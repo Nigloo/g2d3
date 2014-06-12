@@ -30,13 +30,19 @@
     this.coord();
     this.temporalDim = null;
     this.time();
+    this.axisProperty = null;
     this.dataset = {};
     this.dataset[main_dataset_name] = null;
     this.dataLoader = null;
     this.elements = [];
     this.fallback_element = new ElementBase();
     this.lastElementAdded = this.fallback_element;
+    
+    
+    // Both 'boxplot' and 'axis' method need dimensions to be set and
+    // therefore ahave to be called after 'coord' and 'time' method
     this.boxplot_function_called = false;
+    this.axis_function_called = false;
     
     
     this.drawBackground = true;
@@ -166,8 +172,8 @@
     group_by.group = attr.group;
     delete attr.group;
     
-    var groupByAes = [];
-    var attrAes = [];
+    var groupByAes = {};
+    var attrAes = {};
         
     // Aesthetics
     var aes = [];
@@ -376,7 +382,7 @@
     var data = checkParam(funcName, param, 'data');
     TIMER_BEGIN('Loading', this.display_timers);
     if(data instanceof Array) {
-      this.dataset[[main_dataset_name]] = data;
+      this.dataset[main_dataset_name] = data;
     }
     else if(data instanceof Object && isDefined(data.me) && data.me instanceof DataLoader) {
       this.dataLoader = data;
@@ -417,6 +423,9 @@
   Graphic.prototype.coord = function(coordSys) {
     if(this.boxplot_function_called) {
       ERROR('impossible to call Graphic.coord after Graphic.boxplot');
+    }
+    if(this.axis_function_called) {
+      ERROR('impossible to call Graphic.coord after Graphic.axis');
     }
     
     if(isUndefined(coordSys)) {
@@ -462,7 +471,9 @@
           if(coordSyss[i].dimName[j] === undefined) {
             coordSyss[i].dimName[j] = generateName.call(this, j);
           }
-          this.spacialDimName.push(coordSyss[i].dimName[j]);
+          if(coordSyss[i].dimName[j] != null) {
+            this.spacialDimName.push(coordSyss[i].dimName[j]);
+          }
         }
       }
     }
@@ -475,6 +486,9 @@
     if(this.boxplot_function_called) {
       ERROR('impossible to call Graphic.time after Graphic.boxplot');
     }
+    if(this.axis_function_called) {
+      ERROR('impossible to call Graphic.time after Graphic.axis');
+    }
     
     if(isUndefined(param)) {
       this.temporalDim = {};
@@ -485,6 +499,44 @@
     
     return this;
   };
+  
+  // Change axis properties
+  Graphic.prototype.axis = function(param) {
+    if(this.axisProperty == null) {
+      this.axisProperty = {};
+      if(isDefined(param)) {
+        this.axis();
+      }
+    }
+    
+    this.axis_function_called = true;
+    var funcName = 'Graphic.axis';
+    var dimName =       checkParam(funcName, param, 'axis',     null);
+    var display =       checkParam(funcName, param, 'display',  true);
+    var displayAxis =   checkParam(funcName, param, 'display_axis',  display);
+    var displayTicks =  checkParam(funcName, param, 'display_ticks',  display);
+    
+    if(dimName === null) {
+      dimName = [];
+      for(var i = 0 ; i < this.spacialDimName.length ; i++) {
+        dimName.push(this.spacialDimName[i]);
+      }
+      for(var i in this.temporalDim) {
+        dimName.push(i);
+      }
+    }
+    else {
+      dimName = [dimName];
+    }
+    
+    for(var i = 0 ; i < dimName.length ; i++) {
+      var axProp = this.axisProperty[dimName[i]] = {};
+      axProp.displayAxis = displayAxis;
+      axProp.displayTicks = displayTicks;
+    }
+    
+    return this;
+  }
   
   // Go to the specified value of the specified time dimension
   Graphic.prototype.setTimeValue = function(timeDimension, value) {
@@ -595,6 +647,7 @@
     /*                                                *\
      * Generation of data views (per element dataset) *
     \*                                                */
+    
     TIMER_BEGIN('Generation of data views', this.display_timers);
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
@@ -655,9 +708,15 @@
      * Standardization of aesthetics                 *
      * Collecting some informations about dimensions *
     \*                                               */
-    TIMER_BEGIN('Standardization aesthethics', this.display_timers);
+    TIMER_BEGIN('Standardization of aesthethics', this.display_timers);
     // Information on each dimension
-    this.dim = getDimensionsInfo(this.spacialCoord, this.temporalDim);
+    if(this.axisProperty == null) {
+      this.axisProperty = {};
+      this.axis();
+    }
+    this.dim = getDimensionsInfo( this.spacialCoord,
+                                  this.temporalDim,
+                                  this.axisProperty);
     var deepestCoordSysDim = [];
     for(var i in this.dim) {
       if(!this.dim[i].forceOrdinal) {
@@ -828,14 +887,14 @@
     dataCol2Aes = undefined;
     func2Aes = undefined;
     const2Aes = undefined;
-    TIMER_END('Standardization aesthethics', this.display_timers);
+    TIMER_END('Standardization of aesthethics', this.display_timers);
     
     
     /*                                                         *\
      * Computing dimensions' domains                           *
      * EXCEPT the deepest spacial coordinate system dimensions *
     \*                                                         */
-    TIMER_BEGIN('Dimension domain 1', this.display_timers);
+    TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
     for(var i in this.dim) {
       if(isUndefined(this.dim[i].aes)) {
         ERROR('Error: dimension '+i+' unused');
@@ -862,13 +921,13 @@
       this.dim[i].ordinal = true;
     }
     
-    TIMER_END('Dimension domain 1', this.display_timers);
+    TIMER_END('Computing dimension domain 1/2', this.display_timers);
     
     
     /*                                 *\
      * Splitting data for each element *
     \*                                 */
-    TIMER_BEGIN('Split', this.display_timers);
+    TIMER_BEGIN('Nesting data', this.display_timers);
     // Initialising current 'time' (i.e. position in spacial dimensions)
     this.currentTime = [];
     for(var i in this.dim) {
@@ -933,7 +992,7 @@
         dataSubset.push(dataset[j]);
       }
     }
-    TIMER_END('Split', this.display_timers);
+    TIMER_END('Nesting data', this.display_timers);
     
     
     
@@ -990,7 +1049,7 @@
      * Computing the deepest spacial coordinate *
      * system dimensions' domains               *
     \*                                          */
-    TIMER_BEGIN('Dimension domain 2', this.display_timers);
+    TIMER_BEGIN('Computing dimension domain 2/2', this.display_timers);
     for(var i in this.dim) {
       if(this.dim[i].forceOrdinal) {
         continue;
@@ -1050,15 +1109,15 @@
       this.dim[i].domain = domain;
       this.dim[i].ordinal = ordinal;
     }
-    TIMER_END('Dimension domain 2', this.display_timers);
+    TIMER_END('Computing dimension domain 2/2', this.display_timers);
     
     
     /*                         *\
      * Generating time sliders *
     \*                         */
-    TIMER_BEGIN('Sliders', this.display_timers);
-    this.timeSlider = [];
-    var timeSliderInfo = [];
+    TIMER_BEGIN('Computing time sliders\' behavior', this.display_timers);
+    this.timeSlider = {};
+    var timeSliderInfo = {};
     var nbSlider = 0;
     var sliderHeight = 50;
     var sliderSize = width - this.margin.left - this.margin.right;
@@ -1146,13 +1205,13 @@
     }
     // Reserve some space for sliders
     this.margin.bottom += sliderHeight * nbSlider;
-    TIMER_END('Sliders', this.display_timers);
+    TIMER_END('Computing time sliders\' behavior', this.display_timers);
     
     
     /*                  *\
      * Computing scales *
     \*                  */
-    TIMER_BEGIN('Scales', this.display_timers);
+    TIMER_BEGIN('Computing scales', this.display_timers);
     // For the coordinate system
     this.spacialCoord.computeScale( this.dim, 
                                     width - this.margin.left - this.margin.right,
@@ -1229,13 +1288,13 @@
         }
       }
     }
-    TIMER_END('Scales', this.display_timers);
+    TIMER_END('Computing scales', this.display_timers);
     
     
     /*                *\
      * Generating svg *
     \*                */
-    TIMER_BEGIN('SVG', this.display_timers);
+    TIMER_BEGIN('Generating SVG', this.display_timers);
     
     // Removve loading bar
     this.svg.select('#loading-bar').remove();
@@ -1320,7 +1379,7 @@
     
     // Draw elements
     this.updateElements();
-    TIMER_END('SVG', this.display_timers);
+    TIMER_END('Generating SVG', this.display_timers);
     return this;
   };
   
@@ -1558,15 +1617,8 @@
         
         // Bars
         else if(this.elements[i] instanceof Bar) {
-          var boundaryFunc = [];
-          var padding = null;
-          
-          if(deepestCoordSys instanceof Rect) {
-            padding = this.bar_padding;
-          }
-          else if(deepestCoordSys instanceof Polar) {
-            padding = 0;
-          }
+          var boundaryFunc = {};
+          var padding = this.bar_padding;
           
           for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
             var dimName = deepestCoordSysDim[j].name;
@@ -1579,10 +1631,10 @@
             if(dimName == null) {
               var min = deepestCoordSys.boundary[originalDimName].min;
               var max = deepestCoordSys.boundary[originalDimName].max;
-              var dist = max - min;
+              var dist = (max - min) / (1 + padding);
               
-              boundaryFunc[originalDimName].min = getConst(min);
-              boundaryFunc[originalDimName].max = getConst(max);
+              boundaryFunc[originalDimName].min = getConst((min + max - dist)/2);
+              boundaryFunc[originalDimName].max = getConst((min + max + dist)/2);
               boundaryFunc[originalDimName].dist = getConst(dist);
             }
             else {
@@ -1681,7 +1733,7 @@
           var whiskers_size = 0.5;
           var whiskers_ratio = (1 - whiskers_size) / 2;
           
-          var posFunc = [];
+          var posFunc = {};
           var boxplotStat = null;
           
           for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
@@ -2149,7 +2201,7 @@
                             value:null}
       };
     
-    this.listeners = [];
+    this.listeners = {};
     this.datasetName = main_dataset_name;
   };
   
@@ -2161,7 +2213,7 @@
                 value:null}
       };
                     
-    this.listeners = [];
+    this.listeners = {};
   };
   
   function Line() {
@@ -2172,21 +2224,21 @@
                            value:null}
       };
      
-    this.listeners = [];
+    this.listeners = {};
   };
   
   function Bar() {
     // No specific attributes
     this.attrs = {};
     
-    this.listeners = [];
+    this.listeners = {};
   };
   
   function BoxPlot() {
     // No specific attributes
     this.attrs = {};
     
-    this.listeners = [];
+    this.listeners = {};
   };
   
   ////////////////////////
@@ -2204,9 +2256,9 @@
   /////// CARTESIAN ///////
   function Rect(param) {
     this.g = null;
-    this.dimName = [];
-    this.scale = [];
-    this.boundary = [];
+    this.dimName = {};
+    this.scale = {};
+    this.boundary = {};
     for(var i = 0 ; i < Rect.prototype.dimName.length ; i++) {
       this.dimName[Rect.prototype.dimName[i]] = undefined;
       this.scale[Rect.prototype.dimName[i]] = null;
@@ -2407,11 +2459,17 @@
           xAxis.ticks(5);
         }
         
-        
-        svg.append('g')
-           .attr('class', 'axis x')
-           .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-           .call(xAxis);
+        var xAxisNode =  svg.append('g')
+                            .attr('class', 'axis x')
+                            .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
+                            .call(xAxis);
+           
+        if(!dim[this.dimName['x']].displayAxis) {
+          xAxisNode.select('.domain').remove();
+        }
+        if(!dim[this.dimName['x']].displayTicks) {
+          xAxisNode.selectAll('.tick').remove();
+        }
       }
       else {
         if(this.subSys instanceof Rect) {
@@ -2432,10 +2490,17 @@
           yAxis.ticks(5);
         }
         
-        svg.append('g')
-           .attr('class', 'axis y')
-           .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-           .call(yAxis);
+        var xAxisNode = svg.append('g')
+                           .attr('class', 'axis y')
+                           .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
+                           .call(yAxis);
+           
+        if(!dim[this.dimName['y']].displayAxis) {
+          xAxisNode.select('.domain').remove();
+        }
+        if(!dim[this.dimName['y']].displayTicks) {
+          xAxisNode.selectAll('.tick').remove();
+        }
       }
       else {
         if(this.subSys instanceof Rect) {
@@ -2473,9 +2538,9 @@
   /////// POLAR ///////
   function Polar(param) {
     this.g = null;
-    this.dimName = [];
-    this.scale = [];
-    this.boundary = [];
+    this.dimName = {};
+    this.scale = {};
+    this.boundary = {};
     for(var i = 0 ; i < Polar.prototype.dimName.length ; i++) {
       this.dimName[Polar.prototype.dimName[i]] = undefined;
       this.scale[Polar.prototype.dimName[i]] = null;
@@ -2661,16 +2726,20 @@
       for(var i = 0 ; i < ticks.length ; i++) {
         var tickNode = axisNode.append('g').attr('class', 'tick');
         
-        tickNode.append('circle')
-                .attr('r', this.scale['radius'](ticks[i]) || 1)
-                .attr('fill', 'none')
-                .attr('stroke', 'black');
+        if(dim[this.dimName['radius']].displayAxis) {
+          tickNode.append('circle')
+                  .attr('r', this.scale['radius'](ticks[i]) || 1)
+                  .attr('fill', 'none')
+                  .attr('stroke', 'black');
+        }
         
-        tickNode.append('text')
-                .text(ticks[i])
-                .attr('x', this.scale['radius'](ticks[i]) + 5)
-                .attr('y', -5)
-                .attr('fill', 'black');
+        if(dim[this.dimName['radius']].displayTicks) {
+          tickNode.append('text')
+                  .text(ticks[i])
+                  .attr('x', this.scale['radius'](ticks[i]) + 5)
+                  .attr('y', -5)
+                  .attr('fill', 'black');
+        }
       }
     }
     
@@ -2695,25 +2764,31 @@
       
       for(var i = 0 ; i < ticks.length ; i++) {
         var tickNode = axisNode.append('g').attr('class', 'tick');
+        var x = null;
+        var y = null;
         
-        var x = Math.cos(this.scale['theta'](ticks[i])) * maxRadius;
-        var y = -Math.sin(this.scale['theta'](ticks[i])) * maxRadius;
-        tickNode.append('line')
-                .attr('x1', 0)
-                .attr('y1', 0)
-                .attr('x2', x)
-                .attr('y2', y)
-                .attr('stroke', 'black');
+        if(dim[this.dimName['theta']].displayAxis) {
+          x = Math.cos(this.scale['theta'](ticks[i])) * maxRadius;
+          y = -Math.sin(this.scale['theta'](ticks[i])) * maxRadius;
+          tickNode.append('line')
+                  .attr('x1', 0)
+                  .attr('y1', 0)
+                  .attr('x2', x)
+                  .attr('y2', y)
+                  .attr('stroke', 'black');
+        }
         
-        x = Math.cos(this.scale['theta'](ticks[i])) * (maxRadius + 15);
-        y = -Math.sin(this.scale['theta'](ticks[i])) * (maxRadius + 15);
-        var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
-        tickNode.append('text')
-                .text(tick)
-                .attr('transform', 'translate('+x+','+y+')')
-                .attr('text-anchor', 'middle')
-                .attr('y', '.35em')
-                .attr('fill', 'black');
+        if(dim[this.dimName['theta']].displayTicks) {
+          x = Math.cos(this.scale['theta'](ticks[i])) * (maxRadius + 15);
+          y = -Math.sin(this.scale['theta'](ticks[i])) * (maxRadius + 15);
+          var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
+          tickNode.append('text')
+                  .text(tick)
+                  .attr('transform', 'translate('+x+','+y+')')
+                  .attr('text-anchor', 'middle')
+                  .attr('y', '.35em')
+                  .attr('fill', 'black');
+        }
       }
     }
   };
@@ -2800,7 +2875,7 @@
     
     
     return function(data) {
-      var groupByAes = [];
+      var groupByAes = {};
     
       // Aesthetics
       var aes = [];
@@ -2876,7 +2951,7 @@
   main_object.groupBy = function(param) {
     var funcName = lib_name+'.groupBy';
     var group_by = param;
-    var groupByAes = [];
+    var groupByAes = {};
     
     var getNewData = function(groupedData) {
       var new_data = [];
@@ -2972,7 +3047,7 @@
         }
       }
       
-      var aggregOnAes = [];
+      var aggregOnAes = {};
       for(var i in aggreg_on) {
         var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, aggreg_on[i], main_dataset_name, i, funcName);
         aggregOnAes[i] = aes[aesId];
@@ -3656,8 +3731,8 @@
   };
   
   // Determinate on which dimension we have to force to ordinal scale
-  var getDimensionsInfo = function(coordSystem, temporalDim) {
-    var dim = [];
+  var getDimensionsInfo = function(coordSystem, temporalDim, axisProperty) {
+    var dim = {};
     var cs = coordSystem;
     
     while(cs != null) {
@@ -3680,6 +3755,17 @@
     for(var i in temporalDim) {
       dim[i] = {forceOrdinal:true,
                 isSpacial:false};
+    }
+    
+    for(i in axisProperty) {
+      if(isUndefined(dim[i])) {
+        WARNING('In function Graphic.axis: axis '+i+' not defined');
+        continue;
+      }
+      
+      for(var j in axisProperty[i]) {
+        dim[i][j] = axisProperty[i][j];
+      }
     }
     
     return dim;
@@ -4036,7 +4122,7 @@
     }
   };
   
-  var LOG = function(msg) {
+  var LOG = function(msg) {return;
     if(console.log) {
       console.log(msg)
     }

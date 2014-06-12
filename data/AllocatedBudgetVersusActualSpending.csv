@@ -1,0 +1,13 @@
+Function,Budget,Type
+Sales,42,Allocated Budget
+Administration,18,Allocated Budget
+Information Technologie,34,Allocated Budget
+Customer Support,25,Allocated Budget
+Development,60,Allocated Budget
+Marketing,20,Allocated Budget
+Sales,51,Actual Spending
+Administration,21,Actual Spending
+Information Technologie,25,Actual Spending
+Customer Support,20,Actual Spending
+Development,20,Actual Spending
+Marketing,45,Actual Spending

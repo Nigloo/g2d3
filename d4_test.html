@@ -16,7 +16,7 @@
                 font-size: 11px;
             }
             
-            .whisker_limit {
+            #graph8 .whisker_limit {
                 visibility: hidden;
             }
         </style>
@@ -37,7 +37,7 @@
                 {col1:20,   col2:3,     col3:3000,  col4:2},
                 {col1:40,   col2:17,    col3:6000,  col4:3}];
             
-            G['1'] = d4.graphic()
+            G['1-1'] = d4.graphic()
             .element({  x:function(d){return d.col1;},
                         y:'data:col2',
                         stroke_width:function(d,i){return d.col4+1;},
@@ -58,7 +58,15 @@
                         size:'data:col3',
                         stroke_dasharray:function(d){var a=1+d.col4*2;return 2*a+' '+a;}})
             .data({data:dataset})
-            .plot({selector:"#graph1", width:1024, height:768, margin:50});
+            .plot({selector:"#graph1-1", width:1024, height:768, margin:50});
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            G['1-2'] = d4.graphic()
+            .element({  x:'data:col1',
+                        y:'data:col2'})
+            .line()
+            .symbol()
+            .data({data:dataset})
+            .plot({selector:"#graph1-2", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,16 +159,15 @@
                                                     } else if(d.col1=='B'&&d.col2=='D') {
                                                         return 'basis';
                                                     }}})
-            .symbol({   fill:'data:col3',
+            .symbol({   color:'data:col3',
                         type:'data:col4',
-                        stroke:'black',
                         label:'data:col3'})
             .data({data:d4.loadFromDatabase({   host:'localhost',
                                                 dbname:'test_db',
                                                 user:'user_test',
                                                 pwd:'123456',
                                                 request:'SELECT * FROM data_test'})})
-            .plot({selector:'#graph4', width:1000, height:1000, margin_left:50, margin_bottom:40});
+            .plot({selector:"#graph4", width:1000, height:1000, margin_left:50, margin_bottom:40});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +202,7 @@
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
-                    fill:function(d,i){return i;},
+                    color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-1", width:600, height:600, margin:30});
@@ -207,7 +214,7 @@
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
-                    fill:function(d,i){return i;},
+                    color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-2", width:600, height:600, margin:30});
@@ -218,7 +225,7 @@
             .bar({  dim1:'data:cat',
                     dim2:d4.interval.stack('data:y'),
                     group:'data:cat',
-                    fill:function(d,i){return i;},
+                    color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-3", width:600, height:600, margin:30});
@@ -231,7 +238,7 @@
                     dim2:d4.interval(0, 'data:y'),
                     sub_cat:function(d,i){return i;},
                     //group:'data:cat',
-                    fill:function(d,i){return i;},
+                    color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-4", width:600, height:600, margin:30});
@@ -288,10 +295,18 @@
                         dim2:'data:quartile2',
                         data:'boxplot.statistic',
                         size:200, 
-                        fill:'white',
+                        color:'white',
                         label:'data:quartile2'})
             .data({data:dataset})
             .plot({selector:"#graph8", width:1024, height:768, margin:50});
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            G['9'] = d4.graphic()
+            .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
+            .time({t:'data:t'})
+            .boxplot({  dim1:'data:cat',
+                        dim2:d4.boxplotStat('data:value')})
+            .data({data:dataset})
+            .plot({selector:"#graph9", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -307,7 +322,8 @@
         </script>
     </head>
     <body>
-        <div id="graph1"></div>
+        <div id="graph1-1"></div>
+        <div id="graph1-2"></div>
         
         <div id="graph2"></div>
         
@@ -333,6 +349,7 @@
         <div id="graph7"></div>
         
         <div id="graph8"></div>
-        <div id="graph42"></div>
+        
+        <div id="graph9"></div>
     </body>
 </html>   

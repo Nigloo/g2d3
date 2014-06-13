@@ -37,9 +37,10 @@
             "use strict";
             
             
-            var sex_string = ['', 'Male', 'Female'];
-            function sex(d) {
-                return sex_string[d.sex];
+            var gender_string = ['', 'Male', 'Female'];
+            function genderName(d) {
+                if(typeof gender_string[d.sex] === 'undefined')console.log(d);
+                return gender_string[d.sex];
             }
             
             var marriage_status = ['Unknown','Married','Married, Spouse Absent','Separated','Divorced','Widowed','Single'];
@@ -56,9 +57,9 @@
                             subSys:d4.rect({x:'sub_cat', y:'y'})}))
             .time({t:'data:year'})
             .bar({  x:'data:age',
-                    sub_cat:function(d){return d.sex.toString();},
+                    sub_cat:d4.cat('data:sex'),
                     y:d4.interval(0, 'data:people'),
-                    fill:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
+                    color:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
                     label:'data:people'})
             .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
             .dataView({name:'default_data', func:d4.groupBy({year:'data:year',
@@ -79,7 +80,7 @@
             .bar({  x:marriageStatus,
                     sub_cat:function(d){return d.sex.toString();},
                     y:d4.interval(0, 'data:people'),
-                    fill:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
+                    color:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
                     label:'data:people'})
             .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
             .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.year >= 1880;}})})
@@ -94,10 +95,9 @@
                             subSys:d4.polar({radius:null})}))
             .time({ year:'data:year'})
             .axis({axis:'theta', display:false})
-            .axis({axis:'radius', display:false})
-            .bar({  x:sex,
+            .bar({  x:genderName,
                     theta:d4.interval.stack('data:proportion'),
-                    group:sex,
+                    group:'data:sex',
                     fill:'data:marst',
                     stroke:'white',
                     stroke_width:2,
@@ -109,12 +109,12 @@
             
             d4.graphic()
             .hack({drawBackground:false, bar_padding:0})
-            .coord(d4.rect({y:null,
-                            subSys:d4.polar({radius:null})}))
+            .coord(d4.polar())
             .time({ year:'data:year'})
-            .axis({ axis:'theta',   display:false})
-            .bar({  x:sex,
+            .axis({ axis:'theta', display:false})
+            .bar({  radius:d4.cat('data:sex'),
                     theta:d4.interval.stack('data:proportion'),
+                    group:'data:sex',
                     fill:'data:marst',
                     stroke:'white',
                     stroke_width:2,
@@ -146,45 +146,39 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            var getLabel = function(d){
+            var getColor = function(d){
+                return d.sex == 1 ? 'blue' : d.sex == 2 ?'red':'green';
+            }
+            var getLabel = function(d) {
                 return d.height+' cm, '+d.weight+' kg';
+            }
+            
+            var heightInterval = function(d) {
+                var interval_size = 10;
+                var i = Math.floor(d.height / interval_size);
+                //if(isNaN(i)) {console.log(d);console.trace();}
+                return (i*interval_size)+'-'+((i+1)*interval_size);
             }
             
             d4.graphic()
             .hack({ drawBackground:false})
+            .time({t:heightInterval})
             .axis({axis:'x', display_axis:false})
             .element({  stroke_opacity:0.6,
                         stroke_width:1.5})
-            .boxplot({  x:sex,y:d4.boxplotStat('data:weight'),
+            .boxplot({  x:genderName,
+                        y:d4.boxplotStat('data:weight'),
                         stroke:getColor,
                         fill:getColor,
                         fill_opacity:0.3})
-            .symbol({   x:'data:x',
+            .symbol({   x:genderName,
                         y:'data:quartile2',
-                        stroke:function(d){return d.x == 'Male' ? 'blue' : 'red';},
+                        stroke:getColor,
                         fill:'white',
                         label:'data:quartile2',
                         data:'boxplot.statistic'})
             .data({data:d4.loadFromFile({file:'data/HeightVersusWeight.csv'})})
-            .plot({selector:"#graph5-1", width:400, height:700})
-/////////////////////////////////////////////////////////////////////////////////////////////////
-            d4.graphic()
-            .hack({ drawBackground:false})
-            .axis({axis:'x', display_axis:false})
-            .element({  stroke_opacity:0.6,
-                        stroke_width:1.5})
-            .boxplot({  x:sex,y:d4.boxplotStat('data:height'),
-                        stroke:getColor,
-                        fill:getColor,
-                        fill_opacity:0.3})
-            .symbol({   x:'data:x',
-                        y:'data:quartile2',
-                        stroke:function(d){return d.x == 'Male' ? 'blue' : 'red';},
-                        fill:'white',
-                        label:'data:quartile2',
-                        data:'boxplot.statistic'})
-            .data({data:d4.loadFromFile({file:'data/HeightVersusWeight.csv'})})
-            .plot({selector:"#graph5-2", width:400, height:700})
+            .plot({selector:"#graph5", width:400, height:700})
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -263,23 +257,18 @@
         <div id="graph3-1">
             <h2>United States Census Marriage Pie</h2>
         </div>
-        <div id="graph3-1">
+        <div id="graph3-2">
             <h2>United States Census Marriage Donuts</h2>
         </div>
         
         <div id="graph4">
             <h2>Height Versus Weight of 507 Individuals by Gender</h2>
         </div>
-        <table>
-            <tr>
-                <td id="graph5-1">
-                    <h2>Height of 507 Individuals by Gender</h2>
-                </td>
-                <td id="graph5-2">
-                    <h2>Weight of 507 Individuals by Gender</h2>
-                </td> 
-            </tr>
-        </table>
+        
+        <div id="graph5">
+            <h2>Height of 507 Individuals by Gender</h2>
+        </div>
+
         <div id="graph6">
             <h2>Allocated Budget Versus Actual Spending for a given Organization</h2>
         </div>

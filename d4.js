@@ -11,7 +11,6 @@
   // Some constants
   var data_binding_prefix = 'data:';
   var main_dataset_name = 'default_data';
-  var time_dataset_name = 'time_data';
   
   
   ///////////////////////
@@ -97,9 +96,7 @@
     
     // Set the origin function (for error message)
     for(var attr in this.fallback_element.attrs) {
-      if(isDefined(this.fallback_element.attrs[attr].type)) {
-        this.fallback_element.attrs[attr].originFunc = 'Graphic.element';
-      }
+      this.fallback_element.attrs[attr].originFunc = 'Graphic.element';
     }
 
     this.fallback_element.datasetName = checkParam('Graphic.element', param, 'data', main_dataset_name);
@@ -226,6 +223,9 @@
         var it = new HierarchyIterator(nestedata);
         while(it.hasNext()) {
           var dataSubset = it.next();
+          if(dataSubset.length <= 0) {
+            continue;
+          }
           
           var valuesIndex = [];
           for(var i = 0 ; i < dataSubset.length ; i++) {
@@ -249,19 +249,8 @@
     
     var computeStat = function(dataSubset, values) {
       var new_datum = {};
-      for(var i in group_by) {
-        if(typeof group_by[i] === 'string' && group_by[i].indexOf(data_binding_prefix) == 0) {
-          var column = group_by[i].substring(data_binding_prefix.length);
-          new_datum[column] = groupByAes[i].func(dataSubset[0], 0);
-        } else {
-          new_datum[i] = groupByAes[i].func(dataSubset[0], 0);
-        }
-      }
-      new_datum._calculated_values = [];
-      var id = 0;
-      for(var i in attr) {
-        new_datum._calculated_values[id] = attrAes[i].func(dataSubset[0], 0);
-        id++;
+      for(attr in dataSubset[0]) {
+        new_datum[attr] = dataSubset[0][attr];
       }
       
       new_datum.quartile1 = d3.quantile(values, 0.25);
@@ -326,41 +315,22 @@
     this.dataView({name:name+'.statistic', func:aggregate(computeStat)});
     this.dataView({name:name+'.outlier',  func:aggregate(computeOutliers)});
     
-    
-    var getAttr = function(id) {
-      return function(d){
-        return d._calculated_values[id];
-      }
+    var funcParamStat = {};
+    var funcParamOutliers = {};
+    for(i in param) {
+      funcParamStat[i] = param[i];
+      funcParamOutliers[i] = param[i];
     }
     
-    var param = {};
-    var id = 0;
-    for(i in attr) {
-      param[i] = getAttr(id);
-      id++;
-    }
-    for(var i in group_by) {
-      if(typeof group_by[i] === 'string' && group_by[i].indexOf(data_binding_prefix) == 0) {
-        param[i] = group_by[i];
-      } else {
-        param[i] = data_binding_prefix+i;
-      }
-    }
-    param.data = name+'.statistic';
-    param[stat_on_attr] = d4.boxplotBoxStat();
-    this.boxplotBox(param);
+    funcParamStat.data = name+'.statistic';
+    funcParamStat[stat_on_attr] = d4.boxplotBoxStat();
+    this.boxplotBox(funcParamStat);
     
-    for(i in attr) {
-      param[i] = attr[i];
-    }
-    for(var i in group_by) {
-      param[i] = group_by[i];
-    }
-    param.data = name+'.outlier';
-    param[stat_on_attr] = stat_on;
-    param.group = getId;
-    param.label = stat_on;
-    this.symbol(param);
+    funcParamOutliers.data = name+'.outlier';
+    funcParamOutliers[stat_on_attr] = stat_on;
+    funcParamOutliers.group = getId;
+    funcParamOutliers.label = stat_on;
+    this.symbol(funcParamOutliers);
     
     return this;
   }
@@ -613,6 +583,10 @@
                    .append("svg")
                    .attr("width", width)
                    .attr("height", height);
+                   
+      if(this.svg.empty()) {
+        ERROR('can\'t find '+selector);
+      }
     }
     
     if(this.dataset[main_dataset_name] == null) {
@@ -666,39 +640,46 @@
         ERROR('Data view '+this.elements[i].datasetName+' of element '+i+' ('+getTypeName(this.elements[i])+') is not defined');
       }
     }
-    
-    // Temporal dimension dataset
-    var time_dataset = [];
-    var added = {};
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      var datasetName = this.elements[i].datasetName;
-      if(!added[datasetName]) {
-        var dataset = this.dataset[datasetName];
-        for(var j = 0 ; j < dataset.length ; j++) {
-          time_dataset.push(dataset[j]);
-        }
-        added[datasetName] = true;
-      }
-    }
-    this.dataset[time_dataset_name] = time_dataset;
     TIMER_END('Generation of data views', this.display_timers);
     
     
-    /*                                              *\
-     * Detection of attributes which are dimensions *
-     * Deletion of useless attributes               *
-    \*                                              */
+    /*                                                *\
+     * Detection of attributes which are dimensions   *
+     * Store if the value is categorical in a boolean *
+     * Deletion of useless attributes                 *
+     * Add time dimensions as attribute               *
+    \*                                                */
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i].attrs) {
         // This attribute is a dimension
-        if(this.spacialDimName.indexOf(attr) >= 0) {
+        if(this.spacialDimName.indexOf(attr) >= 0 ||
+           attr in this.temporalDim) {
           this.elements[i].attrs[attr].type = 'dimension';
+        }
+        
+        // If the value of this attribute is categorical
+        if(this.elements[i].attrs[attr].value instanceof CategoricalValue) {
+          this.elements[i].attrs[attr].value = this.elements[i].attrs[attr].value.value;
+          this.elements[i].attrs[attr].forceCat = true;
+        }
+        else {
+          this.elements[i].attrs[attr].cat = false;
         }
         
         // Useless attribute
         if(this.elements[i].attrs[attr].type === 'unknown' ||
            this.elements[i].attrs[attr].value == null) {
           delete this.elements[i].attrs[attr];
+        }
+      }
+      
+      // Add time dimensions as attribute
+      for(var attr in this.temporalDim) {
+        if(isUndefined(this.elements[i].attrs[attr])) {
+          this.elements[i].attrs[attr] = {  type:'dimension',
+                                            value:this.temporalDim[attr],
+                                            originFunc:'Graphic.time',
+                                            forceCat:true};
         }
       }
     }
@@ -868,20 +849,6 @@
       }
     }
     
-    // Aesthetics of temporal dimensions
-    for(var i in this.temporalDim) {
-      // Get the aestetic id
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, this.temporalDim[i], time_dataset_name, i, 'Graphic.time');
-      
-      // Check data type return by this aesthetic
-      var aes_ret_type = typeof aes[aesId].func(this.dataset[time_dataset_name][0], 0);
-      if(aes_ret_type != 'number' && aes_ret_type != 'string') {
-        ERROR(errorAesMessage('Graphic.time', i, aes_ret_type, '\'number\' or \'string\''));
-      }
-      // There is one and only one aesthetic per temporal dimension
-      this.dim[i].aes = [aes[aesId]];
-    }
-    
     // We don't need those variables anymore
     aes = undefined;
     dataCol2Aes = undefined;
@@ -918,9 +885,8 @@
       
       
       this.dim[i].domain = domain;
-      this.dim[i].ordinal = true;
+      this.dim[i].discret = true;
     }
-    
     TIMER_END('Computing dimension domain 1/2', this.display_timers);
     
     
@@ -972,8 +938,7 @@
         var dataSubset = this.nestedData[i];
         
         for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
-          // There is only one aesthetic per temporal dimension
-          var value = this.dim[this.splitTempDimId[k]].aes[0].func(dataset[j], j);
+          var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], j);
           var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
           dataSubset = dataSubset[id];
         }
@@ -1058,18 +1023,23 @@
       var domain;
       var ordinal;
       
-      // Don't force ordinal (i.e. continue if only number values)
-      var ordinal = false;
+      // Don't force discret domain (i.e. continue if only number values)
+      var discret = false;
       for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        if(this.elements[this.dim[i].aesElemId[j]].attrs[i].forceCat) {
+          discret = true;
+          break;
+        }
+        
         var dataset = this.dataset[this.dim[i].aes[j].datasetName];
         if(typeof this.dim[i].aes[j].func(dataset[0], 0) != 'number') {
-          ordinal = true;
+          discret = true;
           break;
         }
       }
       
-      // Ordinal domain
-      if(ordinal) {
+      // Discret domain
+      if(discret) {
         domain = [];
         var dim = this.dim[i];
         for(var j = 0 ; j < dim.aes.length ; j++) {
@@ -1107,7 +1077,7 @@
       }
       
       this.dim[i].domain = domain;
-      this.dim[i].ordinal = ordinal;
+      this.dim[i].discret = discret;
     }
     TIMER_END('Computing dimension domain 2/2', this.display_timers);
     
@@ -1220,20 +1190,19 @@
     // For other attributes
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i].attrs) {
-        // Skip non-set attributes
-        if(this.elements[i].attrs[attr].value == null ||
-           this.elements[i].attrs[attr].type === 'dimension') {
+        // Skip dimension attributes
+        if(this.elements[i].attrs[attr].type === 'dimension') {
           continue;
         }
         
         var attr_type = this.elements[i].attrs[attr].type;
         var attr_aes = this.elements[i].attrs[attr].aes;
         var aes_ret_type = typeof attr_aes.func(this.dataset[this.elements[i].datasetName][0], 0);
-        
+        var forceCategorical = this.elements[i].attrs[attr].forceCat;
         
         switch(attr_type) {
           case 'color':
-            if(aes_ret_type === 'string') {
+            if(aes_ret_type === 'string' && !forceCategorical) {
               // No scaling
               this.elements[i].attrs[attr].func = attr_aes.func;
             }
@@ -1249,7 +1218,7 @@
             break;
           
           case 'symbol':
-            if(aes_ret_type === 'string') {
+            if(aes_ret_type === 'string' && !forceCategorical) {
               // No scaling
               this.elements[i].attrs[attr].func = attr_aes.func;
             }
@@ -1296,7 +1265,7 @@
     \*                */
     TIMER_BEGIN('Generating SVG', this.display_timers);
     
-    // Removve loading bar
+    // Remove loading bar
     this.svg.select('#loading-bar').remove();
     
     // Add background
@@ -1535,7 +1504,7 @@
           
           // On enter
           var onEnter = node.enter().append('path').attr('class', eltClass);
-          
+          svgSetAttributePerElem(onEnter, 'fill', this.elements[i], 'color');
           svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
           onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
           onEnter.attr('d', symbol);
@@ -1551,6 +1520,7 @@
           else {
             onUpdate = node;
           }
+          svgSetAttributePerElem(onUpdate, 'fill', this.elements[i], 'color');
           svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
           onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
           node.attr('d', symbol);
@@ -1604,15 +1574,12 @@
           node.attr("d", lineFunction(dataSubset));
           
           if(dataSubset.length > 0) {
+            svgSetAttributePerGroup(node, 'stroke', this.elements[i], 'color', dataSubset[0], 0);
             svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0], 0);
             svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0], 0);
           }
-          else {
-            svgSetCommonAttributesPerGroup(node, this.elements[i], null);
-            svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', null);
-          }
           
-          // Nothing to do on exit, there will just be an empty path
+          // On exit: nothing to do, there will just be an empty path
         }
         
         // Bars
@@ -1702,9 +1669,13 @@
                           boundaryFunc[dim2][lim]);
           
           // On enter
+          svgSetAttributePerElem(node.enter, 'fill', this.elements[i], 'color');
+          svgSetAttributePerElem(node.enter, 'stroke', this.elements[i], 'color');
           svgSetCommonAttributesPerElem(node.enter, this.elements[i]);
           
           // On update
+          svgSetAttributePerElem(node.update, 'fill', this.elements[i], 'color');
+          svgSetAttributePerElem(node.update, 'stroke', this.elements[i], 'color');
           svgSetCommonAttributesPerElem(node.update, this.elements[i]);
           
           // On exit
@@ -1911,6 +1882,11 @@
             return function(d, i) {
               return f(d, i).toString();
             }
+          }
+          
+          if(isUndefined(this.elements[i].attrs.stroke) &&
+             !isUndefined(this.elements[i].attrs.color)) {
+            this.elements[i].attrs.stroke = this.elements[i].attrs.color;
           }
           
           // The box
@@ -2198,7 +2174,9 @@
         stroke_opacity:   { type:'number',
                             value:null},
         label:            { type:'string',
-                            value:null}
+                            value:null},
+        color:            { type:'color',
+                            value:'black'}
       };
     
     this.listeners = {};
@@ -2206,39 +2184,39 @@
   };
   
   function Symbol() {
-    this.attrs = {
-        type: { type:'symbol',
-                value:'circle'},
-        size: { type:'number',
-                value:null}
-      };
-                    
-    this.listeners = {};
+    ElementBase.apply(this, arguments);
+    
+    this.attrs.type = { type:'symbol',
+                        value:'circle'};
+    this.attrs.size = { type:'number',
+                        value:null};
   };
   
   function Line() {
-    this.attrs = {
-        interpolation:  { type:'string',
-                          value:'linear'},
-        stroke_linecap: { type:'string',
-                           value:null}
-      };
-     
-    this.listeners = {};
+    ElementBase.apply(this, arguments);
+    
+    this.attrs.interpolation =  { type:'string',
+                                  value:'linear'};
+    this.attrs.stroke_linecap = { type:'string',
+                                  value:null};
+                                  
+    this.attrs.fill = { type:'color',
+                        value:'none'};
   };
   
   function Bar() {
-    // No specific attributes
-    this.attrs = {};
+    ElementBase.apply(this, arguments);
     
-    this.listeners = {};
+    // No specific attributes
   };
   
   function BoxPlot() {
-    // No specific attributes
-    this.attrs = {};
+    ElementBase.apply(this, arguments);
     
-    this.listeners = {};
+    // No specific attributes
+    
+    this.attrs.fill = { type:'color',
+                        value:'none'};
   };
   
   ////////////////////////
@@ -2311,7 +2289,7 @@
                         .rangeRoundBands(ranges[i], this.g.coordSysMargin);
         subSize[i] = this.scale[i].rangeBand();
       }
-      else if(dim[this.dimName[i]].ordinal) {
+      else if(dim[this.dimName[i]].discret) {
         this.scale[i] = d3.scale.ordinal()
                         .domain(dim[this.dimName[i]].domain)
                         .rangePoints(ranges[i], this.g.ordinal_scale_padding);
@@ -2455,7 +2433,7 @@
                     .scale(this.scale['x'])
                     .orient('bottom');
         
-        if(!dim[this.dimName['x']].ordinal) {
+        if(!dim[this.dimName['x']].discret) {
           xAxis.ticks(5);
         }
         
@@ -2486,7 +2464,7 @@
                     .scale(this.scale['y'])
                     .orient('left');
         
-        if(!dim[this.dimName['y']].ordinal) {
+        if(!dim[this.dimName['y']].discret) {
           yAxis.ticks(5);
         }
         
@@ -2585,7 +2563,7 @@
     this.boundary['theta'] = {min:0, max:2*Math.PI};
     if(this.dimName['theta'] == null) {
     }
-    else if(dim[this.dimName['theta']].ordinal) {
+    else if(dim[this.dimName['theta']].discret) {
       var dom = dim[this.dimName['theta']].domain.slice();
       dom.push('');
       this.scale['theta'] = d3.scale.ordinal()
@@ -2605,7 +2583,7 @@
     this.boundary['radius'] = {min:0, max:d3.min([width / 2, height / 2])};
     if(this.dimName['radius'] == null) {
     }
-    else if(dim[this.dimName['radius']].ordinal) {
+    else if(dim[this.dimName['radius']].discret) {
       this.scale['radius'] = d3.scale.ordinal()
                                .domain(dim[this.dimName['radius']].domain)
                                .rangePoints([0, this.boundary['radius'].max], 1);
@@ -2712,7 +2690,7 @@
       
       var ticks;
       
-      if(dim[this.dimName['radius']].ordinal) {
+      if(dim[this.dimName['radius']].discret) {
         ticks = this.scale['radius'].domain();
       }
       else {
@@ -2751,7 +2729,7 @@
       
       var ticks;
       
-      if(dim[this.dimName['theta']].ordinal) {
+      if(dim[this.dimName['theta']].discret) {
         ticks = this.scale['theta'].domain();
       }
       else {
@@ -2865,86 +2843,6 @@
       }
       return filtered_data;
     }
-  }
-  
-  // Compute box plot data (quartiles, whiskers)
-  main_object.computeBoxPlotStat = function(param) {
-    var funcName = lib_name+'.computeBoxPlotStat';
-    var group_by = checkParam(funcName, param, 'group_by');
-    var stat_on = checkParam(funcName, param, 'stat_on');
-    
-    
-    return function(data) {
-      var groupByAes = {};
-    
-      // Aesthetics
-      var aes = [];
-      // Map data column name -> aesthetic id
-      var dataCol2Aes = {};
-      // Map function -> aesthetic id
-      var func2Aes = {};
-      // Map const value -> aesthetic id
-      var const2Aes = {};
-      
-      // Sizes of each splits, sub-splits, etc
-      var splitSizes = [];
-      
-      for(var i in group_by) {
-        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], main_dataset_name, 'group_by:'+i, funcName);
-        groupByAes[i] = aes[aesId];
-        computeDomain(groupByAes[i], data, 'discret');
-        splitSizes.push(groupByAes[i].discretDomain.length);
-      }
-      
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName);
-      var statOnAes = aes[aesId];
-      checkAesType('number', typeof statOnAes.func(data[0], 0), 'stat_on', funcName);
-      
-      var nestedata = allocateSplitDataArray(splitSizes, 0);
-      for(var i = 0 ; i < data.length ; i++) {
-        var dataSubset = nestedata;
-        
-        for(var j in group_by) {
-          var value = groupByAes[j].func(data[i], i);
-          var id = groupByAes[j].discretDomain.indexOf(value);
-          dataSubset = dataSubset[id];
-        }
-        
-        dataSubset.push(data[i]);
-      }
-      
-      var new_data = [];
-      
-      var it = new HierarchyIterator(nestedata);
-      while(it.hasNext()) {
-        var dataSubset = it.next();
-        
-        var values = [];
-        for(var i = 0 ; i < dataSubset.length ; i++) {
-          values.push(statOnAes.func(dataSubset[i], i));
-        }
-        values.sort(function(a, b){return a-b});
-        
-        
-        var new_datum = {};
-        for(var i in group_by) {
-          new_datum[i] = groupByAes[i].func(dataSubset[0], 0);
-        }
-        new_datum.quartile1 = d3.quantile(values, 0.25);
-        new_datum.quartile2 = d3.quantile(values, 0.50);
-        new_datum.quartile3 = d3.quantile(values, 0.75);
-        
-        var IQR = new_datum.quartile3 - new_datum.quartile1;
-        var min = values[0];
-        var max = values[values.length-1];
-        new_datum.whisker1 = Math.max(new_datum.quartile1 - 1.5*IQR, min);
-        new_datum.whisker2 = Math.min(new_datum.quartile3 + 1.5*IQR, max);
-        
-        new_data.push(new_datum);
-      }
-      
-      return new_data;
-    };
   }
   
   // Aggregate data
@@ -3372,6 +3270,20 @@
   };
   
   
+  //////////////////////////////////
+  // Consider an aesthetic values //
+  // as categorical values        //
+  //////////////////////////////////
+  
+  main_object.cat = function(value) {
+    return new CategoricalValue(value);
+  };
+  
+  function CategoricalValue(value) {
+    this.value = value;
+  };
+  
+  
   ///////////////////////
   // Private functions //
   ///////////////////////
@@ -3399,7 +3311,7 @@
     
     // copying attributes' values from the fallback element
     for(var attr in g.fallback_element.attrs) {
-      if(isDefined(g.fallback_element.attrs[attr].type)) {
+      if(g.fallback_element.attrs[attr].value != null) {
         elt.attrs[attr] = { type:        g.fallback_element.attrs[attr].type,
                             value:       g.fallback_element.attrs[attr].value,
                             originFunc:  g.fallback_element.attrs[attr].originFunc};

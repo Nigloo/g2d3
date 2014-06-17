@@ -32,6 +32,7 @@
         </style>
         <script type="text/javascript" src="d3.v3.js"></script>
         <script type="text/javascript" src="d4.js"></script>
+        <script type="text/javascript" src="data/d4_example_data.js"></script>
         <script type="text/javascript">
             
             "use strict";
@@ -39,7 +40,6 @@
             
             var gender_string = ['', 'Male', 'Female'];
             function genderName(d) {
-                if(typeof gender_string[d.sex] === 'undefined')console.log(d);
                 return gender_string[d.sex];
             }
             
@@ -61,7 +61,7 @@
                     y:d4.interval(0, 'data:people'),
                     color:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
                     label:'data:people'})
-            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+            .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:d4.groupBy({year:'data:year',
                                                             age:'data:age',
                                                             sex:'data:sex'})
@@ -82,7 +82,7 @@
                     y:d4.interval(0, 'data:people'),
                     color:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
                     label:'data:people'})
-            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+            .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.year >= 1880;}})})
             .plot({selector:"#graph2", width:960, height:500, margin:20, margin_left:80});
             
@@ -102,24 +102,24 @@
                     stroke:'white',
                     stroke_width:2,
                     label:function(d) {return marriage_status[d.marst]+': '+(d.proportion*100).toFixed(2)+'%';}})
-            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+            .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.year >= 1880;}})})
             .dataView({name:'default_data', func:d4.groupBy({year:'data:year', sex:'data:sex'}).proportion({marst:'data:marst', weight:'data:people'})})
             .plot({selector:"#graph3-1", width:960, height:500, margin:20, margin_left:80});
             
             d4.graphic()
-            .hack({drawBackground:false, bar_padding:0})
+            .hack({drawBackground:false, bar_padding:0}).bar({  radius:' ',theta:0,color:'none'})
             .coord(d4.polar())
             .time({ year:'data:year'})
-            .axis({ axis:'theta', display:false})
+            .axis({ display:false})
             .bar({  radius:d4.cat('data:sex'),
                     theta:d4.interval.stack('data:proportion'),
                     group:'data:sex',
                     fill:'data:marst',
                     stroke:'white',
                     stroke_width:2,
-                    label:function(d) {return marriage_status[d.marst]+': '+(d.proportion*100).toFixed(2)+'%';}})
-            .data({data:d4.loadFromFile({file:'data/census_marriage.csv'})})
+                    label:function(d) {return genderName(d)+' who are '+marriage_status[d.marst]+': '+(d.proportion*100).toFixed(2)+'%';}})
+            .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.year >= 1880;}})})
             .dataView({name:'default_data', func:d4.groupBy({year:'data:year', sex:'data:sex'}).proportion({marst:'data:marst', weight:'data:people'})})
             .plot({selector:"#graph3-2", width:960, height:500, margin:20, margin_left:80});
@@ -140,7 +140,7 @@
                         fill:getColor,
                         fill_opacity:0.3,
                         label:function(d){return d.height+' cm, '+d.weight+' kg';}})
-            .data({data:d4.loadFromFile({file:'data/HeightVersusWeight.csv'})})
+            .data({data:dataset['HeightVersusWeight']})
             .plot({selector:"#graph4", width:960, height:500, margin:20, margin_left:80})
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,12 +156,17 @@
             var heightInterval = function(d) {
                 var interval_size = 10;
                 var i = Math.floor(d.height / interval_size);
-                //if(isNaN(i)) {console.log(d);console.trace();}
+                
                 return (i*interval_size)+'-'+((i+1)*interval_size);
             }
             
             d4.graphic()
             .hack({ drawBackground:false})
+            .data({data:dataset['HeightVersusWeight']})
+            .dataView({ name:'default_data',
+                        func:d4.sort({comparator:function(a, b) {
+                                                    return a.height - b.height;
+                                                }})})
             .time({t:heightInterval})
             .axis({axis:'x', display_axis:false})
             .element({  stroke_opacity:0.6,
@@ -177,8 +182,7 @@
                         fill:'white',
                         label:'data:quartile2',
                         data:'boxplot.statistic'})
-            .data({data:d4.loadFromFile({file:'data/HeightVersusWeight.csv'})})
-            .plot({selector:"#graph5", width:400, height:700})
+            .plot({selector:"#graph5", width:400, height:700, margin_right:30})
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -202,12 +206,12 @@
                         size:25,
                         label:function(d){return d.Type+' for '+d.Function+': $'+d.Budget+'K'}})
             .symbol({   radius:0,size:0})
-            .data({data:d4.loadFromFile({file:'data/AllocatedBudgetVersusActualSpending.csv'})})
+            .data({data:dataset['AllocatedBudgetVersusActualSpending']})
             .plot({selector:"#graph6", width:800, height:600});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-                        
+            
             var getColor = function(d){
                 return  d.operation == 'Opening Balance' || d.operation == 'Closing Balance' ? 'blue' : 
                         d.amount > 0 ? 'green' : 'red';
@@ -224,7 +228,7 @@
                     fill:getColor,
                     fill_opacity:0.6,
                     label:'data:amount'})
-            .data({data:d4.loadFromFile({file:'data/WaterfallChartData.csv'})})
+            .data({data:dataset['WaterfallChartData']})
             .plot({selector:"#graph7", width:900, height:500, margin_left:60});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +242,7 @@
                     stroke:'blue',
                     fill:'blue',
                     fill_opacity:0.3})
-            .data({data:d4.loadFromFile({file:'data/AppleNutriment.csv'})})
+            .data({data:dataset['AppleNutriment']})
             .plot({selector:"#graph8", width:800, height:600, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -280,6 +284,5 @@
         <div id="graph8">
             <h2>Apple Nutriment</h2>
         </div>
-        
     </body>
 </html>   

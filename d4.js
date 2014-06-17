@@ -94,11 +94,6 @@
       }
     }
     
-    // Set the origin function (for error message)
-    for(var attr in this.fallback_element.attrs) {
-      this.fallback_element.attrs[attr].originFunc = 'Graphic.element';
-    }
-
     this.fallback_element.datasetName = checkParam('Graphic.element', param, 'data', main_dataset_name);
     
     return this;
@@ -304,7 +299,7 @@
     if((name+'.statistic') in this.dataset ||
        (name+'.outlier') in this.dataset)
     {
-      var i = 1;
+      var i = 2;
       while((name+i+'.statistic') in this.dataset ||
             (name+i+'.outlier') in this.dataset) {
         i++;
@@ -350,13 +345,12 @@
   Graphic.prototype.data = function(param) {
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
-    TIMER_BEGIN('Loading', this.display_timers);
     if(data instanceof Array) {
       this.dataset[main_dataset_name] = data;
     }
-    else if(data instanceof Object && isDefined(data.me) && data.me instanceof DataLoader) {
+    else if(data instanceof DataLoader) {
       this.dataLoader = data;
-      data.me.g = this;
+      this.dataLoader.g = this;
     }
     else {
       ERROR(errorParamMessage('Graphic.data', 'data', 'null',
@@ -575,6 +569,9 @@
     this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
     this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
     
+    if(this.elements.length == 0) {
+      ERROR('no element in the graphic');
+    }
     
     // Reserve some space for the graphic while loading
     // Add Canvas
@@ -589,20 +586,14 @@
       }
     }
     
-    if(this.dataset[main_dataset_name] == null) {
-      if(this.dataLoader != null) {
-        this.render_param = param;
-        this.dataLoader.sendXhrRequest();
-        return this;
-      }
-      else {
-        ERROR('Can\'t plot without data');
-      }
+    
+    /*           *\
+     * Load data *
+    \*           */
+    if(!loadData.call(this, param)) {
+      return this;
     }
-    else {
-      this.onDataLoaded(this.dataset[main_dataset_name]);
-    }
-    TIMER_END('Loading', this.display_timers);
+    //d3.select('p').html(JSON.stringify(this.dataset[main_dataset_name]));
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
           width,
@@ -613,742 +604,47 @@
           this.margin.top,
           this.margin.bottom));
     
-    if(this.elements.length == 0) {
-      ERROR('no element in the graphic');
-    }
     
-    
-    /*                                                *\
-     * Generation of data views (per element dataset) *
-    \*                                                */
-    
-    TIMER_BEGIN('Generation of data views', this.display_timers);
-    for(var i = 0 ; i < this.data_view_generator.length ; i++) {
-      var name = this.data_view_generator[i].name;
-      var func = this.data_view_generator[i].func;
-      
-      if(isDefined(this.dataset[name])) {
-        WARNING('Dataset '+name+' already defined');
-      }
-      this.dataset[name] = func(this.dataset[main_dataset_name]);
-    }
-    this.data_view_generator = [];
-    
-    // Check if dataset exist
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      if(!(this.elements[i].datasetName in this.dataset)) {
-        ERROR('Data view '+this.elements[i].datasetName+' of element '+i+' ('+getTypeName(this.elements[i])+') is not defined');
-      }
-    }
-    TIMER_END('Generation of data views', this.display_timers);
-    
-    
-    /*                                                *\
-     * Detection of attributes which are dimensions   *
-     * Store if the value is categorical in a boolean *
-     * Deletion of useless attributes                 *
-     * Add time dimensions as attribute               *
-    \*                                                */
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        // This attribute is a dimension
-        if(this.spacialDimName.indexOf(attr) >= 0 ||
-           attr in this.temporalDim) {
-          this.elements[i].attrs[attr].type = 'dimension';
-        }
-        
-        // If the value of this attribute is categorical
-        if(this.elements[i].attrs[attr].value instanceof CategoricalValue) {
-          this.elements[i].attrs[attr].value = this.elements[i].attrs[attr].value.value;
-          this.elements[i].attrs[attr].forceCat = true;
-        }
-        else {
-          this.elements[i].attrs[attr].cat = false;
-        }
-        
-        // Useless attribute
-        if(this.elements[i].attrs[attr].type === 'unknown' ||
-           this.elements[i].attrs[attr].value == null) {
-          delete this.elements[i].attrs[attr];
-        }
-      }
-      
-      // Add time dimensions as attribute
-      for(var attr in this.temporalDim) {
-        if(isUndefined(this.elements[i].attrs[attr])) {
-          this.elements[i].attrs[attr] = {  type:'dimension',
-                                            value:this.temporalDim[attr],
-                                            originFunc:'Graphic.time',
-                                            forceCat:true};
-        }
-      }
-    }
-    
-    
-    /*                                               *\
-     * Standardization of aesthetics                 *
-     * Collecting some informations about dimensions *
-    \*                                               */
-    TIMER_BEGIN('Standardization of aesthethics', this.display_timers);
     // Information on each dimension
     if(this.axisProperty == null) {
-      this.axisProperty = {};
       this.axis();
     }
     this.dim = getDimensionsInfo( this.spacialCoord,
                                   this.temporalDim,
                                   this.axisProperty);
-    var deepestCoordSysDim = [];
-    for(var i in this.dim) {
-      if(!this.dim[i].forceOrdinal) {
-        deepestCoordSysDim.push(i);
-      }
-    }
-    var deepestCoordSysDimNames = '';
-    for(var i = 0 ; i < deepestCoordSysDim.length ; i++) {
-      deepestCoordSysDimNames += i ? (i == deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
-      deepestCoordSysDimNames += deepestCoordSysDim[i];
-    }
-    
-    // Aesthetics
-    var aes = [];
-    // Map data column name -> aesthetic id
-    var dataCol2Aes = {};
-    // Map function -> aesthetic id
-    var func2Aes = {};
-    // Map const value -> aesthetic id
-    var const2Aes = {};
-    
-    // Aesthetics of elements
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        var attr_type = this.elements[i].attrs[attr].type;
-        var attr_val = this.elements[i].attrs[attr].value;
-        var originFunc = this.elements[i].attrs[attr].originFunc;
-        var datasetName = this.elements[i].datasetName;
-        var dataset = this.dataset[datasetName];
-        
-        if(attr_type == 'dimension' && isUndefined(this.dim[attr].aes)) {
-          this.dim[attr].aes = [];
-          this.dim[attr].aesElemId = [];
-        }
-        
-        if(attr_val instanceof Interval && attr_type == 'dimension') {
-          if(!(this.elements[i] instanceof Bar)) {
-            ERROR(getTypeName(this.elements[i])+' can\'t have an interval as position ('+attr+')');
-          }
-          
-          if(deepestCoordSysDim.indexOf(attr) < 0) {
-            var msg = 'Attribute '+attr+' can\'t be an interval. '+
-                      'Only '+deepestCoordSysDimNames+' can be.';
-            ERROR(msg);
-          }
-          
-          originFunc = lib_name+'.interval'+(attr_val.stacked ? '.stack' : '');
-          
-          var aesId1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary1.value, datasetName, attr, originFunc);
-          var aesId2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary2.value, datasetName, attr, originFunc);
-          
-          // Check data type return by those aesthetics
-          var aes_ret_type = typeof aes[aesId1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'first param', originFunc);
-          aes_ret_type = typeof aes[aesId2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'second param', originFunc);
-          
-          attr_val.boundary1.aes = aes[aesId1];
-          attr_val.boundary2.aes = aes[aesId2];
-          
-          // Not stacked
-          if(!attr_val.stacked) {
-            this.dim[attr].aes.push(attr_val.boundary1.aes);
-            this.dim[attr].aesElemId.push(i);
-            this.dim[attr].aes.push(attr_val.boundary2.aes);
-            this.dim[attr].aesElemId.push(i);
-          }
-          // We will compute function for stacked interval after having split data
-        }
-        else if(attr_val instanceof BoxPlotBoxStat && attr_type == 'dimension') {
-          originFunc = lib_name+'.boxplotStat';
-          
-          if(!(this.elements[i] instanceof BoxPlot)) {
-            ERROR(getTypeName(this.elements[i])+' can\'t have its position ('+attr+') set with '+originFunc);
-          }
-          
-          if(deepestCoordSysDim.indexOf(attr) < 0) {
-            var msg = 'Attribute '+attr+' can\'t be set with '+originFunc+'. '+
-                      'Only '+deepestCoordSysDimNames+' can be.';
-            ERROR(msg);
-          }
-          
-          
-          var aesQ1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile1.value, datasetName, attr, originFunc);
-          var aesQ2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile2.value, datasetName, attr, originFunc);
-          var aesQ3 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile3.value, datasetName, attr, originFunc);
-          var aesW1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.whisker1.value,  datasetName, attr, originFunc);
-          var aesW2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.whisker2.value,  datasetName, attr, originFunc);
-          
-          var aes_ret_type = typeof aes[aesQ1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile1', originFunc);
-          aes_ret_type = typeof aes[aesQ2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile2', originFunc);
-          aes_ret_type = typeof aes[aesQ3].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile3', originFunc);
-          aes_ret_type = typeof aes[aesW1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'whisker1', originFunc);
-          aes_ret_type = typeof aes[aesW2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'whisker2', originFunc);
-          
-          attr_val.quartile1.aes = aes[aesQ1];
-          attr_val.quartile2.aes = aes[aesQ2];
-          attr_val.quartile3.aes = aes[aesQ3];
-          attr_val.whisker1.aes =  aes[aesW1];
-          attr_val.whisker2.aes =  aes[aesW2];
-          
-          // Just min and max values
-          this.dim[attr].aes.push(attr_val.whisker1.aes);
-          this.dim[attr].aesElemId.push(i);
-          this.dim[attr].aes.push(attr_val.whisker2.aes);
-          this.dim[attr].aesElemId.push(i);
-        }
-        else {
-          // Get the aestetic id
-          var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, datasetName, attr, originFunc);
-          
-          // Check data type return by this aesthetic
-          var aes_ret_type = typeof aes[aesId].func(dataset[0], 0);
-          checkAesType(attr_type, aes_ret_type, attr, originFunc);
-          
-          if(attr_type == 'dimension') {
-            this.dim[attr].aes.push(aes[aesId]);
-            this.dim[attr].aesElemId.push(i);
-          }
-          
-          this.elements[i].attrs[attr].aes = aes[aesId];
-        }
-      }
-      
-      if(this.elements[i] instanceof BoxPlot) {
-        var originFunc = lib_name+'.boxplotStat';
-        var nbBoxPlotStat = 0;
-        for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-          if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotBoxStat) {
-            nbBoxPlotStat++;
-          }
-        }
-        
-        if(nbBoxPlotStat != 1) {
-          ERROR('One and only one of the attributes '+deepestCoordSysDimNames+' must be set with '+originFunc);
-        }
-      }
-        
-      // Checking for unset dimension attribute
-      for(var j in this.dim) {
-        if(isUndefined(this.elements[i].attrs[j]) && this.dim[j].isSpacial) {
-          ERROR('No value found for the attribute '+j+' of '+getTypeName(this.elements[i]));
-        }
-      }
-    }
-    
-    // We don't need those variables anymore
-    aes = undefined;
-    dataCol2Aes = undefined;
-    func2Aes = undefined;
-    const2Aes = undefined;
-    TIMER_END('Standardization of aesthethics', this.display_timers);
-    
-    
-    /*                                                         *\
-     * Computing dimensions' domains                           *
-     * EXCEPT the deepest spacial coordinate system dimensions *
-    \*                                                         */
-    TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
-    for(var i in this.dim) {
-      if(isUndefined(this.dim[i].aes)) {
-        ERROR('Error: dimension '+i+' unused');
-      }
-      
-      if(!this.dim[i].forceOrdinal) {
-        continue;
-      }
-      
-      var domain = [];
-      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-        // Compute discret domain
-        var dataset = this.dataset[this.dim[i].aes[j].datasetName];
-        computeDomain(this.dim[i].aes[j], dataset, 'discret');
-        var dom = this.dim[i].aes[j].discretDomain;
-        
-        for(var k = 0 ; k < dom.length ; k++)
-          domain.push(dom[k]);
-      }
-      RemoveDupArray(domain);
-      
-      
-      this.dim[i].domain = domain;
-      this.dim[i].discret = true;
-    }
-    TIMER_END('Computing dimension domain 1/2', this.display_timers);
-    
-    
-    /*                                 *\
-     * Splitting data for each element *
-    \*                                 */
-    TIMER_BEGIN('Nesting data', this.display_timers);
-    // Initialising current 'time' (i.e. position in spacial dimensions)
-    this.currentTime = [];
+                                  
+    // Reserve some space for sliders
+    var sliderHeight = 50;
+    var nbSlider = 0;
     for(var i in this.dim) {
       if(!this.dim[i].isSpacial) {
-        this.currentTime[i] = 0;
+        nbSlider++;
       }
     }
-    
-    // Sizes of each splits, sub-splits, etc
-    var splitSizes = [];
-    
-    // Splitting data according to temporal dimensions
-    this.splitTempDimId = [];
-    for(var i in this.currentTime) {
-      // Split
-      this.splitTempDimId.push(i);
-      splitSizes.push(this.dim[i].domain.length);
-    }
-    
-    // Splitting data according to spacial dimensions
-    this.splitSpacialDimId = [];
-    for(var i in this.dim) {
-      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
-        this.splitSpacialDimId.push(i);
-        splitSizes.push(this.dim[i].domain.length);
-      }
-    }
-    
-    this.nestedData = [];
-    
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      var dataset = this.dataset[this.elements[i].datasetName];
-      
-      // Splitting data according to group
-      var groupAes = this.elements[i].attrs.group.aes;
-      computeDomain(groupAes, dataset, 'discret');
-      splitSizes.push(groupAes.discretDomain.length);
-      this.nestedData.push(allocateSplitDataArray(splitSizes, 0));
-      splitSizes.pop();
-      
-      for(var j = 0 ; j < dataset.length ; j++) {
-        var dataSubset = this.nestedData[i];
-        
-        for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
-          var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], j);
-          var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
-          dataSubset = dataSubset[id];
-        }
-        
-        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
-          var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], j);
-          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
-          dataSubset = dataSubset[id];
-        }
-        
-        var groupAes = this.elements[i].attrs.group.aes;
-        var value = groupAes.func(dataset[j], j);
-        var id = groupAes.discretDomain.indexOf(value);
-        dataSubset = dataSubset[id];
-        
-        dataSubset.push(dataset[j]);
-      }
-    }
-    TIMER_END('Nesting data', this.display_timers);
-    
-    
-    
-    /*                                      *\
-     * Computing stacked interval functions *
-    \*                                      */
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        var attr_val = this.elements[i].attrs[attr].value;
-        if(attr_val instanceof Interval && attr_val.stacked) {
-          var dataset = this.dataset[this.elements[i].datasetName];
-          var originFunc = attr_val.boundary2.aes.func;
-          var stepFunc = attr_val.boundary1.aes.func;
-          
-          if(isUndefined(dataset[0]._calculated_values)) {
-            for(var j = 0 ; j < dataset.length ; j++) {
-              dataset[j]._calculated_values = [];
-            }
-          }
-          var Id = dataset[0]._calculated_values.length;
-          
-          var it = new HierarchyIterator(this.nestedData[i]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            
-            if(dataSubset.length > 0) {
-              dataSubset[0]._calculated_values[Id] = originFunc(dataSubset[0], 0);
-              dataSubset[0]._calculated_values[Id+1] = stepFunc(dataSubset[0], 0);
-            }
-            for(var j = 1 ; j < dataSubset.length ; j++) {
-              dataSubset[j]._calculated_values[Id] = dataSubset[j-1]._calculated_values[Id+1];
-              dataSubset[j]._calculated_values[Id+1] = dataSubset[j]._calculated_values[Id] + stepFunc(dataSubset[j], j);
-            }
-          }
-          
-          var getFunc = function(Id) {
-            return function(d) {
-              return d._calculated_values[Id];
-            };
-          };
-          
-          attr_val.boundary1.aes.func = getFunc(Id);
-          attr_val.boundary2.aes.func = getFunc(Id+1);
-          
-          this.dim[attr].aes.push(attr_val.boundary1.aes);
-          this.dim[attr].aesElemId.push(i);
-          this.dim[attr].aes.push(attr_val.boundary2.aes);
-          this.dim[attr].aesElemId.push(i);
-        }
-      }
-    }
-    
-    /*                                          *\
-     * Computing the deepest spacial coordinate *
-     * system dimensions' domains               *
-    \*                                          */
-    TIMER_BEGIN('Computing dimension domain 2/2', this.display_timers);
-    for(var i in this.dim) {
-      if(this.dim[i].forceOrdinal) {
-        continue;
-      }
-      
-      var domain;
-      var ordinal;
-      
-      // Don't force discret domain (i.e. continue if only number values)
-      var discret = false;
-      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-        if(this.elements[this.dim[i].aesElemId[j]].attrs[i].forceCat) {
-          discret = true;
-          break;
-        }
-        
-        var dataset = this.dataset[this.dim[i].aes[j].datasetName];
-        if(typeof this.dim[i].aes[j].func(dataset[0], 0) != 'number') {
-          discret = true;
-          break;
-        }
-      }
-      
-      // Discret domain
-      if(discret) {
-        domain = [];
-        var dim = this.dim[i];
-        for(var j = 0 ; j < dim.aes.length ; j++) {
-          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute discret domain
-            for(var k = 0 ; k < dataSubset.length ; k++) {
-              domain.push(this.dim[i].aes[j].func(dataSubset[k], k));
-            }
-          }
-        }
-        RemoveDupArray(domain);
-      }
-      // Continue domain
-      else {
-        domain = [Infinity, -Infinity];
-        var dim = this.dim[i];
-        for(var j = 0 ; j < dim.aes.length ; j++) {
-          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute continue domain
-            var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
-            
-            if(dom[0] < domain[0])
-              domain[0] = dom[0];
-            if(dom[1] > domain[1])
-              domain[1] = dom[1];
-          }
-        }
-        if(domain[0] == domain[1]) {
-          domain = addPadding(domain, this.linear_scale_padding);
-        }
-      }
-      
-      this.dim[i].domain = domain;
-      this.dim[i].discret = discret;
-    }
-    TIMER_END('Computing dimension domain 2/2', this.display_timers);
-    
-    
-    /*                         *\
-     * Generating time sliders *
-    \*                         */
-    TIMER_BEGIN('Computing time sliders\' behavior', this.display_timers);
-    this.timeSlider = {};
-    var timeSliderInfo = {};
-    var nbSlider = 0;
-    var sliderHeight = 50;
-    var sliderSize = width - this.margin.left - this.margin.right;
-    
-    for(var i in this.dim) {
-      if(this.dim[i].isSpacial) {
-        continue;
-      }
-      
-      timeSliderInfo[i] = {};
-      this.timeSlider[i] = {};
-      
-      var values = this.dim[i].domain;
-      var dom = [];
-      for(var j = 0 ; j < values.length - 1 ; j++){
-        dom.push((j+0.8) * sliderSize / (values.length - 1));
-      }
-      var mouseToValue = d3.scale.threshold()
-                                 .domain(dom)
-                                 .range(values);
-      var valueToMouse = d3.scale.ordinal()
-                                 .domain(values)
-                                 .rangePoints([0, sliderSize], 0);
-      
-      var axis = d3.svg.axis()
-                   .scale(valueToMouse)
-                   .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
-                   .orient('bottom')
-                   .tickSize(0)
-                   .tickPadding(12);
-      
-      var brush = d3.svg.brush()
-                    .x(valueToMouse)
-                    .extent([0, 0]);
-      
-      var getOnBrushed = function(brush, handle, g, timeDim, mouseToValue) {
-        return function(){
-          var posX = brush.extent()[0];
-
-          if (d3.event.sourceEvent) { // not a programmatic event
-            posX = d3.mouse(this)[0];
-            
-            posX = posX.clamp(0, sliderSize);
-            
-            brush.extent([posX, posX]);
-          }
-          
-          handle.interrupt().transition();
-          handle.attr("cx", posX);
-          var index = g.dim[timeDim].domain.indexOf(mouseToValue(posX));
-          if(g.currentTime[timeDim] != index) {
-            g.currentTime[timeDim] = index;
-            g.updateElements();
-            removePopups(g);
-          }
-        }
-      };
-      
-      var getOnBrushEnd = function(brush, handle, mouseToValue, valueToMouse) {
-        return function(){
-          var posX = brush.extent()[0];
-
-          if (d3.event.sourceEvent) { // not a programmatic event
-            posX = d3.mouse(this)[0];
-            posX.clamp(0, sliderSize);
-            
-            posX = valueToMouse(mouseToValue(posX));
-            
-            brush.extent([posX, posX]);
-          }
-          
-          handle.interrupt().transition().attr("cx", posX);
-        }
-      };
-      
-      timeSliderInfo[i].axis = axis;
-      timeSliderInfo[i].brush = brush;
-      timeSliderInfo[i].getOnBrushed = getOnBrushed;
-      timeSliderInfo[i].getOnBrushEnd = getOnBrushEnd;
-      
-      this.timeSlider[i].mouseToValue = mouseToValue;
-      this.timeSlider[i].valueToMouse = valueToMouse;
-      
-      nbSlider++;
-    }
-    // Reserve some space for sliders
     this.margin.bottom += sliderHeight * nbSlider;
-    TIMER_END('Computing time sliders\' behavior', this.display_timers);
     
     
-    /*                  *\
-     * Computing scales *
-    \*                  */
-    TIMER_BEGIN('Computing scales', this.display_timers);
-    // For the coordinate system
-    this.spacialCoord.computeScale( this.dim, 
-                                    width - this.margin.left - this.margin.right,
-                                    height - this.margin.top - this.margin.bottom);
+    /*                                                *\
+     * Generation of data views (per element dataset) *
+    \*                                                */
+    generateDataViews.call(this);
     
-    // For other attributes
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        // Skip dimension attributes
-        if(this.elements[i].attrs[attr].type === 'dimension') {
-          continue;
-        }
-        
-        var attr_type = this.elements[i].attrs[attr].type;
-        var attr_aes = this.elements[i].attrs[attr].aes;
-        var aes_ret_type = typeof attr_aes.func(this.dataset[this.elements[i].datasetName][0], 0);
-        var forceCategorical = this.elements[i].attrs[attr].forceCat;
-        
-        switch(attr_type) {
-          case 'color':
-            if(aes_ret_type === 'string' && !forceCategorical) {
-              // No scaling
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else {
-              // Compute continuous domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
-              
-              // Scaling
-              var scale = d3.scale.category10().domain(attr_aes.continuousDomain);
-              
-              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
-            }
-            break;
-          
-          case 'symbol':
-            if(aes_ret_type === 'string' && !forceCategorical) {
-              // No scaling
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else {
-              // Compute discret domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              
-              // Scaling
-              var scale = d3.scale.ordinal()
-                                  .domain(attr_aes.discretDomain)
-                                  .range(d3.svg.symbolTypes);
-              
-              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
-            }
-            break;
-          
-          case 'string':
-            // No scaling
-            if(aes_ret_type === 'string') {
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else { // Just apply toString
-              var applyToString = function (f) {
-                return function (d, i) {
-                  return f(d, i).toString();
-                }
-              };
-              this.elements[i].attrs[attr].func = applyToString(attr_aes.func);
-            }
-            break;
-          
-          case 'number':
-            // No scaling
-            this.elements[i].attrs[attr].func = attr_aes.func;
-            break;
-        }
-      }
-    }
-    TIMER_END('Computing scales', this.display_timers);
     
+    /*                                         *\
+     * Standardization of elements' attributes *
+    \*                                         */
+    elementsStandardization.call(this);
+    
+    /*                 *\
+     * Compute scales  *
+    \*                 */
+    computeScales.call(this, width, height);
     
     /*                *\
      * Generating svg *
     \*                */
-    TIMER_BEGIN('Generating SVG', this.display_timers);
+    generateSVG.call(this, width, height, sliderHeight, nbSlider);
     
-    // Remove loading bar
-    this.svg.select('#loading-bar').remove();
-    
-    // Add background
-    if(this.drawBackground) {
-      this.spacialCoord.drawBackground( this.svg,
-                                        this.dim,
-                                        this.margin.left,
-                                        this.margin.top,
-                                        width-this.margin.left-this.margin.right,
-                                        height-this.margin.top-this.margin.bottom);
-    }
-    
-    // Add axis
-    this.spacialCoord.drawAxis( this.svg,
-                                this.dim,
-                                this.margin.left,
-                                this.margin.top,
-                                width-this.margin.left-this.margin.right,
-                                height-this.margin.top-this.margin.bottom);
-    
-    // Add time sliders
-    var offsetY = height - sliderHeight * nbSlider;
-    var handleSize = 18;
-    for(var i in this.timeSlider) {
-      var slider = this.svg.append('g').attr('class', 'slider')
-                                       .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
-      this.timeSlider[i].svg = slider;
-      
-      var axis = slider.append('g').attr('class', 'axis')
-                                   .attr('transform', 'translate(0,'+sliderHeight/2 +')')
-                                   .call(timeSliderInfo[i].axis)
-                                   .style('font', '10px sans-serif')
-                                   .style('-webkit-user-select', 'none')
-                                   .style('-moz-user-select', 'none')
-                                   .style('user-select', 'none');
-      
-      axis.select('.domain').style('fill', 'none')
-                            .style('stroke', '#000')
-                            .style('stroke-opacity', '0.3')
-                            .style('stroke-width', '10')
-                            .style('stroke-linecap', 'round')
-          .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
-                            .style('stroke', '#ddd')
-                            .style('stroke-opacity', '1')
-                            .style('stroke-width', '8');
-      
-      var brush = slider.append('g').attr('class', 'brush')
-                                    .call(timeSliderInfo[i].brush);
-      
-      brush.selectAll('.extent,.resize').remove();
-      brush.select('.background').attr('width', sliderSize + handleSize)
-                                 .attr('height', handleSize)
-                                 .attr('x', -handleSize/2)
-                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
-                                 .style('cursor', 'auto');
-      
-      var handle = brush.append('circle').attr('class', 'handle')
-                                         .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
-                                         .attr('r', handleSize/2)
-                                         .style('fill', '#fff')
-                                         .style('stroke', '#000')
-                                         .style('stroke-opacity', '0.5')
-                                         .style('stroke-width', '1.25px')
-                                         .style('pointer-events', 'none');
-      
-      timeSliderInfo[i].brush.on('brush', 
-        timeSliderInfo[i].getOnBrushed(timeSliderInfo[i].brush, handle,
-                                       this, i, this.timeSlider[i].mouseToValue));
-                                       
-      timeSliderInfo[i].brush.on('brushend',
-        timeSliderInfo[i].getOnBrushEnd(timeSliderInfo[i].brush, handle,
-                                        this.timeSlider[i].mouseToValue,
-                                        this.timeSlider[i].valueToMouse));
-      
-      handle.call(timeSliderInfo[i].brush.event);
-      
-      offsetY += sliderHeight;
-    }
-    this.updateSliders();
-    
-    // Draw elements
-    this.updateElements();
-    TIMER_END('Generating SVG', this.display_timers);
     return this;
   };
   
@@ -1493,8 +789,8 @@
         if(this.elements[i] instanceof Symbol) {
           var symbol = d3.svg.symbol();
           
-          if(isDefined(this.elements[i].attrs.type))
-            symbol.type(this.elements[i].attrs.type.func);
+          if(isDefined(this.elements[i].attrs.shape))
+            symbol.type(this.elements[i].attrs.shape.func);
             
           if(isDefined(this.elements[i].attrs.size))
             symbol.size(this.elements[i].attrs.size.func);
@@ -1885,7 +1181,7 @@
           }
           
           if(isUndefined(this.elements[i].attrs.stroke) &&
-             !isUndefined(this.elements[i].attrs.color)) {
+             isDefined(this.elements[i].attrs.color)) {
             this.elements[i].attrs.stroke = this.elements[i].attrs.color;
           }
           
@@ -1927,6 +1223,7 @@
           nodeQ1.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
           nodeQ1.enter.on('mouseout',   getOnMouseOut(this));
           nodeQ1.enter.on('click',      getOnClick(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
+          nodeQ1.exit.remove();
           
           var nodeQ3 = this.svg.selectAll('.'+eltClass+'.quartile3-mask')
                               .data(dataSubset);
@@ -1948,6 +1245,7 @@
           nodeQ3.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
           nodeQ3.enter.on('mouseout',   getOnMouseOut(this));
           nodeQ3.enter.on('click',      getOnClick(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
+          nodeQ3.exit.remove();
           
           // Median
           var nodeMedian = this.svg.selectAll('.'+eltClass+'.median')
@@ -1988,6 +1286,7 @@
           nodeMedianMask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
           nodeMedianMask.enter.on('mouseout',   getOnMouseOut(this));
           nodeMedianMask.enter.on('click',      getOnClick(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
+          nodeMedianMask.exit.remove();
           
           
           // First whisker
@@ -2072,6 +1371,7 @@
           nodeW1Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
           nodeW1Mask.enter.on('mouseout',   getOnMouseOut(this));
           nodeW1Mask.enter.on('click',      getOnClick(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
+          nodeW1Mask.exit.remove();
           
           // Second whisker limite
           var nodeWiskerLimit2 = this.svg.selectAll('.'+eltClass+'.whisker_limit.max')
@@ -2113,7 +1413,7 @@
           nodeW2Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
           nodeW2Mask.enter.on('mouseout',   getOnMouseOut(this));
           nodeW2Mask.enter.on('click',      getOnClick(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
-          
+          nodeW2Mask.exit.remove();
         }
         else {
           ERROR('Type of element '+i+' is not an element but an '+getTypeName(this.elements[i]));
@@ -2153,6 +1453,756 @@
   };
   
   
+  ///////////////////////////
+  // Render step functions //
+  ///////////////////////////
+  
+  /*
+   * Load data
+   * GoG pipeline step: Variables
+   */
+  var loadData = function(param) {
+    if(this.dataset[main_dataset_name] == null) {
+      if(this.dataLoader != null) {
+        this.render_param = param;
+        //TIMER_GROUP_BEGIN('Loading', this.display_timers);
+        this.dataLoader.sendXhrRequest();
+        return false;
+      }
+      else {
+        ERROR('Can\'t plot without data');
+      }
+    }
+    else {
+      this.onDataLoaded(this.dataset[main_dataset_name]);
+    }
+    //TIMER_GROUP_END('Loading', this.display_timers);
+    return true;
+  }
+  
+  
+  /*
+   * Generate data views (datasets computed from the main dataset)
+   * GoG pipeline step: Algebra, Statistics
+   */
+  var generateDataViews = function() {
+    TIMER_BEGIN('Generation of data views', this.display_timers);
+    for(var i = 0 ; i < this.data_view_generator.length ; i++) {
+      var name = this.data_view_generator[i].name;
+      var func = this.data_view_generator[i].func;
+      
+      if(isDefined(this.dataset[name])) {
+        WARNING('Dataset '+name+' already defined');
+      }
+      this.dataset[name] = func(this.dataset[main_dataset_name]);
+    }
+    this.data_view_generator = [];
+    
+    // Check if every element's dataset exists
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      if(!(this.elements[i].datasetName in this.dataset)) {
+        ERROR('Data view '+this.elements[i].datasetName+' of element '+i+' ('+getTypeName(this.elements[i])+') is not defined');
+      }
+    }
+    TIMER_END('Generation of data views', this.display_timers);
+  }
+  
+  
+  /*
+   * Cleaning and standardization of elements' attributes
+   * GoG pipeline step: None
+   */
+  var elementsStandardization = function() {
+    /*                                                *\
+     * Detection of attributes which are dimensions   *
+     * Store if the value is categorical in a boolean *
+     * Deletion of useless attributes                 *
+     * Add time dimensions as attribute               *
+    \*                                                */
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        // This attribute is a dimension
+        if(this.spacialDimName.indexOf(attr) >= 0 ||
+           attr in this.temporalDim) {
+          this.elements[i].attrs[attr].type = 'dimension';
+        }
+        
+        // If the value of this attribute is categorical
+        if(this.elements[i].attrs[attr].value instanceof CategoricalValue) {
+          this.elements[i].attrs[attr].value = this.elements[i].attrs[attr].value.value;
+          this.elements[i].attrs[attr].forceCat = true;
+        }
+        else {
+          this.elements[i].attrs[attr].forceCat = false;
+        }
+        
+        // Useless attribute
+        if(this.elements[i].attrs[attr].type === 'unknown' ||
+           this.elements[i].attrs[attr].value == null) {
+          delete this.elements[i].attrs[attr];
+        }
+      }
+      
+      // Add time dimensions as attribute
+      for(var attr in this.temporalDim) {
+        if(isUndefined(this.elements[i].attrs[attr])) {
+          this.elements[i].attrs[attr] = {  type:'dimension',
+                                            value:this.temporalDim[attr],
+                                            originFunc:'Graphic.time',
+                                            forceCat:true};
+        }
+      }
+    }
+    
+    
+    /*                                               *\
+     * Standardization of aesthetics                 *
+     * Collecting some informations about dimensions *
+    \*                                               */
+    TIMER_BEGIN('Standardization of elements\' attributes', this.display_timers);
+    var deepestCoordSysDim = [];
+    for(var i in this.dim) {
+      if(!this.dim[i].forceOrdinal) {
+        deepestCoordSysDim.push(i);
+      }
+    }
+    var deepestCoordSysDimNames = '';
+    for(var i = 0 ; i < deepestCoordSysDim.length ; i++) {
+      deepestCoordSysDimNames += i ? (i == deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
+      deepestCoordSysDimNames += deepestCoordSysDim[i];
+    }
+    
+    // Aesthetics
+    var aes = [];
+    // Map data column name -> aesthetic id
+    var dataCol2Aes = {};
+    // Map function -> aesthetic id
+    var func2Aes = {};
+    // Map const value -> aesthetic id
+    var const2Aes = {};
+    
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        var attr_type = this.elements[i].attrs[attr].type;
+        var attr_val = this.elements[i].attrs[attr].value;
+        var originFunc = this.elements[i].attrs[attr].originFunc;
+        var datasetName = this.elements[i].datasetName;
+        var dataset = this.dataset[datasetName];
+        
+        if(attr_type == 'dimension' && isUndefined(this.dim[attr].aes)) {
+          this.dim[attr].aes = [];
+          this.dim[attr].aesElemId = [];
+        }
+        
+        if(attr_val instanceof Interval && attr_type == 'dimension') {
+          if(!(this.elements[i] instanceof Bar)) {
+            ERROR(getTypeName(this.elements[i])+' can\'t have an interval as position ('+attr+')');
+          }
+          
+          if(deepestCoordSysDim.indexOf(attr) < 0) {
+            var msg = 'Attribute '+attr+' can\'t be an interval. '+
+                      'Only '+deepestCoordSysDimNames+' can be.';
+            ERROR(msg);
+          }
+          
+          originFunc = lib_name+'.interval'+(attr_val.stacked ? '.stack' : '');
+          
+          var aesId1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary1.value, datasetName, attr, originFunc);
+          var aesId2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.boundary2.value, datasetName, attr, originFunc);
+          
+          // Check data type return by those aesthetics
+          var aes_ret_type = typeof aes[aesId1].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'first param', originFunc);
+          aes_ret_type = typeof aes[aesId2].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'second param', originFunc);
+          
+          attr_val.boundary1.aes = aes[aesId1];
+          attr_val.boundary2.aes = aes[aesId2];
+          
+          // Not stacked
+          if(!attr_val.stacked) {
+            this.dim[attr].aes.push(attr_val.boundary1.aes);
+            this.dim[attr].aesElemId.push(i);
+            this.dim[attr].aes.push(attr_val.boundary2.aes);
+            this.dim[attr].aesElemId.push(i);
+          }
+          // We will compute function for stacked interval after having split data
+        }
+        else if(attr_val instanceof BoxPlotBoxStat && attr_type == 'dimension') {
+          originFunc = lib_name+'.boxplotStat';
+          
+          if(!(this.elements[i] instanceof BoxPlot)) {
+            ERROR(getTypeName(this.elements[i])+' can\'t have its position ('+attr+') set with '+originFunc);
+          }
+          
+          if(deepestCoordSysDim.indexOf(attr) < 0) {
+            var msg = 'Attribute '+attr+' can\'t be set with '+originFunc+'. '+
+                      'Only '+deepestCoordSysDimNames+' can be.';
+            ERROR(msg);
+          }
+          
+          
+          var aesQ1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile1.value, datasetName, attr, originFunc);
+          var aesQ2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile2.value, datasetName, attr, originFunc);
+          var aesQ3 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.quartile3.value, datasetName, attr, originFunc);
+          var aesW1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.whisker1.value,  datasetName, attr, originFunc);
+          var aesW2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.whisker2.value,  datasetName, attr, originFunc);
+          
+          var aes_ret_type = typeof aes[aesQ1].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'quartile1', originFunc);
+          aes_ret_type = typeof aes[aesQ2].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'quartile2', originFunc);
+          aes_ret_type = typeof aes[aesQ3].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'quartile3', originFunc);
+          aes_ret_type = typeof aes[aesW1].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'whisker1', originFunc);
+          aes_ret_type = typeof aes[aesW2].func(dataset[0], 0);
+          checkAesType('number', aes_ret_type, 'whisker2', originFunc);
+          
+          attr_val.quartile1.aes = aes[aesQ1];
+          attr_val.quartile2.aes = aes[aesQ2];
+          attr_val.quartile3.aes = aes[aesQ3];
+          attr_val.whisker1.aes =  aes[aesW1];
+          attr_val.whisker2.aes =  aes[aesW2];
+          
+          // Just min and max values
+          this.dim[attr].aes.push(attr_val.whisker1.aes);
+          this.dim[attr].aesElemId.push(i);
+          this.dim[attr].aes.push(attr_val.whisker2.aes);
+          this.dim[attr].aesElemId.push(i);
+        }
+        else {
+          // Get the aestetic id
+          var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, datasetName, attr, originFunc);
+          
+          // Check data type return by this aesthetic
+          var aes_ret_type = typeof aes[aesId].func(dataset[0], 0);
+          checkAesType(attr_type, aes_ret_type, attr, originFunc);
+          
+          if(attr_type == 'dimension') {
+            this.dim[attr].aes.push(aes[aesId]);
+            this.dim[attr].aesElemId.push(i);
+          }
+          
+          this.elements[i].attrs[attr].aes = aes[aesId];
+        }
+      }
+      
+      if(this.elements[i] instanceof BoxPlot) {
+        var nbBoxPlotStat = 0;
+        for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+          if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotBoxStat) {
+            nbBoxPlotStat++;
+          }
+        }
+        
+        if(nbBoxPlotStat != 1) {
+          ERROR('One and only one of the attributes '+deepestCoordSysDimNames+' must be set with '+lib_name+'.boxplotStat');
+        }
+      }
+        
+      // Checking for unset dimension attribute
+      for(var j in this.dim) {
+        if(isUndefined(this.elements[i].attrs[j]) && this.dim[j].isSpacial) {
+          ERROR('No value found for the attribute '+j+' of '+getTypeName(this.elements[i]));
+        }
+      }
+    }
+    TIMER_END('Standardization of elements\' attributes', this.display_timers);
+  }
+  
+  
+  /*
+   * Compute scale for every aesthetics which need it 
+   * Also compute interval.stack values because this the only place
+   * where we can compute it (after nesting data and before computing
+   * scales themselves)
+   * GoG pipeline step: "Scale", Geometry, Coordinates, Aesthetics
+   */
+  var computeScales = function(width, height) {
+    /*                                                         *\
+     * Computing dimensions' domains                           *
+     * EXCEPT the deepest spacial coordinate system dimensions *
+    \*                                                         */
+    TIMER_GROUP_BEGIN('Computing scales', this.display_timers);
+    TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
+    for(var i in this.dim) {
+      if(isUndefined(this.dim[i].aes)) {
+        ERROR('Error: dimension '+i+' unused');
+      }
+      
+      if(!this.dim[i].forceOrdinal) {
+        continue;
+      }
+      
+      var domain = [];
+      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        // Compute discret domain
+        var dataset = this.dataset[this.dim[i].aes[j].datasetName];
+        computeDomain(this.dim[i].aes[j], dataset, 'discret');
+        var dom = this.dim[i].aes[j].discretDomain;
+        
+        for(var k = 0 ; k < dom.length ; k++)
+          domain.push(dom[k]);
+      }
+      RemoveDupArray(domain);
+      
+      
+      this.dim[i].domain = domain;
+      this.dim[i].discret = true;
+    }
+    TIMER_END('Computing dimension domain 1/2', this.display_timers);
+    
+    
+    /*                                 *\
+     * Splitting data for each element *
+    \*                                 */
+    TIMER_BEGIN('Nesting data', this.display_timers);
+    // Initialising current 'time' (i.e. position in spacial dimensions)
+    this.currentTime = [];
+    for(var i in this.dim) {
+      if(!this.dim[i].isSpacial) {
+        this.currentTime[i] = 0;
+      }
+    }
+    
+    // Sizes of each splits, sub-splits, etc
+    var splitSizes = [];
+    
+    // Splitting data according to temporal dimensions
+    this.splitTempDimId = [];
+    for(var i in this.currentTime) {
+      // Split
+      this.splitTempDimId.push(i);
+      splitSizes.push(this.dim[i].domain.length);
+    }
+    
+    // Splitting data according to spacial dimensions
+    this.splitSpacialDimId = [];
+    for(var i in this.dim) {
+      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
+        this.splitSpacialDimId.push(i);
+        splitSizes.push(this.dim[i].domain.length);
+      }
+    }
+    
+    this.nestedData = [];
+    
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      var dataset = this.dataset[this.elements[i].datasetName];
+      
+      // Splitting data according to group
+      var groupAes = this.elements[i].attrs.group.aes;
+      computeDomain(groupAes, dataset, 'discret');
+      splitSizes.push(groupAes.discretDomain.length);
+      this.nestedData.push(allocateSplitDataArray(splitSizes, 0));
+      splitSizes.pop();
+      
+      for(var j = 0 ; j < dataset.length ; j++) {
+        var dataSubset = this.nestedData[i];
+        
+        for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
+          var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], j);
+          var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
+          dataSubset = dataSubset[id];
+        }
+        
+        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
+          var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], j);
+          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
+          dataSubset = dataSubset[id];
+        }
+        
+        var groupAes = this.elements[i].attrs.group.aes;
+        var value = groupAes.func(dataset[j], j);
+        var id = groupAes.discretDomain.indexOf(value);
+        dataSubset = dataSubset[id];
+        
+        dataSubset.push(dataset[j]);
+      }
+    }
+    TIMER_END('Nesting data', this.display_timers);
+    
+    
+    /*                                      *\
+     * Computing stacked interval functions *
+    \*                                      */
+    TIMER_BEGIN('Computing stacked intervals\'values', this.display_timers);
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        var attr_val = this.elements[i].attrs[attr].value;
+        if(attr_val instanceof Interval && attr_val.stacked) {
+          var dataset = this.dataset[this.elements[i].datasetName];
+          var originFunc = attr_val.boundary2.aes.func;
+          var stepFunc = attr_val.boundary1.aes.func;
+          
+          if(isUndefined(dataset[0]._calculated_values)) {
+            for(var j = 0 ; j < dataset.length ; j++) {
+              dataset[j]._calculated_values = [];
+            }
+          }
+          var Id = dataset[0]._calculated_values.length;
+          
+          var it = new HierarchyIterator(this.nestedData[i]);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            
+            if(dataSubset.length > 0) {
+              dataSubset[0]._calculated_values[Id] = originFunc(dataSubset[0], 0);
+              dataSubset[0]._calculated_values[Id+1] = stepFunc(dataSubset[0], 0);
+            }
+            for(var j = 1 ; j < dataSubset.length ; j++) {
+              dataSubset[j]._calculated_values[Id] = dataSubset[j-1]._calculated_values[Id+1];
+              dataSubset[j]._calculated_values[Id+1] = dataSubset[j]._calculated_values[Id] + stepFunc(dataSubset[j], j);
+            }
+          }
+          
+          var getFunc = function(Id) {
+            return function(d) {
+              return d._calculated_values[Id];
+            };
+          };
+          
+          attr_val.boundary1.aes.func = getFunc(Id);
+          attr_val.boundary2.aes.func = getFunc(Id+1);
+          
+          this.dim[attr].aes.push(attr_val.boundary1.aes);
+          this.dim[attr].aesElemId.push(i);
+          this.dim[attr].aes.push(attr_val.boundary2.aes);
+          this.dim[attr].aesElemId.push(i);
+        }
+      }
+    }
+    TIMER_END('Computing stacked intervals\'values', this.display_timers);
+    
+    
+    /*                                          *\
+     * Computing the deepest spacial coordinate *
+     * system dimensions' domains               *
+    \*                                          */
+    TIMER_BEGIN('Computing dimension domain 2/2', this.display_timers);
+    for(var i in this.dim) {
+      if(this.dim[i].forceOrdinal) {
+        continue;
+      }
+      
+      var domain;
+      var ordinal;
+      
+      // Don't force discret domain (i.e. continue if only number values)
+      var discret = false;
+      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        if(this.elements[this.dim[i].aesElemId[j]].attrs[i].forceCat) {
+          discret = true;
+          break;
+        }
+        
+        var dataset = this.dataset[this.dim[i].aes[j].datasetName];
+        if(typeof this.dim[i].aes[j].func(dataset[0], 0) != 'number') {
+          discret = true;
+          break;
+        }
+      }
+      
+      // Discret domain
+      if(discret) {
+        domain = [];
+        var dim = this.dim[i];
+        for(var j = 0 ; j < dim.aes.length ; j++) {
+          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            // Compute discret domain
+            for(var k = 0 ; k < dataSubset.length ; k++) {
+              domain.push(this.dim[i].aes[j].func(dataSubset[k], k));
+            }
+          }
+        }
+        RemoveDupArray(domain);
+      }
+      // Continue domain
+      else {
+        domain = [Infinity, -Infinity];
+        var dim = this.dim[i];
+        for(var j = 0 ; j < dim.aes.length ; j++) {
+          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            // Compute continue domain
+            var dom = d3.extent(dataSubset, this.dim[i].aes[j].func);
+            
+            if(dom[0] < domain[0])
+              domain[0] = dom[0];
+            if(dom[1] > domain[1])
+              domain[1] = dom[1];
+          }
+        }
+        if(domain[0] == domain[1]) {
+          domain = addPadding(domain, this.linear_scale_padding);
+        }
+      }
+      
+      this.dim[i].domain = domain;
+      this.dim[i].discret = discret;
+    }
+    TIMER_END('Computing dimension domain 2/2', this.display_timers);
+    
+    
+    /*                  *\
+     * Computing scales *
+    \*                  */
+    TIMER_BEGIN('Computing scales themselves', this.display_timers);
+    // For the coordinate system
+    this.spacialCoord.computeScale( this.dim, 
+                                    width - this.margin.left - this.margin.right,
+                                    height - this.margin.top - this.margin.bottom);
+    
+    // For other attributes
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        // Skip dimension attributes
+        if(this.elements[i].attrs[attr].type === 'dimension') {
+          continue;
+        }
+        
+        var attr_type = this.elements[i].attrs[attr].type;
+        var attr_aes = this.elements[i].attrs[attr].aes;
+        var aes_ret_type = typeof attr_aes.func(this.dataset[this.elements[i].datasetName][0], 0);
+        var forceCategorical = this.elements[i].attrs[attr].forceCat;
+        
+        switch(attr_type) {
+          case 'color':
+            if(aes_ret_type === 'string' && !forceCategorical) {
+              // No scaling
+              this.elements[i].attrs[attr].func = attr_aes.func;
+            }
+            else {
+              // Compute continuous domain
+              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
+              
+              // Scaling
+              var scale = d3.scale.category10().domain(attr_aes.continuousDomain);
+              
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
+            }
+            break;
+          
+          case 'symbol':
+            if(aes_ret_type === 'string' && !forceCategorical) {
+              // No scaling
+              this.elements[i].attrs[attr].func = attr_aes.func;
+            }
+            else {
+              // Compute discret domain
+              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
+              
+              // Scaling
+              var scale = d3.scale.ordinal()
+                                  .domain(attr_aes.discretDomain)
+                                  .range(d3.svg.symbolTypes);
+              
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
+            }
+            break;
+          
+          case 'string':
+            // No scaling
+            if(aes_ret_type === 'string') {
+              this.elements[i].attrs[attr].func = attr_aes.func;
+            }
+            else { // Just apply toString
+              var applyToString = function (f) {
+                return function (d, i) {
+                  return f(d, i).toString();
+                }
+              };
+              this.elements[i].attrs[attr].func = applyToString(attr_aes.func);
+            }
+            break;
+          
+          case 'number':
+            // No scaling
+            this.elements[i].attrs[attr].func = attr_aes.func;
+            break;
+        }
+      }
+    }
+    TIMER_END('Computing scales themselves', this.display_timers);
+    TIMER_GROUP_END('Computing scales', this.display_timers);
+  }
+  
+  
+  /*
+   * Generate the svg code
+   * GoG pipeline step: Geometry, Coordinates, Aesthetics
+   */
+  var generateSVG = function(width, height, sliderHeight, nbSlider) {
+    TIMER_GROUP_BEGIN('Generating SVG', this.display_timers);
+    
+    // Remove loading bar
+    this.svg.select('#loading-bar').remove();
+    
+    // Add background
+    TIMER_BEGIN('Drawing backgroud', this.display_timers);
+    if(this.drawBackground) {
+      this.spacialCoord.drawBackground( this.svg,
+                                        this.dim,
+                                        this.margin.left,
+                                        this.margin.top,
+                                        width-this.margin.left-this.margin.right,
+                                        height-this.margin.top-this.margin.bottom);
+    }
+    TIMER_END('Drawing backgroud', this.display_timers);
+    
+    // Add axises
+    TIMER_BEGIN('Drawing axises', this.display_timers);
+    this.spacialCoord.drawAxis( this.svg,
+                                this.dim,
+                                this.margin.left,
+                                this.margin.top,
+                                width-this.margin.left-this.margin.right,
+                                height-this.margin.top-this.margin.bottom);
+    TIMER_END('Drawing axises', this.display_timers);
+    
+    // Add time sliders
+    TIMER_BEGIN('Drawing sliders', this.display_timers);
+    var getOnBrushed = function(brush, handle, g, timeDim, mouseToValue) {
+      return function(){
+        var posX = brush.extent()[0];
+
+        if (d3.event.sourceEvent) { // not a programmatic event
+          posX = d3.mouse(this)[0];
+          
+          posX = posX.clamp(0, sliderSize);
+          
+          brush.extent([posX, posX]);
+        }
+        
+        handle.interrupt().transition();
+        handle.attr("cx", posX);
+        var index = g.dim[timeDim].domain.indexOf(mouseToValue(posX));
+        if(g.currentTime[timeDim] != index) {
+          g.currentTime[timeDim] = index;
+          g.updateElements();
+          removePopups(g);
+        }
+      }
+    };
+    
+    var getOnBrushEnd = function(brush, handle, mouseToValue, valueToMouse) {
+      return function(){
+        var posX = brush.extent()[0];
+
+        if (d3.event.sourceEvent) { // not a programmatic event
+          posX = d3.mouse(this)[0];
+          posX.clamp(0, sliderSize);
+          
+          posX = valueToMouse(mouseToValue(posX));
+          
+          brush.extent([posX, posX]);
+        }
+        
+        handle.interrupt().transition().attr("cx", posX);
+      }
+    };
+    
+    this.timeSlider = {};
+    var sliderSize = width - this.margin.left - this.margin.right;
+    var offsetY = height - sliderHeight * nbSlider;
+    var handleSize = 18;
+    for(var i in this.dim) {
+      if(this.dim[i].isSpacial) {
+        continue;
+      }
+      
+      this.timeSlider[i] = {};
+      
+      var values = this.dim[i].domain;
+      var dom = [];
+      for(var j = 0 ; j < values.length - 1 ; j++){
+        dom.push((j+0.8) * sliderSize / (values.length - 1));
+      }
+      var mouseToValue = d3.scale.threshold()
+                                 .domain(dom)
+                                 .range(values);
+      var valueToMouse = d3.scale.ordinal()
+                                 .domain(values)
+                                 .rangePoints([0, sliderSize], 0);
+      
+      var axis = d3.svg.axis()
+                   .scale(valueToMouse)
+                   .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
+                   .orient('bottom')
+                   .tickSize(0)
+                   .tickPadding(12);
+      
+      var brush = d3.svg.brush()
+                    .x(valueToMouse)
+                    .extent([0, 0]);
+      
+      this.timeSlider[i].mouseToValue = mouseToValue;
+      this.timeSlider[i].valueToMouse = valueToMouse;
+      
+      var slider = this.svg.append('g').attr('class', 'slider')
+                                       .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
+      this.timeSlider[i].svg = slider;
+      
+      var axis = slider.append('g').attr('class', 'axis')
+                                   .attr('transform', 'translate(0,'+sliderHeight/2 +')')
+                                   .call(axis)
+                                   .style('font', '10px sans-serif')
+                                   .style('-webkit-user-select', 'none')
+                                   .style('-moz-user-select', 'none')
+                                   .style('user-select', 'none');
+      
+      axis.select('.domain').style('fill', 'none')
+                            .style('stroke', '#000')
+                            .style('stroke-opacity', '0.3')
+                            .style('stroke-width', '10')
+                            .style('stroke-linecap', 'round')
+          .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
+                            .style('stroke', '#ddd')
+                            .style('stroke-opacity', '1')
+                            .style('stroke-width', '8');
+      
+      var brushNode = slider.append('g').attr('class', 'brush')
+                                        .call(brush);
+      
+      brushNode.selectAll('.extent,.resize').remove();
+      brushNode.select('.background').attr('width', sliderSize + handleSize)
+                                 .attr('height', handleSize)
+                                 .attr('x', -handleSize/2)
+                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
+                                 .style('cursor', 'auto');
+      
+      var handle = brushNode.append('circle').attr('class', 'handle')
+                                             .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
+                                             .attr('r', handleSize/2)
+                                             .style('fill', '#fff')
+                                             .style('stroke', '#000')
+                                             .style('stroke-opacity', '0.5')
+                                             .style('stroke-width', '1.25px')
+                                             .style('pointer-events', 'none');
+      
+      brush.on('brush', getOnBrushed(brush, handle, this, i, mouseToValue));
+                                       
+      brush.on('brushend', getOnBrushEnd(brush, handle, mouseToValue, valueToMouse));
+      
+      handle.call(brush.event);
+      
+      offsetY += sliderHeight;
+    }
+    this.updateSliders();
+    TIMER_END('Drawing sliders', this.display_timers);
+    
+    // Draw elements
+    TIMER_BEGIN('Drawing elements', this.display_timers);
+    this.updateElements();
+    TIMER_END('Drawing elements', this.display_timers);
+    TIMER_GROUP_END('Generating SVG', this.display_timers);
+  }
+  
+  
   /////////////////////////
   // Elements definition //
   /////////////////////////
@@ -2186,22 +2236,20 @@
   function Symbol() {
     ElementBase.apply(this, arguments);
     
-    this.attrs.type = { type:'symbol',
-                        value:'circle'};
-    this.attrs.size = { type:'number',
-                        value:null};
+    this.attrs.shape =  { type:'symbol',
+                          value:'circle'};
+    this.attrs.size =   { type:'number',
+                          value:null};
   };
   
   function Line() {
     ElementBase.apply(this, arguments);
+    this.attrs.fill.value = 'none';
     
     this.attrs.interpolation =  { type:'string',
                                   value:'linear'};
     this.attrs.stroke_linecap = { type:'string',
                                   value:null};
-                                  
-    this.attrs.fill = { type:'color',
-                        value:'none'};
   };
   
   function Bar() {
@@ -2212,11 +2260,9 @@
   
   function BoxPlot() {
     ElementBase.apply(this, arguments);
+    this.attrs.fill.value = 'none';
     
     // No specific attributes
-    
-    this.attrs.fill = { type:'color',
-                        value:'none'};
   };
   
   ////////////////////////
@@ -2777,6 +2823,21 @@
   ///////////////////////
   // Loading functions //
   ///////////////////////
+  
+    // Data loader
+  function DataLoader() {
+    this.g = null;
+    this.sendXhrRequest = null;
+    var self = this;
+    
+    this.load = function(error, dataset) {
+      if(error != null) {
+        ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
+      }
+      
+      self.g.onDataLoaded(dataset);
+    };
+  }
 
   // Load data from a csv file
   main_object.loadFromFile = function(param) {
@@ -2785,12 +2846,19 @@
     
     var dl = new DataLoader();
     
-    var xhr = d3.csv(filename)
-                .row(processRow)
-                .on('progress', getProgressListener(dl));
+    var xhr = d3.text(filename)
+                .on('progress', getProgressListener(dl))
+                .response(function(request) {
+                  TIMER_END('Loading CSV file', dl.g.display_timers);
+                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
+                  var data = d3.csv.parse(request.responseText, processRow);
+                  TIMER_END('Parsing CSV', dl.g.display_timers);
+                  return data;
+                });
     
     dl.sendXhrRequest = function() {
-      xhr.get(this.load);
+      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
+      xhr.get(dl.load);
     }
     
     return dl;
@@ -2812,13 +2880,18 @@
     
     var xhr = d3.xhr('http://localhost')
                 .header('Content-Type', 'application/x-www-form-urlencoded')
-                .on('beforesend', function(xhr){
-                  xhr.onprogress = getProgressListener(dl);
-                })
-                .response(function(request) {return d3.csv.parse(request.responseText, processRow)})
+                .on('progress', getProgressListener(dl))
+                .response(function(request) {
+                  TIMER_END('Loading CSV from database', dl.g.display_timers);
+                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
+                  var data = d3.csv.parse(request.responseText, processRow);
+                  TIMER_END('Parsing CSV', dl.g.display_timers);
+                  return data;
+                });
     
     dl.sendXhrRequest = function() {
-      xhr.post(httpRequestParam, this.load);
+      TIMER_BEGIN('Loading CSV from database', dl.g.display_timers);
+      xhr.post(httpRequestParam, dl.load);
     }
     
     return dl;
@@ -3288,22 +3361,6 @@
   // Private functions //
   ///////////////////////
   
-  // Data loader
-  function DataLoader() {
-    this.g = null;
-    this.sendXhrRequest = null;
-    var me = this;
-    return {
-      me:this,
-      load:function (error, dataset) {
-        if(error != null) {
-          ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
-        }
-        
-        me.g.onDataLoaded(dataset);
-      }
-    };
-  };
   
   // Add an element to the graphic
   var addElement = function(g, Type, param, originFunc) {
@@ -3314,7 +3371,7 @@
       if(g.fallback_element.attrs[attr].value != null) {
         elt.attrs[attr] = { type:        g.fallback_element.attrs[attr].type,
                             value:       g.fallback_element.attrs[attr].value,
-                            originFunc:  g.fallback_element.attrs[attr].originFunc};
+                            originFunc:  'Graphic.element'};
       }
     }
     for(var event in g.fallback_element.listeners) {
@@ -3887,7 +3944,7 @@
   var getProgressListener = function(dl) {
     return function() {
       if(d3.event && d3.event.lengthComputable) {
-        var svg = dl.me.g.svg;
+        var svg = dl.g.svg;
         var width = svg.attr('width');
         var height = svg.attr('height');
         var barWidth = width / 2;
@@ -4049,6 +4106,28 @@
   var TIMER_END = function(name, display) {
     if(display && console.timeEnd) {
       console.timeEnd(name)
+    }
+  };
+  
+  var TIMER_GROUP_BEGIN = function(name, display) {
+    if(display) {
+      if(console.time) {
+        console.time(name);
+      }
+      if(console.groupCollapsed) {
+        console.groupCollapsed(name+' (detail)');
+      }
+    }
+  };
+  
+  var TIMER_GROUP_END = function(name, display) {
+    if(display) {
+      if(console.groupCollapsed) {
+        console.groupEnd();
+      }
+      if(console.timeEnd) {
+        console.timeEnd(name);
+      }
     }
   };
   

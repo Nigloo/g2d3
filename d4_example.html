@@ -239,14 +239,24 @@
             .coord(d4.polar())
             .bar({  theta:'data:nutriment',
                     radius:d4.interval('data:quantity', 0),
-                    stroke:'blue',
-                    fill:'blue',
+                    color:'blue',
                     fill_opacity:0.3})
             .data({data:dataset['AppleNutriment']})
             .plot({selector:"#graph8", width:800, height:600, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
+            window.addEventListener("load", function(){
+                var svg = d3.select('#lol');
+                
+                var node = svg.selectAll('g').data([40, 10]);
+            
+                node.select('circle').transition().duration(1000).attr('r',function(d){return d;});
+                
+                
+            }, true);
+          
+          
           
         </script>
     </head>
@@ -284,5 +294,6 @@
         <div id="graph8">
             <h2>Apple Nutriment</h2>
         </div>
+        <svg id="lol"><rect width="300" height="300" stroke="black" fill="none"></rect><g transform="translate(50,50)"><circle r=10></circle></g><g transform="translate(50,200)"><circle r=40></circle></g></svg>
     </body>
 </html>   

@@ -47,6 +47,7 @@
     this.drawBackground = true;
     this.transition_enabled = true;
     this.display_timers = false;
+    this.merge_null_axis = true;
     
     this.ordinal_scale_padding = 1;
     this.linear_scale_padding = 0.1;
@@ -431,12 +432,12 @@
       }
       
       for(var i = coordSyss.length - 1 ; i >= 0 ; i--) {
-        for(var j in coordSyss[i].dimName) {
-          if(coordSyss[i].dimName[j] === undefined) {
-            coordSyss[i].dimName[j] = generateName.call(this, j);
+        for(var j in coordSyss[i].dimAlias) {
+          if(coordSyss[i].dimAlias[j] === undefined) {
+            coordSyss[i].dimAlias[j] = generateName.call(this, j);
           }
-          if(coordSyss[i].dimName[j] != null) {
-            this.spacialDimName.push(coordSyss[i].dimName[j]);
+          if(coordSyss[i].dimAlias[j] != null) {
+            this.spacialDimName.push(coordSyss[i].dimAlias[j]);
           }
         }
       }
@@ -475,26 +476,26 @@
     
     this.axis_function_called = true;
     var funcName = 'Graphic.axis';
-    var dimName =       checkParam(funcName, param, 'axis',     null);
+    var dimAlias =      checkParam(funcName, param, 'axis',     null);
     var display =       checkParam(funcName, param, 'display',  true);
     var displayAxis =   checkParam(funcName, param, 'display_axis',  display);
     var displayTicks =  checkParam(funcName, param, 'display_ticks',  display);
     
-    if(dimName === null) {
-      dimName = [];
+    if(dimAlias === null) {
+      dimAlias = [];
       for(var i = 0 ; i < this.spacialDimName.length ; i++) {
-        dimName.push(this.spacialDimName[i]);
+        dimAlias.push(this.spacialDimName[i]);
       }
       for(var i in this.temporalDim) {
-        dimName.push(i);
+        dimAlias.push(i);
       }
     }
     else {
-      dimName = [dimName];
+      dimAlias = [dimAlias];
     }
     
-    for(var i = 0 ; i < dimName.length ; i++) {
-      var axProp = this.axisProperty[dimName[i]] = {};
+    for(var i = 0 ; i < dimAlias.length ; i++) {
+      var axProp = this.axisProperty[dimAlias[i]] = {};
       axProp.displayAxis = displayAxis;
       axProp.displayTicks = displayTicks;
     }
@@ -593,7 +594,7 @@
     if(!loadData.call(this, param)) {
       return this;
     }
-    //d3.select('p').html(JSON.stringify(this.dataset[main_dataset_name]));
+    
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           selector,
           width,
@@ -687,8 +688,8 @@
     
     // Deepest coordinate system dimention
     var deepestCoordSysDim = [];
-    for(var i in deepestCoordSys.dimName) {
-      deepestCoordSysDim.push({ name:deepestCoordSys.dimName[i],
+    for(var i in deepestCoordSys.dimAlias) {
+      deepestCoordSysDim.push({ name:deepestCoordSys.dimAlias[i],
                                 originalName:i});
     }
     
@@ -884,14 +885,14 @@
           var padding = this.bar_padding;
           
           for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-            var dimName = deepestCoordSysDim[j].name;
+            var dimAlias = deepestCoordSysDim[j].name;
             var originalDimName = deepestCoordSysDim[j].originalName;
             
             boundaryFunc[originalDimName]  = {  min:null,
                                                 max:null,
                                                 dist:null};
             
-            if(dimName == null) {
+            if(dimAlias == null) {
               var min = deepestCoordSys.boundary[originalDimName].min;
               var max = deepestCoordSys.boundary[originalDimName].max;
               var dist = (max - min) / (1 + padding);
@@ -906,15 +907,15 @@
               var bound1 = null;
               var bound2 = null;
               
-              if(this.elements[i].attrs[dimName].value instanceof Interval) {
-                var interval = this.elements[i].attrs[dimName].value;
+              if(this.elements[i].attrs[dimAlias].value instanceof Interval) {
+                var interval = this.elements[i].attrs[dimAlias].value;
                 
                 bound1 = scale.compose(interval.boundary1.aes.func),
                 bound2 = scale.compose(interval.boundary2.aes.func);
               }
               else {
-                var band = this.dim[dimName].band / (1 + padding);
-                var func = this.elements[i].attrs[dimName].aes.func;
+                var band = this.dim[dimAlias].band / (1 + padding);
+                var func = this.elements[i].attrs[dimAlias].aes.func;
                 
                 var getFunc = function(s, f, e) {
                   return function(d, i){
@@ -1004,7 +1005,7 @@
           var boxplotStat = null;
           
           for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-            var dimName = deepestCoordSysDim[j].name;
+            var dimAlias = deepestCoordSysDim[j].name;
             var originalDimName = deepestCoordSysDim[j].originalName;
             
             // Pos
@@ -1027,8 +1028,8 @@
                                         
             var p = posFunc[originalDimName];
             
-            if(dimName == null || !(this.elements[i].attrs[dimName].value instanceof BoxPlotBoxStat)) {
-              if(dimName == null) {
+            if(dimAlias == null || !(this.elements[i].attrs[dimAlias].value instanceof BoxPlotBoxStat)) {
+              if(dimAlias == null) {
                 var minBox = deepestCoordSys.boundary[originalDimName].min;
                 var maxBox = deepestCoordSys.boundary[originalDimName].max;
                 var distBox = maxBox - minBox;
@@ -1051,8 +1052,8 @@
               else {
                 var scale = deepestCoordSys.scale[originalDimName];
                 
-                var band = this.dim[dimName].band / (1 + this.bar_padding);
-                var func = this.elements[i].attrs[dimName].aes.func;
+                var band = this.dim[dimAlias].band / (1 + this.bar_padding);
+                var func = this.elements[i].attrs[dimAlias].aes.func;
                 
                 var getFunc = function(s, f, e) {
                   return function(d, i){
@@ -1120,7 +1121,7 @@
             }
             else {
               var scale = deepestCoordSys.scale[originalDimName];
-              boxplotStat = this.elements[i].attrs[dimName].value;
+              boxplotStat = this.elements[i].attrs[dimAlias].value;
               
               var q1 = scale.compose(boxplotStat.quartile1.aes.func);
               var q2 = scale.compose(boxplotStat.quartile2.aes.func);
@@ -1424,6 +1425,7 @@
     return this;
   };
   
+  
   // Update position of time sliders' cursor
   Graphic.prototype.updateSliders = function() {
     for(var i in this.timeSlider) {
@@ -1456,6 +1458,8 @@
   ///////////////////////////
   // Render step functions //
   ///////////////////////////
+  
+  /* In the following functions, 'this' reference the graphic */
   
   /*
    * Load data
@@ -1713,7 +1717,7 @@
   
   
   /*
-   * Compute scale for every aesthetics which need it 
+   * Compute scale for every aesthetic which need it 
    * Also compute interval.stack values because this the only place
    * where we can compute it (after nesting data and before computing
    * scales themselves)
@@ -2042,6 +2046,18 @@
     // Remove loading bar
     this.svg.select('#loading-bar').remove();
     
+    var svg = this.svg.append('g')
+                .attr('class', 'depth0')
+                .attr('transform', 'translate('+this.margin.left+','+this.margin.top+')');
+    
+    this.spacialCoord.updateSVG(  svg,
+                                  this.dim,
+                                  width-this.margin.left-this.margin.right,
+                                  height-this.margin.top-this.margin.bottom,
+                                  0);
+    
+    
+    /*
     // Add background
     TIMER_BEGIN('Drawing backgroud', this.display_timers);
     if(this.drawBackground) {
@@ -2053,7 +2069,8 @@
                                         height-this.margin.top-this.margin.bottom);
     }
     TIMER_END('Drawing backgroud', this.display_timers);
-    
+    //*/
+    /*
     // Add axises
     TIMER_BEGIN('Drawing axises', this.display_timers);
     this.spacialCoord.drawAxis( this.svg,
@@ -2063,7 +2080,7 @@
                                 width-this.margin.left-this.margin.right,
                                 height-this.margin.top-this.margin.bottom);
     TIMER_END('Drawing axises', this.display_timers);
-    
+    */
     // Add time sliders
     TIMER_BEGIN('Drawing sliders', this.display_timers);
     var getOnBrushed = function(brush, handle, g, timeDim, mouseToValue) {
@@ -2194,11 +2211,12 @@
     }
     this.updateSliders();
     TIMER_END('Drawing sliders', this.display_timers);
-    
+    /*
     // Draw elements
     TIMER_BEGIN('Drawing elements', this.display_timers);
     this.updateElements();
     TIMER_END('Drawing elements', this.display_timers);
+    */
     TIMER_GROUP_END('Generating SVG', this.display_timers);
   }
   
@@ -2280,12 +2298,12 @@
   /////// CARTESIAN ///////
   function Rect(param) {
     this.g = null;
-    this.dimName = {};
+    this.dimAlias = {};
     this.scale = {};
     this.boundary = {};
-    for(var i = 0 ; i < Rect.prototype.dimName.length ; i++) {
-      this.dimName[Rect.prototype.dimName[i]] = undefined;
-      this.scale[Rect.prototype.dimName[i]] = null;
+    for(var i = 0 ; i < this.dimName.length ; i++) {
+      this.dimAlias[this.dimName[i]] = undefined;
+      this.scale[this.dimName[i]] = null;
     }
     
     
@@ -2295,14 +2313,14 @@
       return;
     }
     
-    for(var i in this.dimName) {
+    for(var i in this.dimAlias) {
       var type = typeof param[i];
       if(type != 'undefined') {
         if(type != 'number' && type != 'string' && param[i] != null) {
           ERROR(errorParamMessage(lib_name+'.rect', i, type, '\'number\' or \'string\''));
         }
         else {
-          this.dimName[i] = param[i];
+          this.dimAlias[i] = param[i];
         }
       }
     }
@@ -2325,32 +2343,37 @@
                   y:[height, 0]};
     
     
-    for(var i in this.dimName) {
-      if(this.dimName[i] == null) {
-        subSize[i] = size[i];
+    for(var i in this.dimAlias) {
+      if(this.dimAlias[i] == null) {
+        if(this.g.merge_null_axis) {
+          subSize[i] = size[i];
+        }
+        else {
+          subSize[i] = size[i] / (1+this.g.coordSysMargin);
+        }
       }
       else if(this.subSys != null) {
         this.scale[i] = d3.scale.ordinal()
-                        .domain(dim[this.dimName[i]].domain)
+                        .domain(dim[this.dimAlias[i]].domain)
                         .rangeRoundBands(ranges[i], this.g.coordSysMargin);
         subSize[i] = this.scale[i].rangeBand();
       }
-      else if(dim[this.dimName[i]].discret) {
+      else if(dim[this.dimAlias[i]].discret) {
         this.scale[i] = d3.scale.ordinal()
-                        .domain(dim[this.dimName[i]].domain)
+                        .domain(dim[this.dimAlias[i]].domain)
                         .rangePoints(ranges[i], this.g.ordinal_scale_padding);
-        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimName[i]].domain.length - 1 + this.g.ordinal_scale_padding);
+        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimAlias[i]].domain.length - 1 + this.g.ordinal_scale_padding);
       }
       else {
         this.scale[i] = d3.scale.linear()
-                        .domain(addPadding(dim[this.dimName[i]].domain, this.g.linear_scale_padding))
+                        .domain(addPadding(dim[this.dimAlias[i]].domain, this.g.linear_scale_padding))
                         .range(ranges[i])
                         .nice();
         subSize[i] = size[i] / (this.scale[i].domain()[1] - this.scale[i].domain()[0]);
       }
       
-      if(this.dimName[i] != null) {
-        dim[this.dimName[i]].band = subSize[i];
+      if(this.dimAlias[i] != null) {
+        dim[this.dimAlias[i]].band = subSize[i];
       }
       
       this.boundary[i] = {min:0, max:size[i]};
@@ -2365,19 +2388,22 @@
     
   Rect.prototype.getX = function(pos, d, i) {
     var X = null;
-    if(this.dimName['x'] == null) {
+    if(this.dimAlias['x'] == null) {
       if(this.subSys == null) {
         X = this.boundary['x'].max / 2;
       }
-      else {
+      else if(this.g.merge_null_axis) {
         X = 0;
       }
+      else {
+        X = this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      }
     }
-    else if(pos[this.dimName['x']] == null) {
+    else if(pos[this.dimAlias['x']] == null) {
       X =  0;
     }
     else {
-      X = this.scale['x'](pos[this.dimName['x']](d, i));
+      X = this.scale['x'](pos[this.dimAlias['x']](d, i));
     }
     
     if(this.subSys != null) {
@@ -2389,19 +2415,22 @@
   
   Rect.prototype.getY = function(pos, d, i) {
     var Y = null;
-    if(this.dimName['y'] == null) {
+    if(this.dimAlias['y'] == null) {
       if(this.subSys == null) {
         Y = this.boundary['y'].max / 2;
       }
-      else {
+      else if(this.g.merge_null_axis) {
         Y = 0;
       }
+      else {
+        Y = this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      }
     }
-    else if(pos[this.dimName['y']] == null) {
+    else if(pos[this.dimAlias['y']] == null) {
       Y = 0;
     }
     else {
-      Y = this.scale['y'](pos[this.dimName['y']](d, i));
+      Y = this.scale['y'](pos[this.dimAlias['y']](d, i));
     }
     
     if(this.subSys != null) {
@@ -2414,11 +2443,19 @@
   Rect.prototype.getXOrigin = function(pos, d, i) {
     var X = null;
     
-    if(this.subSys == null || this.dimName['x'] == null) {
+    if(this.subSys == null) {
       X = 0;
     }
+    else if(this.dimAlias['x'] == null) {
+      if(this.g.merge_null_axis) {
+        X = 0;
+      }
+      else {
+        X = this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      }
+    }
     else {
-      X = this.scale['x'](pos[this.dimName['x']](d, i));
+      X = this.scale['x'](pos[this.dimAlias['x']](d, i));
     }
     
     if(this.subSys != null) {
@@ -2431,11 +2468,19 @@
   Rect.prototype.getYOrigin = function(pos, d, i) {
     var Y = null;
     
-    if(this.subSys == null || this.dimName['y'] == null) {
+    if(this.subSys == null) {
       Y = 0;
     }
+    else if(this.dimAlias['y'] == null) {
+      if(this.g.merge_null_axis) {
+        Y = 0;
+      }
+      else {
+        Y = this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      }
+    }
     else {
-      Y = this.scale['y'](pos[this.dimName['y']](d, i));
+      Y = this.scale['y'](pos[this.dimAlias['y']](d, i));
     }
     
     if(this.subSys != null) {
@@ -2452,14 +2497,19 @@
     .append('rect')
     .attr('width', width)
     .attr('height', height)
-    .attr('fill','orange')
-    .attr('fill-opacity',0.3);
+    .attr('fill','none')
+    .attr('stroke','black')
+    .attr('stroke-width',2);
     
     if(this.subSys != null) {
-      var rangeX = (this.dimName['x'] != null) ? this.scale['x'].range() : [0];
-      var rangeY = (this.dimName['y'] != null) ? this.scale['y'].range() : [0];
-      var subWidth = (this.dimName['x'] != null) ? this.scale['x'].rangeBand() : width;
-      var subHeight = (this.dimName['y'] != null) ? this.scale['y'].rangeBand() : height;
+      var rangeX = (this.dimAlias['x'] != null) ? this.scale['x'].range() : 
+                    this.g.merge_null_axis ? [0] : [width * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+      var rangeY = (this.dimAlias['y'] != null) ? this.scale['y'].range() :
+                    this.g.merge_null_axis ? [0] : [height * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+      var subWidth = (this.dimAlias['x'] != null) ? this.scale['x'].rangeBand() :
+                      this.g.merge_null_axis ? width : width / (1+this.g.coordSysMargin);
+      var subHeight = (this.dimAlias['y'] != null) ? this.scale['y'].rangeBand() :
+                      this.g.merge_null_axis ? height : height / (1+this.g.coordSysMargin);
       
       for(var i = 0 ; i < rangeX.length ; i++) {
         for(var j = 0 ; j < rangeY.length ; j++) {
@@ -2474,12 +2524,12 @@
     
     // X axis
     if(isUndefined(dimToDraw) || dimToDraw == 'x') {
-      if(this.dimName['x'] != null) {
+      if(this.dimAlias['x'] != null) {
         var xAxis = d3.svg.axis()
                     .scale(this.scale['x'])
                     .orient('bottom');
         
-        if(!dim[this.dimName['x']].discret) {
+        if(!dim[this.dimAlias['x']].discret) {
           xAxis.ticks(5);
         }
         
@@ -2488,29 +2538,27 @@
                             .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
                             .call(xAxis);
            
-        if(!dim[this.dimName['x']].displayAxis) {
+        if(!dim[this.dimAlias['x']].displayAxis) {
           xAxisNode.select('.domain').remove();
         }
-        if(!dim[this.dimName['x']].displayTicks) {
+        if(!dim[this.dimAlias['x']].displayTicks) {
           xAxisNode.selectAll('.tick').remove();
         }
       }
-      else {
-        if(this.subSys instanceof Rect) {
-          this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'x');
-          drawSubSysAxis = false;
-        }
+      else if(this.g.merge_null_axis && this.subSys instanceof Rect) {
+        this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'x');
+        drawSubSysAxis = false;
       }
     }
     
     // Y axis
     if(isUndefined(dimToDraw) || dimToDraw == 'y') {
-      if(this.dimName['y'] != null) {
+      if(this.dimAlias['y'] != null) {
         var yAxis = d3.svg.axis()
                     .scale(this.scale['y'])
                     .orient('left');
         
-        if(!dim[this.dimName['y']].discret) {
+        if(!dim[this.dimAlias['y']].discret) {
           yAxis.ticks(5);
         }
         
@@ -2519,19 +2567,26 @@
                            .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
                            .call(yAxis);
            
-        if(!dim[this.dimName['y']].displayAxis) {
+        if(!dim[this.dimAlias['y']].displayAxis) {
           xAxisNode.select('.domain').remove();
         }
-        if(!dim[this.dimName['y']].displayTicks) {
+        if(!dim[this.dimAlias['y']].displayTicks) {
           xAxisNode.selectAll('.tick').remove();
         }
       }
-      else {
-        if(this.subSys instanceof Rect) {
-          this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'y');
-          drawSubSysAxis = false;
-        }
+      else if(this.g.merge_null_axis && this.subSys instanceof Rect) {
+        this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'y');
+        drawSubSysAxis = false;
       }
+    }
+    
+    if(this.dimAlias['x'] == null) {
+      offsetX += this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      width /= 1+this.g.coordSysMargin;
+    }
+    if(this.dimAlias['y'] == null) {
+      offsetY += this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
+      height /= 1+this.g.coordSysMargin;
     }
     
     if(drawSubSysAxis) {
@@ -2546,9 +2601,9 @@
       var range = {};
       var subSize = {};
       
-      for(var i in this.dimName) {
-        range[i] = (this.dimName[i] != null) ? this.scale[i].range() : [0];
-        subSize[i] = (this.dimName[i] != null) ? this.scale[i].rangeBand() : size[i];
+      for(var i in this.dimAlias) {
+        range[i] = (this.dimAlias[i] != null) ? this.scale[i].range() : [0];
+        subSize[i] = (this.dimAlias[i] != null) ? this.scale[i].rangeBand() : size[i];
       }
       
       for(var i = 0 ; i < range['x'].length ; i++) {
@@ -2559,15 +2614,97 @@
     }
   }
   
+  Rect.prototype.updateSVG = function(svg, dim, width, height, depth) {
+    /*                 *\
+     * Draw background *
+    \*                 */
+    if(this.g.drawBackground) {
+      var bg = svg.select('g.background.depth'+depth);
+      if(bg.empty()) {
+        svg.append('g')
+          .attr('class', 'background')
+            .append('rect')
+              .attr('width', width)
+              .attr('height', height)
+              .attr('fill', 'orange')
+              .attr('fill-opacity', 0)
+            .transition()
+              .attr('fill-opacity', 0.3);
+      }
+      else {
+        bg.select('rect')
+          .transition()
+            .attr('width', width)
+            .attr('height', height);
+      }
+    }
+    
+    /*             *\
+     * Draw Axises *
+    \*             */
+    //TODO
+    
+    
+    /*                                       *\
+     * Generate svg of sub coordinate system *
+    \*                                       */
+    if(this.subSys != null) {
+      var infoSubCoordSys = [];
+      var rangeX = (this.dimAlias['x'] != null) ? this.scale['x'].range() : 
+                    this.g.merge_null_axis      ? [0]
+                                                : [width * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+      
+      var rangeY = (this.dimAlias['y'] != null) ? this.scale['y'].range() :
+                    this.g.merge_null_axis      ? [0]
+                                                : [height * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+      
+      var subWidth = (this.dimAlias['x'] != null) ? this.scale['x'].rangeBand() :
+                      this.g.merge_null_axis      ? width
+                                                  : width / (1+this.g.coordSysMargin);
+      
+      var subHeight = (this.dimAlias['y'] != null)  ? this.scale['y'].rangeBand() :
+                      this.g.merge_null_axis        ? height
+                                                    : height / (1+this.g.coordSysMargin);
+      
+      for(var i = 0 ; i < rangeX.length ; i++) {
+        for(var j = 0 ; j < rangeY.length ; j++) {
+          infoSubCoordSys.push([i, j, rangeX[i], rangeY[j]]);
+        }
+      }
+      
+      var subCoordSysNode = svg.selectAll('.sub-graphic.depth'+(depth+1))
+                              .filter()
+                              .data(infoSubCoordSys);
+      // On update
+      subCoordSysNode.transition()
+        .attr('transform', function(d){return 'translate('+d[2]+','+d[3]+')';});
+      
+      // On enter
+      subCoordSysNode.enter()
+        .append('g')
+          .attr('class', function(d){;return 'sub-graphic depth'+(depth+1)+' '+d[0]+'-'+d[1];})
+          .attr('transform', function(d){return 'translate('+d[2]+','+d[3]+')';});
+      
+      // On exit
+      subCoordSysNode.exit().remove();
+      
+      var subSys = this.subSys;
+      subCoordSysNode.each(function(d) {
+          subSys.updateSVG(d3.select(this), dim, subWidth, subHeight, depth+1);
+        });
+    }
+  };
+  
+  
   /////// POLAR ///////
   function Polar(param) {
     this.g = null;
-    this.dimName = {};
+    this.dimAlias = {};
     this.scale = {};
     this.boundary = {};
-    for(var i = 0 ; i < Polar.prototype.dimName.length ; i++) {
-      this.dimName[Polar.prototype.dimName[i]] = undefined;
-      this.scale[Polar.prototype.dimName[i]] = null;
+    for(var i = 0 ; i < this.dimName.length ; i++) {
+      this.dimAlias[this.dimName[i]] = undefined;
+      this.scale[this.dimName[i]] = null;
     }
     
     this.centerX = null;
@@ -2578,14 +2715,14 @@
       return;
     }
     
-    for(var i in this.dimName) {
+    for(var i in this.dimAlias) {
       var type = typeof param[i];
       if(type != 'undefined') {
         if(type != 'number' && type != 'string' && param[i] != null) {
           ERROR(errorParamMessage(lib_name+'.polar', i, type, '\'number\' or \'string\''));
         }
         else {
-          this.dimName[i] = param[i];
+          this.dimAlias[i] = param[i];
         }
       }
     }
@@ -2607,48 +2744,48 @@
     
     // Theta
     this.boundary['theta'] = {min:0, max:2*Math.PI};
-    if(this.dimName['theta'] == null) {
+    if(this.dimAlias['theta'] == null) {
     }
-    else if(dim[this.dimName['theta']].discret) {
-      var dom = dim[this.dimName['theta']].domain.slice();
+    else if(dim[this.dimAlias['theta']].discret) {
+      var dom = dim[this.dimAlias['theta']].domain.slice();
       dom.push('');
       this.scale['theta'] = d3.scale.ordinal()
                       .domain(dom)
                       .rangePoints([0, 2 * Math.PI]);
-      dim[this.dimName['theta']].band = (2 * Math.PI) / dim[this.dimName['theta']].domain.length;
+      dim[this.dimAlias['theta']].band = (2 * Math.PI) / dim[this.dimAlias['theta']].domain.length;
     }
     else {
       this.scale['theta'] = d3.scale.linear()
-                                    .domain(dim[this.dimName['theta']].domain)
+                                    .domain(dim[this.dimAlias['theta']].domain)
                                     .range([0, 2*Math.PI]);
-      dim[this.dimName['theta']].band = 2 * Math.PI / (this.scale['theta'].domain()[1] - this.scale['theta'].domain()[0]);
+      dim[this.dimAlias['theta']].band = 2 * Math.PI / (this.scale['theta'].domain()[1] - this.scale['theta'].domain()[0]);
     }
     
     
     // Radius
     this.boundary['radius'] = {min:0, max:d3.min([width / 2, height / 2])};
-    if(this.dimName['radius'] == null) {
+    if(this.dimAlias['radius'] == null) {
     }
-    else if(dim[this.dimName['radius']].discret) {
+    else if(dim[this.dimAlias['radius']].discret) {
       this.scale['radius'] = d3.scale.ordinal()
-                               .domain(dim[this.dimName['radius']].domain)
+                               .domain(dim[this.dimAlias['radius']].domain)
                                .rangePoints([0, this.boundary['radius'].max], 1);
-      dim[this.dimName['radius']].band = this.boundary['radius'].max / dim[this.dimName['radius']].domain.length;
+      dim[this.dimAlias['radius']].band = this.boundary['radius'].max / dim[this.dimAlias['radius']].domain.length;
     }
     else {
       this.scale['radius'] = d3.scale.linear()
-                      .domain(dim[this.dimName['radius']].domain)
+                      .domain(dim[this.dimAlias['radius']].domain)
                       .range([0, this.boundary['radius'].max])
                       .nice();
-      dim[this.dimName['radius']].band = this.boundary['radius'].max / (this.scale['radius'].domain()[1] - this.scale['radius'].domain()[0]);
+      dim[this.dimAlias['radius']].band = this.boundary['radius'].max / (this.scale['radius'].domain()[1] - this.scale['radius'].domain()[0]);
     }
   };
   
   Polar.prototype.getX = function(pos, d, i) {
     var theta = null;
-    if(this.dimName['theta'] != null) {
-      if(pos[this.dimName['theta']] != null) {
-        theta = this.scale['theta'](pos[this.dimName['theta']](d, i))
+    if(this.dimAlias['theta'] != null) {
+      if(pos[this.dimAlias['theta']] != null) {
+        theta = this.scale['theta'](pos[this.dimAlias['theta']](d, i))
       }
       else {
         theta = 0;
@@ -2660,9 +2797,9 @@
     
     
     var radius = null;
-    if(this.dimName['radius'] != null) {
-      if(pos[this.dimName['radius']] != null) {
-        radius = this.scale['radius'](pos[this.dimName['radius']](d, i))
+    if(this.dimAlias['radius'] != null) {
+      if(pos[this.dimAlias['radius']] != null) {
+        radius = this.scale['radius'](pos[this.dimAlias['radius']](d, i))
       }
       else {
         radius = 0;
@@ -2677,9 +2814,9 @@
   
   Polar.prototype.getY = function(pos, d, i) {
     var theta = null;
-    if(this.dimName['theta'] != null) {
-      if(pos[this.dimName['theta']] != null) {
-        theta = this.scale['theta'](pos[this.dimName['theta']](d, i))
+    if(this.dimAlias['theta'] != null) {
+      if(pos[this.dimAlias['theta']] != null) {
+        theta = this.scale['theta'](pos[this.dimAlias['theta']](d, i))
       }
       else {
         theta = 0;
@@ -2690,9 +2827,9 @@
     }
     
     var radius = null;
-    if(this.dimName['radius'] != null) {
-      if(pos[this.dimName['radius']] != null) {
-        radius = this.scale['radius'](pos[this.dimName['radius']](d, i))
+    if(this.dimAlias['radius'] != null) {
+      if(pos[this.dimAlias['radius']] != null) {
+        radius = this.scale['radius'](pos[this.dimAlias['radius']](d, i))
       }
       else {
         radius = 0;
@@ -2729,14 +2866,14 @@
     var maxRadius = d3.min([width / 2, height / 2]);
     
     // Radius 'axis'
-    if(this.dimName['radius'] != null) {
+    if(this.dimAlias['radius'] != null) {
       var axisNode = svg.append('g');
       axisNode.attr('class', 'axis radius')
               .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
       
       var ticks;
       
-      if(dim[this.dimName['radius']].discret) {
+      if(dim[this.dimAlias['radius']].discret) {
         ticks = this.scale['radius'].domain();
       }
       else {
@@ -2750,14 +2887,14 @@
       for(var i = 0 ; i < ticks.length ; i++) {
         var tickNode = axisNode.append('g').attr('class', 'tick');
         
-        if(dim[this.dimName['radius']].displayAxis) {
+        if(dim[this.dimAlias['radius']].displayAxis) {
           tickNode.append('circle')
                   .attr('r', this.scale['radius'](ticks[i]) || 1)
                   .attr('fill', 'none')
                   .attr('stroke', 'black');
         }
         
-        if(dim[this.dimName['radius']].displayTicks) {
+        if(dim[this.dimAlias['radius']].displayTicks) {
           tickNode.append('text')
                   .text(ticks[i])
                   .attr('x', this.scale['radius'](ticks[i]) + 5)
@@ -2768,14 +2905,14 @@
     }
     
     // Theta axis
-    if(this.dimName['theta'] != null) {
+    if(this.dimAlias['theta'] != null) {
       var axisNode = svg.append('g');
       axisNode.attr('class', 'axis theta')
               .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
       
       var ticks;
       
-      if(dim[this.dimName['theta']].discret) {
+      if(dim[this.dimAlias['theta']].discret) {
         ticks = this.scale['theta'].domain();
       }
       else {
@@ -2791,7 +2928,7 @@
         var x = null;
         var y = null;
         
-        if(dim[this.dimName['theta']].displayAxis) {
+        if(dim[this.dimAlias['theta']].displayAxis) {
           x = Math.cos(this.scale['theta'](ticks[i])) * maxRadius;
           y = -Math.sin(this.scale['theta'](ticks[i])) * maxRadius;
           tickNode.append('line')
@@ -2802,7 +2939,7 @@
                   .attr('stroke', 'black');
         }
         
-        if(dim[this.dimName['theta']].displayTicks) {
+        if(dim[this.dimAlias['theta']].displayTicks) {
           x = Math.cos(this.scale['theta'](ticks[i])) * (maxRadius + 15);
           y = -Math.sin(this.scale['theta'](ticks[i])) * (maxRadius + 15);
           var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
@@ -2815,9 +2952,191 @@
         }
       }
     }
+  
   };
   
   Polar.prototype.drawSubSysAxis = function(svg, dim, offsetX, offsetY, width, height) {
+  }
+  
+  Polar.prototype.updateSVG = function(svg, dim, width, height, depth) {
+    var maxRadius = this.boundary['radius'].max;
+    
+    /*                 *\
+     * Draw background *
+    \*                 */
+    if(this.g.drawBackground) {
+      var bg = svg.select('g.background.depth'+depth);
+      if(bg.empty()) {
+        svg.append('g')
+          .attr('class', 'background')
+            .append('circle')
+              .attr('transform', 'translate('+this.centerX+','+this.centerY+')')
+              .attr('r', maxRadius)
+              .attr('fill', 'orange')
+              .attr('fill-opacity', 0)
+            .transition()
+              .attr('fill-opacity', 0.3);
+      }
+      else {
+        bg.select('circle')
+          .transition()
+            .attr('transform', 'translate('+this.centerX+','+this.centerY+')')
+            .attr('r', maxRadius);
+      }
+    }
+    
+    
+    /*             *\
+     * Draw Axises *
+    \*             */
+    
+    // Radius 'axis'
+    if(this.dimAlias['radius'] != null) {
+      var axisNode = svg.select('g.axis.'+this.dimAlias['radius']);
+      var ticks;
+      
+      if(dim[this.dimAlias['radius']].discret) {
+        ticks = this.scale['radius'].domain();
+      }
+      else {
+        ticks = this.scale['radius'].ticks(5);
+        var dom = this.scale['radius'].domain();
+        ticks.push(dom[0]);
+        ticks.push(dom[1]);
+        RemoveDupArray(ticks);
+      }
+      
+      if(axisNode.empty()) {
+        axisNode = svg.append('g')
+                    .attr('class', 'axis '+this.dimAlias['radius'])
+                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')')
+                    .attr('fill-opacity', 0)
+                    .attr('stroke-opacity', 0);
+        axisNode.transition()
+                    .attr('fill-opacity', 1)
+                    .attr('stroke-opacity', 1);
+      }
+      
+      
+      var ticksInfo = [];
+      for(var i = 0 ; i < ticks.length ; i++) {
+        ticksInfo.push([ticks[i], this.scale['radius'](ticks[i])]);
+      }
+      
+      var tickNode = axisNode.selectAll('tick')
+                            .data(ticksInfo);
+      
+      // On update
+      tickNode.select('circle')
+        .transition()
+        .attr('r', function(d){return d[1] || 0.5;});
+      tickNode.select('text')
+        .text(function(d){return d[0];})
+        .transition()
+        .attr('x', function(d){return d[1] + 5;});
+      
+      // On exit
+      tickNode.exit().remove();
+      
+      // On enter
+      tickNode = tickNode.enter()
+                      .append('g')
+                      .attr('class', 'tick');
+      if(dim[this.dimAlias['radius']].displayAxis) {
+        tickNode.append('circle')
+                  .attr('r', function(d){return d[1] || 0.5;})
+                  .attr('fill', 'none')
+                  .attr('stroke', 'black');
+      }
+      
+      if(dim[this.dimAlias['radius']].displayTicks) {
+        tickNode.append('text')
+                .text(function(d){return d[0];})
+                .attr('x', function(d){return d[1] + 5;})
+                .attr('y', -5)
+                .attr('fill', 'black');
+      }
+    }
+    
+    // Theta axis
+    if(this.dimAlias['theta'] != null) {
+      var axisNode = svg.select('g.axis.'+this.dimAlias['theta']);
+      var ticks;
+      
+      if(dim[this.dimAlias['theta']].discret) {
+        ticks = this.scale['theta'].domain();
+      }
+      else {
+        ticks = this.scale['theta'].ticks(8);
+        var dom = this.scale['theta'].domain();
+        //ticks.push(dom[0]);
+        //ticks.push(dom[1]);
+        //RemoveDupArray(ticks);
+      }
+      
+      if(axisNode.empty()) {
+        axisNode = svg.append('g')
+                    .attr('class', 'axis '+this.dimAlias['theta'])
+                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')')
+                    .attr('fill-opacity', 0)
+                    .attr('stroke-opacity', 0);
+        axisNode.transition()
+                    .attr('fill-opacity', 1)
+                    .attr('stroke-opacity', 1);
+      }
+      
+      
+      var ticksInfo = [];
+      for(var i = 0 ; i < ticks.length ; i++) {
+        ticksInfo.push([ticks[i], this.scale['theta'](ticks[i])]);
+      }
+      
+      var tickNode = axisNode.selectAll('tick')
+                            .data(ticksInfo);
+      
+      // On update
+      tickNode.select('line')
+        .transition()
+        .attr('x2', function(d){return Math.cos(d[1]) * maxRadius;})
+        .attr('y2', function(d){return -Math.sin(d[1]) * maxRadius;})
+      tickNode.select('text')
+        .text(function(d){return (typeof d[0] === 'number') ? d[0].toFixed(2) : d[0].toString();})
+        .transition()
+        .attr('transform', function(d) {
+          var x = Math.cos(d[1]) * (maxRadius + 15);
+          var y = -Math.sin(d[1]) * (maxRadius + 15);
+          return 'translate('+x+','+y+')';
+        });
+      
+      // On exit
+      tickNode.exit().remove();
+      
+      // On enter
+      tickNode = tickNode.enter()
+                      .append('g')
+                      .attr('class', 'tick');
+      if(dim[this.dimAlias['theta']].displayAxis) {
+        tickNode.append('line')
+                  .attr('x1', 0)
+                  .attr('y1', 0)
+                  .attr('x2', function(d){return Math.cos(d[1]) * maxRadius;})
+                  .attr('y2', function(d){return -Math.sin(d[1]) * maxRadius;})
+                  .attr('stroke', 'black');
+      }
+      
+      if(dim[this.dimAlias['theta']].displayTicks) {
+        tickNode.append('text')
+                .text(function(d){return (typeof d[0] === 'number') ? d[0].toFixed(2) : d[0].toString();})
+                .attr('transform', function(d) {
+                  var x = Math.cos(d[1]) * (maxRadius + 15);
+                  var y = -Math.sin(d[1]) * (maxRadius + 15);
+                  return 'translate('+x+','+y+')';
+                })
+                .attr('text-anchor', 'middle')
+                .attr('y', '.35em')
+                .attr('fill', 'black');
+      }
+    }
   }
   
   ///////////////////////
@@ -3705,16 +4024,16 @@
     var cs = coordSystem;
     
     while(cs != null) {
-      for(var i in cs.dimName) {
-        if(cs.dimName[i] != null) {
-          dim[cs.dimName[i]] = {  isSpacial:true};
+      for(var i in cs.dimAlias) {
+        if(cs.dimAlias[i] != null) {
+          dim[cs.dimAlias[i]] = {  isSpacial:true};
           
           // Force ordinal if the coordinate system have a sub coordinate system
           if(cs.subSys != null) {
-            dim[cs.dimName[i]].forceOrdinal = true;
+            dim[cs.dimAlias[i]].forceOrdinal = true;
           }
           else {
-            dim[cs.dimName[i]].forceOrdinal = false;
+            dim[cs.dimAlias[i]].forceOrdinal = false;
           }
         }
       }

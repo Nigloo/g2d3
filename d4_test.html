@@ -30,7 +30,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            /*
+            
             var dataset = [
                 {col1:5,    col2:5,     col3:300,   col4:0},
                 {col1:10,   col2:20,    col3:1200,  col4:1},
@@ -135,19 +135,19 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            */
+            
             G['4'] = d4.graphic()
-            .hack({display_timers:false})
+            .hack({display_timers:false,transition_enabled:true})
             .coord(d4.rect({subSys: d4.polar()}))
             //.coord(d4.rect({x:'x',y:'y',subSys:d4.rect({x:'theta',y:'radius'})}))
             .time({t:'data:col5'})
             .axis({axis:'x', display_ticks:false})
             .axis({axis:'y', display_axis:false})
-            //.axis({axis:'radius', display_ticks:false})
-            //.axis({axis:'theta', display_axis:false})
+            .axis({axis:'radius', display_ticks:false})
+            .axis({axis:'theta', display_axis:false})
             .element({  x:'data:col1',
                         y: 'data:col2',
-                        theta:function(d){return 'v'+d.col3},
+                        theta:d4.cat('data:col3'),
                         radius:'data:col4'})
             .line({     fill:'none',
                         stroke:'red',
@@ -170,14 +170,15 @@
                                                 pwd:'123456',
                                                 request:'SELECT * FROM data_test'})})
             .plot({selector:"#graph4", width:1000, height:1000, margin_left:50, margin_bottom:40});
-            /*
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             G['5'] = d4.graphic()
-            .hack({ transition_enabled:false,
-                    display_timers:true}).hack({drawBackground:false})
-            //.time({t:function(d){return parseInt(d.vn6 * 100)}})
+            .hack({ transition_duration:0,
+                    display_timers:true,
+                    drawBackground:false})
+            .time({t:function(d){return parseInt(d.vn6 * 100)}})
             .coord(d4.polar())
             .symbol({   theta:'data:bn6',
                         radius:'data:sn6',
@@ -189,14 +190,14 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            */
+            
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E', 'F'];
             for(var t = 0 ; t < 7 ; t++)
                 for(var i = 0 ; i < cat.length ; i++)
                     for(var y = 0 ; y < 5 ; y++)
-                        dataset.push({cat:cat[i], y:Math.random()*10, t:t});
-            /*
+                        dataset.push({cat:cat[i], y:parseInt(Math.random()*10), t:t});
+            
             G['6-1'] = d4.graphic()
             .coord(d4.polar({theta:'dim1', radius:'dim2'}))
             .time({t:'data:t'})
@@ -231,8 +232,9 @@
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-3", width:600, height:600, margin:30});
-            //*/
+            
             G['6-4'] = d4.graphic()
+            //.hack({merge_null_axis:false})
             .coord(d4.rect({x:'dim1', y:null,
                             subSys:d4.rect({x:'sub_cat', y:'dim2'})}))
             .time({t:'data:t'})
@@ -244,7 +246,7 @@
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-4", width:600, height:600, margin:30});
-            /*
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -309,7 +311,7 @@
                         dim2:d4.boxplotStat('data:value')})
             .data({data:dataset})
             .plot({selector:"#graph9", width:1024, height:768, margin:50});
-            */
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             

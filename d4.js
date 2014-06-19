@@ -45,7 +45,7 @@
     
     
     this.drawBackground = true;
-    this.transition_enabled = true;
+    this.transition_duration = 250;
     this.display_timers = false;
     this.merge_null_axis = true;
     
@@ -399,12 +399,16 @@
     }
     else {
       this.spacialCoord = coordSys;
-      
       var coordSyss = [];
+      coordSys.supSys = null;
       
       while(coordSys != null) {
         coordSyss.push(coordSys);
         coordSys.g = this;
+        // Double chaining between coordinate systems
+        if(coordSys.subSys != null) {
+          coordSys.subSys.supSys = coordSys;
+        }
         
         if(coordSys instanceof Polar && coordSys.subSys != null) {
           ERROR('Impossible to have a sub coordinate system in a Polar system');
@@ -811,8 +815,8 @@
           
           // On update
           var onUpdate = null;
-          if(this.transition_enabled) {
-            onUpdate = node.transition();
+          if(this.transition_duration > 0) {
+            onUpdate = node.transition().duration(this.transition_duration);
           }
           else {
             onUpdate = node;
@@ -863,8 +867,8 @@
           // On update
           else {
             node = this.svg.select('.'+eltClass);
-            if(this.transition_enabled) {
-              node = node.transition();
+            if(this.transition_duration > 0) {
+              node = node.transition().duration(this.transition_duration);
             }
           }
           
@@ -956,7 +960,7 @@
           
           node = drawBox( node,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass,
                           getX,
                           getY,
@@ -1191,7 +1195,7 @@
                               .data(dataSubset);
           nodeBox = drawBox( nodeBox,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' box',
                           getX,
                           getY,
@@ -1208,7 +1212,7 @@
                               .data(dataSubset);
           nodeQ1 = drawSegment( nodeQ1,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' quartile1-mask',
                           getX,
                           getY,
@@ -1230,7 +1234,7 @@
                               .data(dataSubset);
           nodeQ3 = drawSegment( nodeQ3,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' quartile3-mask',
                           getX,
                           getY,
@@ -1253,7 +1257,7 @@
                               .data(dataSubset);
           nodeMedian = drawSegment( nodeMedian,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' median',
                           getX,
                           getY,
@@ -1272,7 +1276,7 @@
                               .data(dataSubset);
           nodeMedianMask = drawSegment( nodeMedianMask,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' median-mask',
                           getX,
                           getY,
@@ -1295,7 +1299,7 @@
                               .data(dataSubset);
           nodeWisker1 = drawSegment( nodeWisker1,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker min',
                           getX,
                           getY,
@@ -1316,7 +1320,7 @@
                               .data(dataSubset);
           nodeWisker2 = drawSegment( nodeWisker2,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker max',
                           getX,
                           getY,
@@ -1337,7 +1341,7 @@
                               .data(dataSubset);
           nodeWiskerLimit1 = drawSegment( nodeWiskerLimit1,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker_limit min',
                           getX,
                           getY,
@@ -1356,7 +1360,7 @@
                               .data(dataSubset);
           nodeW1Mask = drawSegment( nodeW1Mask,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker-mask min',
                           getX,
                           getY,
@@ -1379,7 +1383,7 @@
                               .data(dataSubset);
           nodeWiskerLimit2 = drawSegment( nodeWiskerLimit2,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker_limit max',
                           getX,
                           getY,
@@ -1398,7 +1402,7 @@
                               .data(dataSubset);
           nodeW2Mask = drawSegment( nodeW2Mask,
                           deepestCoordSys,
-                          this.transition_enabled,
+                          this.transition_duration,
                           eltClass+' whisker-mask max',
                           getX,
                           getY,
@@ -2050,37 +2054,15 @@
                 .attr('class', 'depth0')
                 .attr('transform', 'translate('+this.margin.left+','+this.margin.top+')');
     
+    // Draw axises, backgrounds, and generate svg base to add elements
+    TIMER_BEGIN('Drawing backgroud', this.display_timers);
     this.spacialCoord.updateSVG(  svg,
                                   this.dim,
                                   width-this.margin.left-this.margin.right,
                                   height-this.margin.top-this.margin.bottom,
                                   0);
-    
-    
-    /*
-    // Add background
-    TIMER_BEGIN('Drawing backgroud', this.display_timers);
-    if(this.drawBackground) {
-      this.spacialCoord.drawBackground( this.svg,
-                                        this.dim,
-                                        this.margin.left,
-                                        this.margin.top,
-                                        width-this.margin.left-this.margin.right,
-                                        height-this.margin.top-this.margin.bottom);
-    }
     TIMER_END('Drawing backgroud', this.display_timers);
-    //*/
-    /*
-    // Add axises
-    TIMER_BEGIN('Drawing axises', this.display_timers);
-    this.spacialCoord.drawAxis( this.svg,
-                                this.dim,
-                                this.margin.left,
-                                this.margin.top,
-                                width-this.margin.left-this.margin.right,
-                                height-this.margin.top-this.margin.bottom);
-    TIMER_END('Drawing axises', this.display_timers);
-    */
+    
     // Add time sliders
     TIMER_BEGIN('Drawing sliders', this.display_timers);
     var getOnBrushed = function(brush, handle, g, timeDim, mouseToValue) {
@@ -2211,12 +2193,12 @@
     }
     this.updateSliders();
     TIMER_END('Drawing sliders', this.display_timers);
-    /*
+    
     // Draw elements
     TIMER_BEGIN('Drawing elements', this.display_timers);
     this.updateElements();
     TIMER_END('Drawing elements', this.display_timers);
-    */
+    
     TIMER_GROUP_END('Generating SVG', this.display_timers);
   }
   
@@ -2295,8 +2277,8 @@
     return new Polar(param);
   };
   
-  /////// CARTESIAN ///////
-  function Rect(param) {
+  // General construtor
+  function CoordSys(param, funcName) {
     this.g = null;
     this.dimAlias = {};
     this.scale = {};
@@ -2306,8 +2288,8 @@
       this.scale[this.dimName[i]] = null;
     }
     
-    
     this.subSys = null;
+    this.supSys = null;
     
     if(isUndefined(param)) {
       return;
@@ -2317,7 +2299,7 @@
       var type = typeof param[i];
       if(type != 'undefined') {
         if(type != 'number' && type != 'string' && param[i] != null) {
-          ERROR(errorParamMessage(lib_name+'.rect', i, type, '\'number\' or \'string\''));
+          ERROR(errorParamMessage(funcName, i, type, '\'number\' or \'string\''));
         }
         else {
           this.dimAlias[i] = param[i];
@@ -2326,11 +2308,16 @@
     }
     
     if(isDefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
-      ERROR(errorParamMessage(lib_name+'.rect', 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
+      ERROR(errorParamMessage(funcName, 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
     }
     else {
       this.subSys = param.subSys;
     }
+  }
+  
+  /////// CARTESIAN ///////
+  function Rect(param) {
+    CoordSys.call(this, param, lib_name+'.rect');
   };
   
   Rect.prototype.dimName = ['x', 'y'];
@@ -2490,130 +2477,6 @@
     return Y;
   };
   
-  Rect.prototype.drawBackground = function(svg, dim, offsetX, offsetY, width, height) {
-    svg.append('g')
-    .attr('class', 'background')
-    .attr('transform', 'translate('+offsetX+','+offsetY+')')
-    .append('rect')
-    .attr('width', width)
-    .attr('height', height)
-    .attr('fill','none')
-    .attr('stroke','black')
-    .attr('stroke-width',2);
-    
-    if(this.subSys != null) {
-      var rangeX = (this.dimAlias['x'] != null) ? this.scale['x'].range() : 
-                    this.g.merge_null_axis ? [0] : [width * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
-      var rangeY = (this.dimAlias['y'] != null) ? this.scale['y'].range() :
-                    this.g.merge_null_axis ? [0] : [height * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
-      var subWidth = (this.dimAlias['x'] != null) ? this.scale['x'].rangeBand() :
-                      this.g.merge_null_axis ? width : width / (1+this.g.coordSysMargin);
-      var subHeight = (this.dimAlias['y'] != null) ? this.scale['y'].rangeBand() :
-                      this.g.merge_null_axis ? height : height / (1+this.g.coordSysMargin);
-      
-      for(var i = 0 ; i < rangeX.length ; i++) {
-        for(var j = 0 ; j < rangeY.length ; j++) {
-          this.subSys.drawBackground(svg, dim, offsetX+rangeX[i], offsetY+rangeY[j], subWidth, subHeight);
-        }
-      }
-    }
-  };
-  
-  Rect.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height, dimToDraw) {
-    var drawSubSysAxis = true;
-    
-    // X axis
-    if(isUndefined(dimToDraw) || dimToDraw == 'x') {
-      if(this.dimAlias['x'] != null) {
-        var xAxis = d3.svg.axis()
-                    .scale(this.scale['x'])
-                    .orient('bottom');
-        
-        if(!dim[this.dimAlias['x']].discret) {
-          xAxis.ticks(5);
-        }
-        
-        var xAxisNode =  svg.append('g')
-                            .attr('class', 'axis x')
-                            .attr('transform', 'translate('+offsetX+','+(offsetY+height)+')')
-                            .call(xAxis);
-           
-        if(!dim[this.dimAlias['x']].displayAxis) {
-          xAxisNode.select('.domain').remove();
-        }
-        if(!dim[this.dimAlias['x']].displayTicks) {
-          xAxisNode.selectAll('.tick').remove();
-        }
-      }
-      else if(this.g.merge_null_axis && this.subSys instanceof Rect) {
-        this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'x');
-        drawSubSysAxis = false;
-      }
-    }
-    
-    // Y axis
-    if(isUndefined(dimToDraw) || dimToDraw == 'y') {
-      if(this.dimAlias['y'] != null) {
-        var yAxis = d3.svg.axis()
-                    .scale(this.scale['y'])
-                    .orient('left');
-        
-        if(!dim[this.dimAlias['y']].discret) {
-          yAxis.ticks(5);
-        }
-        
-        var xAxisNode = svg.append('g')
-                           .attr('class', 'axis y')
-                           .attr('transform', 'translate(' +offsetX+ ','+offsetY+')')
-                           .call(yAxis);
-           
-        if(!dim[this.dimAlias['y']].displayAxis) {
-          xAxisNode.select('.domain').remove();
-        }
-        if(!dim[this.dimAlias['y']].displayTicks) {
-          xAxisNode.selectAll('.tick').remove();
-        }
-      }
-      else if(this.g.merge_null_axis && this.subSys instanceof Rect) {
-        this.subSys.drawAxis(svg, dim, offsetX, offsetY, width, height, 'y');
-        drawSubSysAxis = false;
-      }
-    }
-    
-    if(this.dimAlias['x'] == null) {
-      offsetX += this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      width /= 1+this.g.coordSysMargin;
-    }
-    if(this.dimAlias['y'] == null) {
-      offsetY += this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      height /= 1+this.g.coordSysMargin;
-    }
-    
-    if(drawSubSysAxis) {
-      this.drawSubSysAxis(svg, dim, offsetX, offsetY, width, height);
-    }
-  };
-  
-  Rect.prototype.drawSubSysAxis = function(svg, dim, offsetX, offsetY, width, height) {
-    if(this.subSys != null) {
-      var size = {x:width,
-                  y:height};
-      var range = {};
-      var subSize = {};
-      
-      for(var i in this.dimAlias) {
-        range[i] = (this.dimAlias[i] != null) ? this.scale[i].range() : [0];
-        subSize[i] = (this.dimAlias[i] != null) ? this.scale[i].rangeBand() : size[i];
-      }
-      
-      for(var i = 0 ; i < range['x'].length ; i++) {
-        for(var j = 0 ; j < range['y'].length ; j++) {
-          this.subSys.drawAxis(svg, dim, offsetX+range['x'][i], offsetY+range['y'][j], subSize['x'], subSize['y']);
-        }
-      }
-    }
-  }
-  
   Rect.prototype.updateSVG = function(svg, dim, width, height, depth) {
     /*                 *\
      * Draw background *
@@ -2621,29 +2484,135 @@
     if(this.g.drawBackground) {
       var bg = svg.select('g.background.depth'+depth);
       if(bg.empty()) {
-        svg.append('g')
+        bg = svg.append('g')
           .attr('class', 'background')
             .append('rect')
               .attr('width', width)
               .attr('height', height)
-              .attr('fill', 'orange')
-              .attr('fill-opacity', 0)
-            .transition()
-              .attr('fill-opacity', 0.3);
+              .attr('fill', 'orange');
+        
+        if(this.g.transition_duration > 0) {
+          bg = bg.attr('fill-opacity', 0)
+                .transition().duration(this.g.transition_duration);
+        }
+        bg.attr('fill-opacity', 0.3);
       }
       else {
-        bg.select('rect')
-          .transition()
-            .attr('width', width)
-            .attr('height', height);
+        bg = bg.select('rect');
+        if(this.g.transition_duration > 0) {
+          bg = bg.transition().duration(this.g.transition_duration);
+        }
+        bg.attr('width', width)
+          .attr('height', height);
       }
     }
     
     /*             *\
      * Draw Axises *
     \*             */
-    //TODO
     
+    // X axis
+    
+    var dimInfo = [
+                    { dimName:'x',
+                      orient:'bottom',
+                      offsetY:height
+                    }//*,
+                    ,
+                    { dimName:'y',
+                      orient:'left',
+                      offsetY:0
+                    }//*/
+                  ];
+    
+    for(var i = 0 ; i < dimInfo.length ; i++) {
+      var dimName = dimInfo[i].dimName;
+      var scale;
+      var axisDim;
+      
+      if(this.g.merge_null_axis) {
+        // This axis has already been drawn by a sup coordinate system
+        if(this.supSys != null &&
+           // this.supSys instanceof Rect && // always true
+           (this.supSys.dimAlias['x'] == null ||
+            this.supSys.dimAlias['y'] == null)) {
+          scale = null;
+          axisDim = null;
+        }
+        else {
+          var coordSys = this;
+          while(coordSys != null &&
+                coordSys instanceof Rect &&
+                coordSys.dimAlias[dimName] == null) {
+            coordSys = coordSys.subSys;
+          }
+          if(coordSys instanceof Rect) {
+            scale = coordSys.scale[dimName];
+            axisDim = coordSys.dimAlias[dimName];
+          }
+          else {
+            scale = null;
+            axisDim = null;
+          }
+        }
+      }
+      else if(this.dimAlias[dimName] != null) {
+        scale = this.scale[dimName];
+        axisDim = this.dimAlias[dimName];
+      }
+      else {
+        scale = null;
+        axisDim = null;
+      }
+      
+      if(scale != null) {
+        var axisNode = svg.select('g.axis.'+axisDim);
+        var axis = d3.svg.axis().scale(scale).orient(dimInfo[i].orient);
+        
+        if(!dim[axisDim].discret) {
+          axis.ticks(5);
+        }
+        
+        // On enter
+        if(axisNode.empty()) {
+          axisNode = svg.append('g')
+                      .attr('class', 'axis '+axisDim)
+                      .classed(dimName, true)
+                      .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')')
+        
+          if(this.g.transition_duration > 0) {
+            axisNode.attr('fill-opacity', 0)
+                    .attr('stroke-opacity', 0)
+                  .transition().duration(this.g.transition_duration)
+                    .attr('fill-opacity', 1)
+                    .attr('stroke-opacity', 1);
+          }
+          
+          axisNode.call(axis);
+          
+          if(!dim[axisDim].displayAxis) {
+            axisNode.select('.domain').remove();
+          }
+          if(!dim[axisDim].displayTicks) {
+            axisNode.selectAll('.tick').remove();
+          }
+        }
+        // On update
+        else {
+          if(this.g.transition_duration > 0) {
+            axisNode = axisNode.transition().duration(this.g.transition_duration);
+          }
+          axisNode.call(axis);
+          
+          if(!dim[axisDim].displayAxis) {
+            axisNode.select('.domain').remove();
+          }
+          if(!dim[axisDim].displayTicks) {
+            axisNode.selectAll('.tick').remove();
+          }
+        }
+      }
+    }
     
     /*                                       *\
      * Generate svg of sub coordinate system *
@@ -2673,10 +2642,12 @@
       }
       
       var subCoordSysNode = svg.selectAll('.sub-graphic.depth'+(depth+1))
-                              .filter()
                               .data(infoSubCoordSys);
+      
       // On update
-      subCoordSysNode.transition()
+      (this.g.transition_duration > 0
+      ? subCoordSysNode.transition().duration(this.g.transition_duration)
+      : subCoordSysNode)
         .attr('transform', function(d){return 'translate('+d[2]+','+d[3]+')';});
       
       // On enter
@@ -2690,49 +2661,18 @@
       
       var subSys = this.subSys;
       subCoordSysNode.each(function(d) {
-          subSys.updateSVG(d3.select(this), dim, subWidth, subHeight, depth+1);
-        });
+        subSys.updateSVG(d3.select(this), dim, subWidth, subHeight, depth+1);
+      });
     }
   };
   
   
   /////// POLAR ///////
   function Polar(param) {
-    this.g = null;
-    this.dimAlias = {};
-    this.scale = {};
-    this.boundary = {};
-    for(var i = 0 ; i < this.dimName.length ; i++) {
-      this.dimAlias[this.dimName[i]] = undefined;
-      this.scale[this.dimName[i]] = null;
-    }
+    CoordSys.call(this, param, lib_name+'.polar');
     
     this.centerX = null;
     this.centerY = null;
-    this.subSys = null;
-    
-    if(isUndefined(param)) {
-      return;
-    }
-    
-    for(var i in this.dimAlias) {
-      var type = typeof param[i];
-      if(type != 'undefined') {
-        if(type != 'number' && type != 'string' && param[i] != null) {
-          ERROR(errorParamMessage(lib_name+'.polar', i, type, '\'number\' or \'string\''));
-        }
-        else {
-          this.dimAlias[i] = param[i];
-        }
-      }
-    }
-    
-    if(isDefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
-      ERROR(errorParamMessage(lib_name+'.polar', 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
-    }
-    else {
-      this.subSys = param.subSys;
-    }
   };
   
   Polar.prototype.dimName = ['theta', 'radius'];
@@ -2850,114 +2790,6 @@
     return this.centerY;
   }
   
-  Polar.prototype.drawBackground = function(svg, dim, offsetX, offsetY, width, height) {
-    var maxRadius = d3.min([width / 2, height / 2]);
-    
-    svg.append('g')
-    .attr('class', 'background')
-    .attr('transform', 'translate('+(offsetX+this.centerX)+','+(offsetY+this.centerY)+')')
-    .append('circle')
-    .attr('r', maxRadius)
-    .attr('fill','orange')
-    .attr('fill-opacity',0.3);
-  };
-  
-  Polar.prototype.drawAxis = function(svg, dim, offsetX, offsetY, width, height) {
-    var maxRadius = d3.min([width / 2, height / 2]);
-    
-    // Radius 'axis'
-    if(this.dimAlias['radius'] != null) {
-      var axisNode = svg.append('g');
-      axisNode.attr('class', 'axis radius')
-              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
-      
-      var ticks;
-      
-      if(dim[this.dimAlias['radius']].discret) {
-        ticks = this.scale['radius'].domain();
-      }
-      else {
-        ticks = this.scale['radius'].ticks(5);
-        var dom = this.scale['radius'].domain();
-        ticks.push(dom[0]);
-        ticks.push(dom[1]);
-        RemoveDupArray(ticks);
-      }
-      
-      for(var i = 0 ; i < ticks.length ; i++) {
-        var tickNode = axisNode.append('g').attr('class', 'tick');
-        
-        if(dim[this.dimAlias['radius']].displayAxis) {
-          tickNode.append('circle')
-                  .attr('r', this.scale['radius'](ticks[i]) || 1)
-                  .attr('fill', 'none')
-                  .attr('stroke', 'black');
-        }
-        
-        if(dim[this.dimAlias['radius']].displayTicks) {
-          tickNode.append('text')
-                  .text(ticks[i])
-                  .attr('x', this.scale['radius'](ticks[i]) + 5)
-                  .attr('y', -5)
-                  .attr('fill', 'black');
-        }
-      }
-    }
-    
-    // Theta axis
-    if(this.dimAlias['theta'] != null) {
-      var axisNode = svg.append('g');
-      axisNode.attr('class', 'axis theta')
-              .attr('transform', 'translate(' +(offsetX+this.centerX)+ ','+(offsetY+this.centerY)+')');  
-      
-      var ticks;
-      
-      if(dim[this.dimAlias['theta']].discret) {
-        ticks = this.scale['theta'].domain();
-      }
-      else {
-        ticks = this.scale['theta'].ticks(8);
-        var dom = this.scale['theta'].domain();
-        //ticks.push(dom[0]);
-        //ticks.push(dom[1]);
-        //RemoveDupArray(ticks);
-      }
-      
-      for(var i = 0 ; i < ticks.length ; i++) {
-        var tickNode = axisNode.append('g').attr('class', 'tick');
-        var x = null;
-        var y = null;
-        
-        if(dim[this.dimAlias['theta']].displayAxis) {
-          x = Math.cos(this.scale['theta'](ticks[i])) * maxRadius;
-          y = -Math.sin(this.scale['theta'](ticks[i])) * maxRadius;
-          tickNode.append('line')
-                  .attr('x1', 0)
-                  .attr('y1', 0)
-                  .attr('x2', x)
-                  .attr('y2', y)
-                  .attr('stroke', 'black');
-        }
-        
-        if(dim[this.dimAlias['theta']].displayTicks) {
-          x = Math.cos(this.scale['theta'](ticks[i])) * (maxRadius + 15);
-          y = -Math.sin(this.scale['theta'](ticks[i])) * (maxRadius + 15);
-          var tick = (typeof ticks[i] === 'number') ? ticks[i].toFixed(2) : ticks[i].toString();
-          tickNode.append('text')
-                  .text(tick)
-                  .attr('transform', 'translate('+x+','+y+')')
-                  .attr('text-anchor', 'middle')
-                  .attr('y', '.35em')
-                  .attr('fill', 'black');
-        }
-      }
-    }
-  
-  };
-  
-  Polar.prototype.drawSubSysAxis = function(svg, dim, offsetX, offsetY, width, height) {
-  }
-  
   Polar.prototype.updateSVG = function(svg, dim, width, height, depth) {
     var maxRadius = this.boundary['radius'].max;
     
@@ -2967,21 +2799,26 @@
     if(this.g.drawBackground) {
       var bg = svg.select('g.background.depth'+depth);
       if(bg.empty()) {
-        svg.append('g')
+        bg = svg.append('g')
           .attr('class', 'background')
             .append('circle')
               .attr('transform', 'translate('+this.centerX+','+this.centerY+')')
               .attr('r', maxRadius)
-              .attr('fill', 'orange')
-              .attr('fill-opacity', 0)
-            .transition()
-              .attr('fill-opacity', 0.3);
+              .attr('fill', 'orange');
+              
+        if(this.g.transition_duration > 0) {
+          bg = bg.attr('fill-opacity', 0)
+                .transition().duration(this.g.transition_duration);
+        }
+        bg.attr('fill-opacity', 0.3);
       }
       else {
-        bg.select('circle')
-          .transition()
-            .attr('transform', 'translate('+this.centerX+','+this.centerY+')')
-            .attr('r', maxRadius);
+        bg = bg.select('circle');
+        if(this.g.transition_duration > 0) {
+          bg = bg.transition().duration(this.g.transition_duration);
+        }
+        bg.attr('transform', 'translate('+this.centerX+','+this.centerY+')')
+          .attr('r', maxRadius);
       }
     }
     
@@ -3009,12 +2846,16 @@
       if(axisNode.empty()) {
         axisNode = svg.append('g')
                     .attr('class', 'axis '+this.dimAlias['radius'])
-                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')')
-                    .attr('fill-opacity', 0)
-                    .attr('stroke-opacity', 0);
-        axisNode.transition()
-                    .attr('fill-opacity', 1)
-                    .attr('stroke-opacity', 1);
+                    .classed('radius', true)
+                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')');
+        
+        if(this.g.transition_duration > 0) {
+          axisNode.attr('fill-opacity', 0)
+                  .attr('stroke-opacity', 0)
+                .transition().duration(this.g.transition_duration)
+                  .attr('fill-opacity', 1)
+                  .attr('stroke-opacity', 1);
+        }
       }
       
       
@@ -3027,12 +2868,14 @@
                             .data(ticksInfo);
       
       // On update
-      tickNode.select('circle')
-        .transition()
+      (this.g.transition_duration > 0
+      ? tickNode.select('circle').transition().duration(this.g.transition_duration)
+      : tickNode.select('circle'))
         .attr('r', function(d){return d[1] || 0.5;});
-      tickNode.select('text')
+      (this.g.transition_duration > 0
+      ? tickNode.select('text').transition().duration(this.g.transition_duration)
+      : tickNode.select('text'))
         .text(function(d){return d[0];})
-        .transition()
         .attr('x', function(d){return d[1] + 5;});
       
       // On exit
@@ -3077,12 +2920,16 @@
       if(axisNode.empty()) {
         axisNode = svg.append('g')
                     .attr('class', 'axis '+this.dimAlias['theta'])
-                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')')
-                    .attr('fill-opacity', 0)
-                    .attr('stroke-opacity', 0);
-        axisNode.transition()
-                    .attr('fill-opacity', 1)
-                    .attr('stroke-opacity', 1);
+                    .classed('theta', true)
+                    .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')');
+        
+        if(this.g.transition_duration > 0) {
+          axisNode.attr('fill-opacity', 0)
+                  .attr('stroke-opacity', 0)
+                .transition().duration(this.g.transition_duration)
+                  .attr('fill-opacity', 1)
+                  .attr('stroke-opacity', 1);
+        }
       }
       
       
@@ -3095,13 +2942,15 @@
                             .data(ticksInfo);
       
       // On update
-      tickNode.select('line')
-        .transition()
+      (this.g.transition_duration > 0
+      ? tickNode.select('line').transition().duration(this.g.transition_duration)
+      : tickNode.select('line'))
         .attr('x2', function(d){return Math.cos(d[1]) * maxRadius;})
-        .attr('y2', function(d){return -Math.sin(d[1]) * maxRadius;})
-      tickNode.select('text')
+        .attr('y2', function(d){return -Math.sin(d[1]) * maxRadius;});
+      (this.g.transition_duration > 0
+      ? tickNode.select('text').transition().duration(this.g.transition_duration)
+      : tickNode.select('text'))
         .text(function(d){return (typeof d[0] === 'number') ? d[0].toFixed(2) : d[0].toString();})
-        .transition()
         .attr('transform', function(d) {
           var x = Math.cos(d[1]) * (maxRadius + 15);
           var y = -Math.sin(d[1]) * (maxRadius + 15);
@@ -3758,7 +3607,7 @@
    * limBound1 | width  | endAngle    |
    * limBound2 | height | outerRadius |
    */
-  var drawBox = function(node, deepestCoordSys, transition_enabled, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  var drawBox = function(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     
     if(deepestCoordSys instanceof Rect) {
       // On enter
@@ -3771,8 +3620,8 @@
       
       // On update
       var onUpdate = null;
-      if(transition_enabled) {
-        onUpdate = node.transition();
+      if(transition_duration > 0) {
+        onUpdate = node.transition().duration(transition_duration);
       }
       else {
         onUpdate = node;
@@ -3806,24 +3655,19 @@
           this._innerRadius = bound2(d, i);
           this._outerRadius = limBound2(d, i);
           
-          var datum = { startAngle:this._startAngle,
-                        endAngle:this._endAngle,
-                        innerRadius:this._innerRadius,
-                        outerRadius:this._outerRadius};
+          var datum = { startAngle:   this._startAngle,
+                        endAngle:     this._endAngle,
+                        innerRadius:  this._innerRadius,
+                        outerRadius:  this._outerRadius};
             
           return arc(datum);
         });
       
       // On update
       var onUpdate = null;
-      if(transition_enabled) {
-        onUpdate = node.transition();
-      }
-      else {
-        onUpdate = node;
-      }
-      onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
-      onUpdate.attrTween('d', function(d, i) {
+      if(transition_duration > 0) {
+        onUpdate = node.transition().duration(transition_duration);
+        onUpdate.attrTween('d', function(d, i) {
           var startAngle =  bound1(d, i);
           var endAngle =    limBound1(d, i);
           var innerRadius = bound2(d, i);
@@ -3839,15 +3683,34 @@
           this._innerRadius = innerRadius;
           this._outerRadius = outerRadius;
           
+          var self = this;
+          
           return function(t) {
-            var datum = { startAngle:interpolStartAngle(t),
-                          endAngle:interpolEndAngle(t),
-                          innerRadius:interpolInnerRadius(t),
-                          outerRadius:interpolOuterRadius(t)};
+            self._startAngle =  interpolStartAngle(t);
+            self._endAngle =    interpolEndAngle(t);
+            self._innerRadius = interpolInnerRadius(t);
+            self._outerRadius = interpolOuterRadius(t);
+            
+            var datum = { startAngle:   self._startAngle,
+                          endAngle:     self._endAngle,
+                          innerRadius:  self._innerRadius,
+                          outerRadius:  self._outerRadius};
             
             return arc(datum);
           };
         });
+      }
+      else {
+        onUpdate = node;
+        onUpdate.attr('d', function(d, i){
+          var datum = { startAngle:   bound1(d, i),
+                        endAngle:     limBound1(d, i),
+                        innerRadius:  bound2(d, i),
+                        outerRadius:  limBound2(d, i)};
+          return arc(datum);
+        });
+      }
+      onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
     
       // On exit
       var onExit = node.exit();
@@ -3857,7 +3720,7 @@
   }
   
   // Draw a 'Segment' (Line or Arc)
-  var drawSegment = function(node, deepestCoordSys, transition_enabled, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  var drawSegment = function(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     var onEnter = null;
     var onUpdate = null;
     var onExit = null;
@@ -3873,8 +3736,8 @@
       
       // On update
       var onUpdate = null;
-      if(transition_enabled) {
-        onUpdate = node.transition();
+      if(transition_duration > 0) {
+        onUpdate = node.transition().duration(transition_duration);
       }
       else {
         onUpdate = node;
@@ -3895,8 +3758,8 @@
       
       // On update
       var onUpdate = null;
-      if(transition_enabled) {
-        onUpdate = node.transition();
+      if(transition_duration > 0) {
+        onUpdate = node.transition().duration(transition_duration);
       }
       else {
         onUpdate = node;
@@ -3975,8 +3838,14 @@
             this._endAngle =   endAngle;
             this._radius =     radius;
             
+            var self = this;
+            
             return function(t) {
-              return draw_arc(interpolStartAngle(t), interpolEndAngle(t), interpolRadius(t));
+              self._startAngle = interpolStartAngle(t);
+              self._endAngle =   interpolEndAngle(t);
+              self._radius =     interpolRadius(t);
+              
+              return draw_arc(self._startAngle, self._endAngle, self._radius);
             };
           });
       }

@@ -39,7 +39,7 @@
     
     
     // Both 'boxplot' and 'axis' method need dimensions to be set and
-    // therefore ahave to be called after 'coord' and 'time' method
+    // therefore have to be called after 'coord' and 'time' method
     this.boxplot_function_called = false;
     this.axis_function_called = false;
     
@@ -684,10 +684,28 @@
     };
     
     
-    // Deepest coordinate system
+    // Deepest coordinate system and iterator state to go through data
+    var maxPos = [];
+    var nonNullDim = [];
     var deepestCoordSys = this.spacialCoord;
+    var i = 0;
     while(deepestCoordSys.subSys != null) {
+      maxPos[i] = [];
+      nonNullDim[i] = [];
+      
+      for(var j = 0 ; j < deepestCoordSys.dimName.length ; j++) {
+        var dimAlias = deepestCoordSys.dimAlias[deepestCoordSys.dimName[j]];
+        if(dimAlias != null) {
+          maxPos[i][j] = this.dim[dimAlias].domain.length;
+          nonNullDim[i][j] = true;
+        }
+        else {
+          maxPos[i][j] = 1;
+          nonNullDim[i][j] = false;
+        }
+      }
       deepestCoordSys = deepestCoordSys.subSys;
+      i++;
     }
     
     // Deepest coordinate system dimention
@@ -749,6 +767,108 @@
       for(var j in this.currentTime) {
         dataToDisplay = dataToDisplay[this.currentTime[j]];
       }
+      
+      
+      var currentPos = [];
+      var subset = [dataToDisplay];
+      var svgGroups = [this.svg.select('.depth0')];
+      
+      for(var j = 0 ; j < maxPos.length ; j++) {
+        currentPos[j] = [];
+        var idGroup = '';
+        for(var k = 0 ; k < maxPos[j].length ; k++) {
+          currentPos[j][k] = 0;
+          if(nonNullDim[j][k]) {
+            subset.push(subset[subset.length-1][0]);
+          }
+          idGroup += k ? '-0' : '.sub-graphic-0';
+        }
+        svgGroups.push(svgGroups[svgGroups.length-1].select(idGroup));
+      }
+      
+      var nbGroup = this.elements[i].attrs.group.aes.discretDomain.length;
+      
+      
+      var stop = false;
+      while(!stop) {
+        var dataCurrentPos = subset[subset.length-1];
+        var svg = svgGroups[svgGroups.length-1];
+        
+        for(var groupId = 0 ; groupId < nbGroup ; groupId++) {
+          var dataSubset = dataCurrentPos[groupId];
+          
+          
+          // HERE WE DRAW !!!!
+          console.log(svg.node());
+          console.log('data: ', dataSubset[0].x1+' '+dataSubset[0].y1+'   '+dataSubset[0].x2+' '+dataSubset[0].y2);
+          var text = '';
+          for(var a = 0 ; a < currentPos.length;a++){
+            for(var b = 0 ; b < currentPos[a].length;b++){
+              text += currentPos[a][b] + ' ';
+            }
+            text += '  ';
+          }
+          console.log('pos : ',text);
+          console.log(' ');
+        }
+        
+        var goNextCoordSys = true;
+        
+        var subsetId = subset.length-2;
+        var coordSysId = currentPos.length-1;
+        while(goNextCoordSys) {
+          var goNextDim = true;
+          var dimId = currentPos[coordSysId].length-1;
+          while(goNextDim) {
+            currentPos[coordSysId][dimId]++;
+            if(currentPos[coordSysId][dimId] >= maxPos[coordSysId][dimId]) {
+              if(nonNullDim[coordSysId][dimId]) {
+                subsetId--;
+              }
+              
+              currentPos[coordSysId][dimId] = 0;
+              dimId--;
+              
+              if(dimId < 0) {
+                goNextDim = false;
+              }
+            }
+            else {
+              subset[subsetId+1] = subset[subsetId][currentPos[coordSysId][dimId]];
+              for(var j = subsetId+2 ; j < subset.length ; j++) {
+                subset[j] = subset[j-1][0];
+              }
+              
+              var idGroup = '';
+              for(var j = 0 ; j < maxPos[coordSysId].length ; j++) {
+                var id = currentPos[coordSysId][j];
+                idGroup += j ? '-'+id : '.sub-graphic-'+id;
+              }
+              svgGroups[coordSysId+1] = svgGroups[coordSysId].select(idGroup+'.depth'+(coordSysId+1));
+              
+              for(var j = coordSysId+2 ; j < svgGroups.length ; j++) {
+                var idGroup = '';
+                for(var k = 0 ; k < maxPos[j-1].length ; k++) {
+                  idGroup += k ? '-0' : '.sub-graphic-0';
+                }
+                svgGroups[j] = svgGroups[j-1].select(idGroup+'.depth'+j);
+              }
+              
+              goNextCoordSys = false;
+              goNextDim = false;
+            }
+          }
+          
+          if(goNextCoordSys) {
+            coordSysId--;
+            if(coordSysId < 0) {
+              goNextCoordSys = false;
+              stop = true;
+            }
+          }
+        }
+      }
+      
       
       var it = new HierarchyIterator(dataToDisplay);
       var id = 0;
@@ -1429,7 +1549,6 @@
     return this;
   };
   
-  
   // Update position of time sliders' cursor
   Graphic.prototype.updateSliders = function() {
     for(var i in this.timeSlider) {
@@ -1785,13 +1904,20 @@
       splitSizes.push(this.dim[i].domain.length);
     }
     
-    // Splitting data according to spacial dimensions
+    // Splitting data according to spacial dimensions in the same order
+    // coordinates system are imbricated. That important because when
+    // displaying elements, we want to go throught data in that order
     this.splitSpacialDimId = [];
-    for(var i in this.dim) {
-      if(this.dim[i].isSpacial && this.dim[i].forceOrdinal) {
-        this.splitSpacialDimId.push(i);
-        splitSizes.push(this.dim[i].domain.length);
+    var coordSys = this.spacialCoord;
+    while(coordSys.subSys != null) {
+      for(var i = 0 ; i < coordSys.dimName.length ; i++) {
+        var dimAlias = coordSys.dimAlias[coordSys.dimName[i]];
+        if(dimAlias != null) {
+          this.splitSpacialDimId.push(dimAlias);
+          splitSizes.push(this.dim[dimAlias].domain.length);
+        }
       }
+      coordSys = coordSys.subSys;
     }
     
     this.nestedData = [];
@@ -2055,13 +2181,13 @@
                 .attr('transform', 'translate('+this.margin.left+','+this.margin.top+')');
     
     // Draw axises, backgrounds, and generate svg base to add elements
-    TIMER_BEGIN('Drawing backgroud', this.display_timers);
+    TIMER_BEGIN('Drawing background and axises', this.display_timers);
     this.spacialCoord.updateSVG(  svg,
                                   this.dim,
                                   width-this.margin.left-this.margin.right,
                                   height-this.margin.top-this.margin.bottom,
                                   0);
-    TIMER_END('Drawing backgroud', this.display_timers);
+    TIMER_END('Drawing background and axises', this.display_timers);
     
     // Add time sliders
     TIMER_BEGIN('Drawing sliders', this.display_timers);
@@ -2517,12 +2643,11 @@
                     { dimName:'x',
                       orient:'bottom',
                       offsetY:height
-                    }//*,
-                    ,
+                    },
                     { dimName:'y',
                       orient:'left',
                       offsetY:0
-                    }//*/
+                    }
                   ];
     
     for(var i = 0 ; i < dimInfo.length ; i++) {
@@ -2653,7 +2778,7 @@
       // On enter
       subCoordSysNode.enter()
         .append('g')
-          .attr('class', function(d){;return 'sub-graphic depth'+(depth+1)+' '+d[0]+'-'+d[1];})
+          .attr('class', function(d){;return 'depth'+(depth+1)+' sub-graphic-'+d[0]+'-'+d[1];})
           .attr('transform', function(d){return 'translate('+d[2]+','+d[3]+')';});
       
       // On exit

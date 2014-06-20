@@ -246,21 +246,6 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            window.addEventListener("load", function(){
-                var svg = d3.select('#lol g');
-                
-                var s = d3.scale.linear().domain([5,10]).range([0, 260]);
-                var axis = d3.svg.axis().scale(s).orient('bottom');
-                
-                svg.attr('class', 'axis x').call(axis);
-                
-                setTimeout(function(){
-                    s.domain([0,20]).range([0, 200]);
-                    svg.transition().duration(2000).call(axis)
-                }, 2000);
-                
-            }, true);
-          
           
           
         </script>
@@ -299,6 +284,6 @@
         <div id="graph8">
             <h2>Apple Nutriment</h2>
         </div>
-        <svg id="lol"><rect width="300" height="300" stroke="black" fill="none"></rect><g transform="translate(20,200)"></g></svg>
+        
     </body>
 </html>   

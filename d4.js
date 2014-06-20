@@ -722,15 +722,9 @@
        * Compute 'getX' and 'getY' functions *
       \*                                     */
       
-      var getGetX = function (cs, f, p, ml) {
+      var getGetPos = function (cs, f, p) {
         return function (d, i) {
-          return ml + cs[f](p, d, i);
-        }
-      };
-      
-      var getGetY = function (cs, f, p, mt) {
-        return function (d, i) {
-          return mt + cs[f](p, d, i);
+          return cs[f](p, d, i);
         }
       };
       
@@ -742,6 +736,9 @@
              !(this.elements[i].attrs[j].value instanceof BoxPlotBoxStat)) {
             pos[j] = this.elements[i].attrs[j].aes.func;
           }
+          else {
+            pos[j] = null;
+          }
         }
       }
       
@@ -750,12 +747,12 @@
       
       if(this.elements[i] instanceof Bar ||
          this.elements[i] instanceof BoxPlot) {
-        getX = getGetX(this.spacialCoord, 'getXOrigin', pos, this.margin.left);
-        getY = getGetY(this.spacialCoord, 'getYOrigin', pos, this.margin.top);
+        getX = getGetPos(deepestCoordSys, 'getXOrigin', pos);
+        getY = getGetPos(deepestCoordSys, 'getYOrigin', pos);
       }
       else {
-        getX = getGetX(this.spacialCoord, 'getX', pos, this.margin.left);
-        getY = getGetY(this.spacialCoord, 'getY', pos, this.margin.top);
+        getX = getGetPos(deepestCoordSys, 'getX', pos);
+        getY = getGetPos(deepestCoordSys, 'getY', pos);
       }
       
       /*               *\
@@ -788,7 +785,7 @@
       
       var nbGroup = this.elements[i].attrs.group.aes.discretDomain.length;
       
-      
+      // HERE WE DRAW !!
       var stop = false;
       while(!stop) {
         var dataCurrentPos = subset[subset.length-1];
@@ -796,28 +793,688 @@
         
         for(var groupId = 0 ; groupId < nbGroup ; groupId++) {
           var dataSubset = dataCurrentPos[groupId];
+          var eltClass = 'etl-'+i+'-'+groupId;
           
+          var getOnMouseOver = function(g, eltClass, getText) {
+            return function(d, i) {
+              var eltId = eltClass+'-'+i;
+              var timeId = getTimeId(g.currentTime);
+              var pos = d4.mouse(g);
+              
+              if(!d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+                  d4.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
+              }
+            };
+          };
           
-          // HERE WE DRAW !!!!
-          console.log(svg.node());
-          console.log('data: ', dataSubset[0].x1+' '+dataSubset[0].y1+'   '+dataSubset[0].x2+' '+dataSubset[0].y2);
-          var text = '';
-          for(var a = 0 ; a < currentPos.length;a++){
-            for(var b = 0 ; b < currentPos[a].length;b++){
-              text += currentPos[a][b] + ' ';
+          var getOnMouseOut = function(g) {
+            return function(d, i) {
+              d4.hidePopup({id:'hover', graphic:g, duration:500});
+            };
+          };
+          
+          var getOnClick = function(g, eltClass, getText) {
+            return function(d, i) {
+              var eltId = eltClass+'-'+i;
+              var timeId = getTimeId(g.currentTime);
+              
+              if(d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+                d4.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
+              }
+              else {
+                d4.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:d4.mouse(g), text:getText(d)});
+                d4.hidePopup({id:'hover', graphic:g});
+              }
+            };
+          };
+          
+          // Set attributes for each kind of elements
+          // Symbol
+          if(this.elements[i] instanceof Symbol) {
+            var symbol = d3.svg.symbol();
+            
+            if(isDefined(this.elements[i].attrs.shape))
+              symbol.type(this.elements[i].attrs.shape.func);
+              
+            if(isDefined(this.elements[i].attrs.size))
+              symbol.size(this.elements[i].attrs.size.func);
+            
+            var node = svg.selectAll('.'+eltClass)
+                          .data(dataSubset);
+            
+            // On enter
+            var onEnter = node.enter().append('path').attr('class', eltClass);
+            svgSetAttributePerElem(onEnter, 'fill', this.elements[i], 'color');
+            svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
+            onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
+            onEnter.attr('d', symbol);
+            
+            // On exit
+            node.exit().remove();
+            
+            // On update
+            var onUpdate = null;
+            if(this.transition_duration > 0) {
+              onUpdate = node.transition().duration(this.transition_duration);
             }
-            text += '  ';
+            else {
+              onUpdate = node;
+            }
+            svgSetAttributePerElem(onUpdate, 'fill', this.elements[i], 'color');
+            svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
+            onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
+            node.attr('d', symbol);
+            
+            // Event
+            if(isDefined(this.elements[i].attrs.label)){
+              node.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
+              node.on('mouseout',   getOnMouseOut(this));
+              node.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
+            }
+            var listeners = this.elements[i].listeners;
+            var GetFunc = function(event) {
+              return function(d) {
+                listeners[event].call(this, d, g);
+              }
+            }
+            
+            for(var event in listeners) {
+              node.on(event, GetFunc(event));
+            }
           }
-          console.log('pos : ',text);
-          console.log(' ');
+          
+          // Lines
+          else if(this.elements[i] instanceof Line) {
+            var interpolation;
+            if(dataSubset.length > 0) {
+              interpolation = this.elements[i].attrs.interpolation.func(dataSubset[0], 0);
+            }
+            else {
+              interpolation = '';
+            }
+            
+            var lineFunction = d3.svg.line()
+                                 .x(getX)
+                                 .y(getY)
+                                 .interpolate(interpolation);
+            
+            var node;
+            // On enter
+            if(svg.select('.'+eltClass).empty()) {
+              node = svg.append('path').attr('class', eltClass);
+            }
+            // On update
+            else {
+              node = svg.select('.'+eltClass);
+              if(this.transition_duration > 0) {
+                node = node.transition().duration(this.transition_duration);
+              }
+            }
+            
+            node.attr("d", lineFunction(dataSubset));
+            
+            if(dataSubset.length > 0) {
+              svgSetAttributePerGroup(node, 'stroke', this.elements[i], 'color', dataSubset[0], 0);
+              svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0], 0);
+              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0], 0);
+            }
+            
+            // On exit: nothing to do, there will just be an empty path
+          }
+          
+          // Bars
+          else if(this.elements[i] instanceof Bar) {
+            var boundaryFunc = {};
+            var padding = this.bar_padding;
+            
+            for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+              var dimAlias = deepestCoordSysDim[j].name;
+              var originalDimName = deepestCoordSysDim[j].originalName;
+              
+              boundaryFunc[originalDimName]  = {  min:null,
+                                                  max:null,
+                                                  dist:null};
+              
+              if(dimAlias == null) {
+                var min = deepestCoordSys.boundary[originalDimName].min;
+                var max = deepestCoordSys.boundary[originalDimName].max;
+                var dist = (max - min) / (1 + padding);
+                
+                boundaryFunc[originalDimName].min = getConst((min + max - dist)/2);
+                boundaryFunc[originalDimName].max = getConst((min + max + dist)/2);
+                boundaryFunc[originalDimName].dist = getConst(dist);
+              }
+              else {
+                var scale = deepestCoordSys.scale[originalDimName];
+                
+                var bound1 = null;
+                var bound2 = null;
+                
+                if(this.elements[i].attrs[dimAlias].value instanceof Interval) {
+                  var interval = this.elements[i].attrs[dimAlias].value;
+                  
+                  bound1 = scale.compose(interval.boundary1.aes.func),
+                  bound2 = scale.compose(interval.boundary2.aes.func);
+                }
+                else {
+                  var band = this.dim[dimAlias].band / (1 + padding);
+                  var func = this.elements[i].attrs[dimAlias].aes.func;
+                  
+                  var getFunc = function(s, f, e) {
+                    return function(d, i){
+                      return s(f(d, i)) + e;
+                    }
+                  }
+                  
+                  bound1 = getFunc(scale, func, -band / 2);
+                  bound2 = getFunc(scale, func, band / 2);
+                }
+                
+                boundaryFunc[originalDimName].min = getMin(bound1, bound2);
+                boundaryFunc[originalDimName].max = getMax(bound1, bound2);
+                boundaryFunc[originalDimName].dist = getDist(bound1, bound2);
+              }
+            }
+            
+            var node = svg.selectAll('.'+eltClass)
+                          .data(dataSubset);
+            
+            var dim1 = null;
+            var dim2 = null;
+            var lim = null;
+            
+            if(deepestCoordSys instanceof Rect) {
+              dim1 = 'x';
+              dim2 = 'y';
+              lim = 'dist';
+            }
+            else if(deepestCoordSys instanceof Polar) {
+              dim1 = 'theta';
+              dim2 = 'radius';
+              lim = 'max';
+            }
+            else {
+              ERROR('Bar not implemented for '+getTypeName(deepestCoordSys)+' coordinate system');
+            }
+            
+            node = drawBox( node,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass,
+                            getX,
+                            getY,
+                            boundaryFunc[dim1].min,
+                            boundaryFunc[dim2].min,
+                            boundaryFunc[dim1][lim],
+                            boundaryFunc[dim2][lim]);
+            
+            // On enter
+            svgSetAttributePerElem(node.enter, 'fill', this.elements[i], 'color');
+            svgSetAttributePerElem(node.enter, 'stroke', this.elements[i], 'color');
+            svgSetCommonAttributesPerElem(node.enter, this.elements[i]);
+            
+            // On update
+            svgSetAttributePerElem(node.update, 'fill', this.elements[i], 'color');
+            svgSetAttributePerElem(node.update, 'stroke', this.elements[i], 'color');
+            svgSetCommonAttributesPerElem(node.update, this.elements[i]);
+            
+            // On exit
+            node.exit.remove();
+            
+            // Event
+            if(isDefined(this.elements[i].attrs.label)){
+              node.enter.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
+              node.enter.on('mouseout',   getOnMouseOut(this));
+              node.enter.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
+            }
+            var listeners = this.elements[i].listeners;
+            var GetFunc = function(event) {
+              return function(d) {
+                listeners[event].call(this, d, g);
+              }
+            }
+            
+            for(var event in listeners) {
+              node.enter.on(event, GetFunc(event));
+            }
+          }
+        
+          // BoxPlot
+          else if(this.elements[i] instanceof BoxPlot) {
+            var whiskers_size = 0.5;
+            var whiskers_ratio = (1 - whiskers_size) / 2;
+            
+            var posFunc = {};
+            var boxplotStat = null;
+            
+            for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+              var dimAlias = deepestCoordSysDim[j].name;
+              var originalDimName = deepestCoordSysDim[j].originalName;
+              
+              // Pos
+              posFunc[originalDimName] = {// The box
+                                          box:{},
+                                          // Median Line
+                                          median:{},
+                                          // First quartile line
+                                          q1:{},
+                                          // Third quartile line
+                                          q3:{},
+                                          // Line between the first quartile and the first whisker (min)
+                                          w1:{},
+                                          // Line between the third quartile and the second whisker (max)
+                                          w2:{},
+                                          // Line at the first whisker
+                                          wl1:{},
+                                          // Line at the second whisker
+                                          wl2:{}};
+                                          
+              var p = posFunc[originalDimName];
+              
+              if(dimAlias == null || !(this.elements[i].attrs[dimAlias].value instanceof BoxPlotBoxStat)) {
+                if(dimAlias == null) {
+                  var minBox = deepestCoordSys.boundary[originalDimName].min;
+                  var maxBox = deepestCoordSys.boundary[originalDimName].max;
+                  var distBox = maxBox - minBox;
+                  minBox += distBox / 4;
+                  maxBox -= distBox / 4;
+                  distBox = maxBox - minBox;
+                  var minWhiskers = minBox + distBox * whiskers_ratio;
+                  var maxWhiskers = maxBox - distBox * whiskers_ratio;
+                  var distWhiskers = distBox * whiskers_size;
+                  var middle = (minBox + maxBox) / 2;      
+                  
+                  p.box.min = getConst(minBox);
+                  p.box.max = getConst(maxBox);
+                  p.box.dist = getConst(distBox);
+                  p.wl1.min = getConst(minWhiskers);
+                  p.wl1.max = getConst(maxWhiskers);
+                  p.wl1.dist = getConst(distWhiskers);
+                  p.w1.min = getConst(middle);
+                }
+                else {
+                  var scale = deepestCoordSys.scale[originalDimName];
+                  
+                  var band = this.dim[dimAlias].band / (1 + this.bar_padding);
+                  var func = this.elements[i].attrs[dimAlias].aes.func;
+                  
+                  var getFunc = function(s, f, e) {
+                    return function(d, i){
+                      return s(f(d, i)) + e;
+                    }
+                  }
+                  
+                  var bound1 = getFunc(scale, func, -band / 2);
+                  var bound2 = getFunc(scale, func, band / 2);
+                  
+                  p.box.min = getMin(bound1, bound2);
+                  p.box.max = getMax(bound1, bound2);
+                  p.box.dist = getDist(bound1, bound2);
+                  
+                  // Min whiskers
+                  var getFunc = function(b1, b2) {
+                    return function(d, i){
+                      var val1 = b1(d, i);
+                      var val2 = b2(d, i);
+                      
+                      return val1 > val2 ?
+                        val2 + (val1 - val2) * whiskers_ratio :
+                        val1 + (val2 - val1) * whiskers_ratio;
+                    }
+                  }
+                  p.wl1.min = getFunc(bound1, bound2);
+                  
+                  // Max whiskers
+                  getFunc = function(b1, b2) {
+                    return function(d, i){
+                      var val1 = b1(d, i);
+                      var val2 = b2(d, i);
+                      
+                      return val1 > val2 ?
+                        val1 - (val1 - val2) * whiskers_ratio :
+                        val2 - (val2 - val1) * whiskers_ratio;
+                    }
+                  }
+                  p.wl1.max = getFunc(bound1, bound2);
+                  
+                  // Distance whiskers (size)
+                  getFunc = function(b1, b2) {
+                    return function(d, i){
+                      return Math.abs(b1(d, i) - b2(d, i)) * whiskers_size;
+                    }
+                  }
+                  p.wl1.dist = getFunc(bound1, bound2);
+                  
+                  // Middle
+                  getFunc = function(b1, b2) {
+                    return function(d, i){
+                      return (b1(d, i) + b2(d, i)) / 2;
+                    }
+                  }
+                  p.w1.min = getFunc(bound1, bound2);
+                }
+                
+                p.median = p.box;
+                p.q1 = p.box;
+                p.q3 = p.box;
+                p.w1.max = p.w1.min;
+                p.w1.dist = getConst(0);
+                p.w2 = p.w1;
+                p.wl2 = p.wl1;
+              }
+              else {
+                var scale = deepestCoordSys.scale[originalDimName];
+                boxplotStat = this.elements[i].attrs[dimAlias].value;
+                
+                var q1 = scale.compose(boxplotStat.quartile1.aes.func);
+                var q2 = scale.compose(boxplotStat.quartile2.aes.func);
+                var q3 = scale.compose(boxplotStat.quartile3.aes.func);
+                var w1 = scale.compose(boxplotStat.whisker1.aes.func);
+                var w2 = scale.compose(boxplotStat.whisker2.aes.func);
+                
+                p.wl1.min = w1;
+                p.wl1.max = w1;
+                p.wl1.dist = getConst(0);
+                p.w1.min = getMin(w1, q1);
+                p.w1.max = getMax(w1, q1);
+                p.w1.dist = getDist(w1, q1);
+                p.box.min = getMin(q1, q3);
+                p.box.max = getMax(q1, q3);
+                p.box.dist = getDist(q1, q3);
+                p.q1.min = q1;
+                p.q1.max = q1;
+                p.q1.dist = getConst(0);
+                p.median.min = q2;
+                p.median.max = q2;
+                p.median.dist = getConst(0);
+                p.q3.min = q3;
+                p.q3.max = q3;
+                p.q3.dist = getConst(0);
+                p.w2.min = getMin(q3, w2);
+                p.w2.max = getMax(q3, w2);
+                p.w2.dist = getDist(q3, w2);
+                p.wl2.min = w2;
+                p.wl2.max = w2;
+                p.wl2.dist = getConst(0);
+              }
+            }
+            
+            var dim1 = null;
+            var dim2 = null;
+            var boxLim = null;
+            
+            if(deepestCoordSys instanceof Rect) {
+              dim1 = 'x';
+              dim2 = 'y';
+              boxLim = 'dist';
+            }
+            else if(deepestCoordSys instanceof Polar) {
+              dim1 = 'theta';
+              dim2 = 'radius';
+              boxLim = 'max';
+            }
+            else {
+              ERROR('BoxPlot not implemented for '+getTypeName(deepestCoordSys)+' coordinate system');
+            }
+            
+            var whiskers_dasharray = '5 5'
+            var applyToString = function(f) {
+              return function(d, i) {
+                return f(d, i).toString();
+              }
+            }
+            
+            if(isUndefined(this.elements[i].attrs.stroke) &&
+               isDefined(this.elements[i].attrs.color)) {
+              this.elements[i].attrs.stroke = this.elements[i].attrs.color;
+            }
+            
+            // The box
+            var nodeBox = svg.selectAll('.'+eltClass+'.box')
+                             .data(dataSubset);
+            nodeBox = drawBox( nodeBox,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' box',
+                            getX,
+                            getY,
+                            posFunc[dim1].box.min,
+                            posFunc[dim2].box.min,
+                            posFunc[dim1].box[boxLim],
+                            posFunc[dim2].box[boxLim]);
+            svgSetCommonAttributesPerElem(nodeBox.enter, this.elements[i]);
+            svgSetCommonAttributesPerElem(nodeBox.update, this.elements[i]);
+            nodeBox.exit.remove();
+            
+            // Event
+            var nodeQ1 = svg.selectAll('.'+eltClass+'.quartile1-mask')
+                            .data(dataSubset);
+            nodeQ1 = drawSegment( nodeQ1,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' quartile1-mask',
+                            getX,
+                            getY,
+                            posFunc[dim1].q1.min,
+                            posFunc[dim2].q1.min,
+                            posFunc[dim1].q1.max,
+                            posFunc[dim2].q1.max);
+            nodeQ1.enter.style('fill', 'none');
+            nodeQ1.enter.style('stroke-width', 5);
+            nodeQ1.enter.style('stroke', 'red');
+            nodeQ1.enter.style('visibility', 'hidden');
+            nodeQ1.enter.style('pointer-events', 'all');
+            nodeQ1.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
+            nodeQ1.enter.on('mouseout',   getOnMouseOut(this));
+            nodeQ1.enter.on('click',      getOnClick(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
+            nodeQ1.exit.remove();
+            
+            var nodeQ3 = svg.selectAll('.'+eltClass+'.quartile3-mask')
+                            .data(dataSubset);
+            nodeQ3 = drawSegment( nodeQ3,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' quartile3-mask',
+                            getX,
+                            getY,
+                            posFunc[dim1].q3.min,
+                            posFunc[dim2].q3.min,
+                            posFunc[dim1].q3.max,
+                            posFunc[dim2].q3.max);
+            nodeQ3.enter.style('fill', 'none');
+            nodeQ3.enter.style('stroke-width', 5);
+            nodeQ3.enter.style('stroke', 'red');
+            nodeQ3.enter.style('visibility', 'hidden');
+            nodeQ3.enter.style('pointer-events', 'all');
+            nodeQ3.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
+            nodeQ3.enter.on('mouseout',   getOnMouseOut(this));
+            nodeQ3.enter.on('click',      getOnClick(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
+            nodeQ3.exit.remove();
+            
+            // Median
+            var nodeMedian = svg.selectAll('.'+eltClass+'.median')
+                                .data(dataSubset);
+            nodeMedian = drawSegment( nodeMedian,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' median',
+                            getX,
+                            getY,
+                            posFunc[dim1].median.min,
+                            posFunc[dim2].median.min,
+                            posFunc[dim1].median.max,
+                            posFunc[dim2].median.max);
+            svgSetCommonAttributesPerElem(nodeMedian.enter, this.elements[i]);
+            nodeMedian.enter.style('fill', 'none');
+            svgSetCommonAttributesPerElem(nodeMedian.update, this.elements[i]);
+            nodeMedian.update.style('fill', 'none');
+            nodeMedian.exit.remove();
+            
+            // Event
+            var nodeMedianMask = svg.selectAll('.'+eltClass+'.median-mask')
+                                .data(dataSubset);
+            nodeMedianMask = drawSegment( nodeMedianMask,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' median-mask',
+                            getX,
+                            getY,
+                            posFunc[dim1].median.min,
+                            posFunc[dim2].median.min,
+                            posFunc[dim1].median.max,
+                            posFunc[dim2].median.max);
+            nodeMedianMask.enter.style('stroke-width', 5);
+            nodeMedianMask.enter.style('stroke', 'red');
+            nodeMedianMask.enter.style('visibility', 'hidden');
+            nodeMedianMask.enter.style('pointer-events', 'all');
+            nodeMedianMask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
+            nodeMedianMask.enter.on('mouseout',   getOnMouseOut(this));
+            nodeMedianMask.enter.on('click',      getOnClick(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
+            nodeMedianMask.exit.remove();
+            
+            
+            // First whisker
+            var nodeWisker1 = svg.selectAll('.'+eltClass+'.whisker.min')
+                                .data(dataSubset);
+            nodeWisker1 = drawSegment( nodeWisker1,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker min',
+                            getX,
+                            getY,
+                            posFunc[dim1].w1.min,
+                            posFunc[dim2].w1.min,
+                            posFunc[dim1].w1.max,
+                            posFunc[dim2].w1.max);
+            nodeWisker1.enter.style('stroke-dasharray', whiskers_dasharray);
+            svgSetCommonAttributesPerElem(nodeWisker1.enter, this.elements[i]);
+            nodeWisker1.enter.style('fill', 'none');
+            nodeWisker1.update.style('stroke-dasharray', whiskers_dasharray);
+            svgSetCommonAttributesPerElem(nodeWisker1.update, this.elements[i]);
+            nodeWisker1.update.style('fill', 'none');
+            nodeWisker1.exit.remove();
+            
+            // Second whisker
+            var nodeWisker2 = svg.selectAll('.'+eltClass+'.whisker.max')
+                                .data(dataSubset);
+            nodeWisker2 = drawSegment( nodeWisker2,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker max',
+                            getX,
+                            getY,
+                            posFunc[dim1].w2.min,
+                            posFunc[dim2].w2.min,
+                            posFunc[dim1].w2.max,
+                            posFunc[dim2].w2.max);
+            nodeWisker2.enter.style('stroke-dasharray', whiskers_dasharray);
+            svgSetCommonAttributesPerElem(nodeWisker2.enter, this.elements[i]);
+            nodeWisker2.enter.style('fill', 'none');
+            nodeWisker2.update.style('stroke-dasharray', whiskers_dasharray);
+            svgSetCommonAttributesPerElem(nodeWisker2.update, this.elements[i]);
+            nodeWisker2.update.style('fill', 'none');
+            nodeWisker2.exit.remove();
+            
+            // First whisker limite
+            var nodeWiskerLimit1 = svg.selectAll('.'+eltClass+'.whisker_limit.min')
+                                .data(dataSubset);
+            nodeWiskerLimit1 = drawSegment( nodeWiskerLimit1,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker_limit min',
+                            getX,
+                            getY,
+                            posFunc[dim1].wl1.min,
+                            posFunc[dim2].wl1.min,
+                            posFunc[dim1].wl1.max,
+                            posFunc[dim2].wl1.max);
+            svgSetCommonAttributesPerElem(nodeWiskerLimit1.enter, this.elements[i]);
+            nodeWiskerLimit1.enter.style('fill', 'none');
+            svgSetCommonAttributesPerElem(nodeWiskerLimit1.update, this.elements[i]);
+            nodeWiskerLimit1.update.style('fill', 'none');
+            nodeWiskerLimit1.exit.remove();
+            
+            // Event
+            var nodeW1Mask = svg.selectAll('.'+eltClass+'.whisker-mask.min')
+                                .data(dataSubset);
+            nodeW1Mask = drawSegment( nodeW1Mask,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker-mask min',
+                            getX,
+                            getY,
+                            posFunc[dim1].wl1.min,
+                            posFunc[dim2].wl1.min,
+                            posFunc[dim1].wl1.max,
+                            posFunc[dim2].wl1.max);
+            nodeW1Mask.enter.style('fill', 'none');
+            nodeW1Mask.enter.style('stroke-width', 5);
+            nodeW1Mask.enter.style('stroke', 'red');
+            nodeW1Mask.enter.style('visibility', 'hidden');
+            nodeW1Mask.enter.style('pointer-events', 'all');
+            nodeW1Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
+            nodeW1Mask.enter.on('mouseout',   getOnMouseOut(this));
+            nodeW1Mask.enter.on('click',      getOnClick(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
+            nodeW1Mask.exit.remove();
+            
+            // Second whisker limite
+            var nodeWiskerLimit2 = svg.selectAll('.'+eltClass+'.whisker_limit.max')
+                                .data(dataSubset);
+            nodeWiskerLimit2 = drawSegment( nodeWiskerLimit2,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker_limit max',
+                            getX,
+                            getY,
+                            posFunc[dim1].wl2.min,
+                            posFunc[dim2].wl2.min,
+                            posFunc[dim1].wl2.max,
+                            posFunc[dim2].wl2.max);
+            svgSetCommonAttributesPerElem(nodeWiskerLimit2.enter, this.elements[i]);
+            nodeWiskerLimit2.enter.style('fill', 'none');
+            svgSetCommonAttributesPerElem(nodeWiskerLimit2.update, this.elements[i]);
+            nodeWiskerLimit2.update.style('fill', 'none');
+            nodeWiskerLimit2.exit.remove();
+            
+            // Event
+            var nodeW2Mask = svg.selectAll('.'+eltClass+'.whisker-mask.max')
+                                .data(dataSubset);
+            nodeW2Mask = drawSegment( nodeW2Mask,
+                            deepestCoordSys,
+                            this.transition_duration,
+                            eltClass+' whisker-mask max',
+                            getX,
+                            getY,
+                            posFunc[dim1].wl2.min,
+                            posFunc[dim2].wl2.min,
+                            posFunc[dim1].wl2.max,
+                            posFunc[dim2].wl2.max);
+            nodeW2Mask.enter.style('fill', 'none');
+            nodeW2Mask.enter.style('stroke-width', 5);
+            nodeW2Mask.enter.style('stroke', 'red');
+            nodeW2Mask.enter.style('visibility', 'hidden');
+            nodeW2Mask.enter.style('pointer-events', 'all');
+            nodeW2Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
+            nodeW2Mask.enter.on('mouseout',   getOnMouseOut(this));
+            nodeW2Mask.enter.on('click',      getOnClick(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
+            nodeW2Mask.exit.remove();
+          }
+          else {
+            ERROR('Type of element '+i+' is not an element but an '+getTypeName(this.elements[i]));
+          }
         }
         
+        // Iterate to the next data sub-set and svg group
         var goNextCoordSys = true;
-        
         var subsetId = subset.length-2;
         var coordSysId = currentPos.length-1;
+        if(currentPos.length == 0) {
+          goNextCoordSys = false;
+          stop = true;
+        }
         while(goNextCoordSys) {
           var goNextDim = true;
+          if(isUndefined(currentPos[coordSysId]))console.log(coordSysId, currentPos, maxPos, this.spacialCoord);
           var dimId = currentPos[coordSysId].length-1;
           while(goNextDim) {
             currentPos[coordSysId][dimId]++;
@@ -866,682 +1523,6 @@
               stop = true;
             }
           }
-        }
-      }
-      
-      
-      var it = new HierarchyIterator(dataToDisplay);
-      var id = 0;
-      while(it.hasNext()) {
-        var dataSubset = it.next();
-        var eltClass = 'etl-'+i+'-'+(id++);
-        
-        var getOnMouseOver = function(g, eltClass, getText) {
-          return function(d, i) {
-            var eltId = eltClass+'-'+i;
-            var timeId = getTimeId(g.currentTime);
-            var pos = d4.mouse(g);
-            
-            if(!d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-                d4.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
-            }
-          };
-        };
-        
-        var getOnMouseOut = function(g) {
-          return function(d, i) {
-            d4.hidePopup({id:'hover', graphic:g, duration:500});
-          };
-        };
-        
-        var getOnClick = function(g, eltClass, getText) {
-          return function(d, i) {
-            var eltId = eltClass+'-'+i;
-            var timeId = getTimeId(g.currentTime);
-            
-            if(d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-              d4.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
-            }
-            else {
-              d4.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:d4.mouse(g), text:getText(d)});
-              d4.hidePopup({id:'hover', graphic:g});
-            }
-          };
-        };
-        
-        // Set attributes for each kind of elements
-        // Symbol
-        if(this.elements[i] instanceof Symbol) {
-          var symbol = d3.svg.symbol();
-          
-          if(isDefined(this.elements[i].attrs.shape))
-            symbol.type(this.elements[i].attrs.shape.func);
-            
-          if(isDefined(this.elements[i].attrs.size))
-            symbol.size(this.elements[i].attrs.size.func);
-          
-          var node = this.svg.selectAll('.'+eltClass)
-                         .data(dataSubset);
-          
-          // On enter
-          var onEnter = node.enter().append('path').attr('class', eltClass);
-          svgSetAttributePerElem(onEnter, 'fill', this.elements[i], 'color');
-          svgSetCommonAttributesPerElem(onEnter, this.elements[i]);
-          onEnter.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
-          onEnter.attr('d', symbol);
-          
-          // On exit
-          node.exit().remove();
-          
-          // On update
-          var onUpdate = null;
-          if(this.transition_duration > 0) {
-            onUpdate = node.transition().duration(this.transition_duration);
-          }
-          else {
-            onUpdate = node;
-          }
-          svgSetAttributePerElem(onUpdate, 'fill', this.elements[i], 'color');
-          svgSetCommonAttributesPerElem(onUpdate, this.elements[i]);
-          onUpdate.attr('transform', function(d, i) {return 'translate('+getX(d, i)+','+getY(d, i)+')';});
-          node.attr('d', symbol);
-          
-          // Event
-          if(isDefined(this.elements[i].attrs.label)){
-            node.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
-            node.on('mouseout',   getOnMouseOut(this));
-            node.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
-          }
-          var listeners = this.elements[i].listeners;
-          var GetFunc = function(event) {
-            return function(d) {
-              listeners[event].call(this, d, g);
-            }
-          }
-          
-          for(var event in listeners) {
-            node.on(event, GetFunc(event));
-          }
-        }
-        
-        // Lines
-        else if(this.elements[i] instanceof Line) {
-          var interpolation;
-          if(dataSubset.length > 0) {
-            interpolation = this.elements[i].attrs.interpolation.func(dataSubset[0], 0);
-          }
-          else {
-            interpolation = '';
-          }
-          
-          var lineFunction = d3.svg.line()
-                               .x(getX)
-                               .y(getY)
-                               .interpolate(interpolation);
-          
-          var node;
-          // On enter
-          if(this.svg.select('.'+eltClass).empty()) {
-            node = this.svg.append('path').attr('class', eltClass);
-          }
-          // On update
-          else {
-            node = this.svg.select('.'+eltClass);
-            if(this.transition_duration > 0) {
-              node = node.transition().duration(this.transition_duration);
-            }
-          }
-          
-          node.attr("d", lineFunction(dataSubset));
-          
-          if(dataSubset.length > 0) {
-            svgSetAttributePerGroup(node, 'stroke', this.elements[i], 'color', dataSubset[0], 0);
-            svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0], 0);
-            svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0], 0);
-          }
-          
-          // On exit: nothing to do, there will just be an empty path
-        }
-        
-        // Bars
-        else if(this.elements[i] instanceof Bar) {
-          var boundaryFunc = {};
-          var padding = this.bar_padding;
-          
-          for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-            var dimAlias = deepestCoordSysDim[j].name;
-            var originalDimName = deepestCoordSysDim[j].originalName;
-            
-            boundaryFunc[originalDimName]  = {  min:null,
-                                                max:null,
-                                                dist:null};
-            
-            if(dimAlias == null) {
-              var min = deepestCoordSys.boundary[originalDimName].min;
-              var max = deepestCoordSys.boundary[originalDimName].max;
-              var dist = (max - min) / (1 + padding);
-              
-              boundaryFunc[originalDimName].min = getConst((min + max - dist)/2);
-              boundaryFunc[originalDimName].max = getConst((min + max + dist)/2);
-              boundaryFunc[originalDimName].dist = getConst(dist);
-            }
-            else {
-              var scale = deepestCoordSys.scale[originalDimName];
-              
-              var bound1 = null;
-              var bound2 = null;
-              
-              if(this.elements[i].attrs[dimAlias].value instanceof Interval) {
-                var interval = this.elements[i].attrs[dimAlias].value;
-                
-                bound1 = scale.compose(interval.boundary1.aes.func),
-                bound2 = scale.compose(interval.boundary2.aes.func);
-              }
-              else {
-                var band = this.dim[dimAlias].band / (1 + padding);
-                var func = this.elements[i].attrs[dimAlias].aes.func;
-                
-                var getFunc = function(s, f, e) {
-                  return function(d, i){
-                    return s(f(d, i)) + e;
-                  }
-                }
-                
-                bound1 = getFunc(scale, func, -band / 2);
-                bound2 = getFunc(scale, func, band / 2);
-              }
-              
-              boundaryFunc[originalDimName].min = getMin(bound1, bound2);
-              boundaryFunc[originalDimName].max = getMax(bound1, bound2);
-              boundaryFunc[originalDimName].dist = getDist(bound1, bound2);
-            }
-          }
-          
-          var node = this.svg.selectAll('.'+eltClass)
-                         .data(dataSubset);
-          
-          var dim1 = null;
-          var dim2 = null;
-          var lim = null;
-          
-          if(deepestCoordSys instanceof Rect) {
-            dim1 = 'x';
-            dim2 = 'y';
-            lim = 'dist';
-          }
-          else if(deepestCoordSys instanceof Polar) {
-            dim1 = 'theta';
-            dim2 = 'radius';
-            lim = 'max';
-          }
-          else {
-            ERROR('Bar not implemented for '+getTypeName(deepestCoordSys)+' coordinate system');
-          }
-          
-          node = drawBox( node,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass,
-                          getX,
-                          getY,
-                          boundaryFunc[dim1].min,
-                          boundaryFunc[dim2].min,
-                          boundaryFunc[dim1][lim],
-                          boundaryFunc[dim2][lim]);
-          
-          // On enter
-          svgSetAttributePerElem(node.enter, 'fill', this.elements[i], 'color');
-          svgSetAttributePerElem(node.enter, 'stroke', this.elements[i], 'color');
-          svgSetCommonAttributesPerElem(node.enter, this.elements[i]);
-          
-          // On update
-          svgSetAttributePerElem(node.update, 'fill', this.elements[i], 'color');
-          svgSetAttributePerElem(node.update, 'stroke', this.elements[i], 'color');
-          svgSetCommonAttributesPerElem(node.update, this.elements[i]);
-          
-          // On exit
-          node.exit.remove();
-          
-          // Event
-          if(isDefined(this.elements[i].attrs.label)){
-            node.enter.on('mouseover',  getOnMouseOver(this, eltClass, this.elements[i].attrs.label.func));
-            node.enter.on('mouseout',   getOnMouseOut(this));
-            node.enter.on('click',      getOnClick(this, eltClass, this.elements[i].attrs.label.func));
-          }
-          var listeners = this.elements[i].listeners;
-          var GetFunc = function(event) {
-            return function(d) {
-              listeners[event].call(this, d, g);
-            }
-          }
-          
-          for(var event in listeners) {
-            node.enter.on(event, GetFunc(event));
-          }
-        }
-      
-        // BoxPlot
-        else if(this.elements[i] instanceof BoxPlot) {
-          var whiskers_size = 0.5;
-          var whiskers_ratio = (1 - whiskers_size) / 2;
-          
-          var posFunc = {};
-          var boxplotStat = null;
-          
-          for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
-            var dimAlias = deepestCoordSysDim[j].name;
-            var originalDimName = deepestCoordSysDim[j].originalName;
-            
-            // Pos
-            posFunc[originalDimName] = {// The box
-                                        box:{},
-                                        // Median Line
-                                        median:{},
-                                        // First quartile line
-                                        q1:{},
-                                        // Third quartile line
-                                        q3:{},
-                                        // Line between the first quartile and the first whisker (min)
-                                        w1:{},
-                                        // Line between the third quartile and the second whisker (max)
-                                        w2:{},
-                                        // Line at the first whisker
-                                        wl1:{},
-                                        // Line at the second whisker
-                                        wl2:{}};
-                                        
-            var p = posFunc[originalDimName];
-            
-            if(dimAlias == null || !(this.elements[i].attrs[dimAlias].value instanceof BoxPlotBoxStat)) {
-              if(dimAlias == null) {
-                var minBox = deepestCoordSys.boundary[originalDimName].min;
-                var maxBox = deepestCoordSys.boundary[originalDimName].max;
-                var distBox = maxBox - minBox;
-                minBox += distBox / 4;
-                maxBox -= distBox / 4;
-                distBox = maxBox - minBox;
-                var minWhiskers = minBox + distBox * whiskers_ratio;
-                var maxWhiskers = maxBox - distBox * whiskers_ratio;
-                var distWhiskers = distBox * whiskers_size;
-                var middle = (minBox + maxBox) / 2;      
-                
-                p.box.min = getConst(minBox);
-                p.box.max = getConst(maxBox);
-                p.box.dist = getConst(distBox);
-                p.wl1.min = getConst(minWhiskers);
-                p.wl1.max = getConst(maxWhiskers);
-                p.wl1.dist = getConst(distWhiskers);
-                p.w1.min = getConst(middle);
-              }
-              else {
-                var scale = deepestCoordSys.scale[originalDimName];
-                
-                var band = this.dim[dimAlias].band / (1 + this.bar_padding);
-                var func = this.elements[i].attrs[dimAlias].aes.func;
-                
-                var getFunc = function(s, f, e) {
-                  return function(d, i){
-                    return s(f(d, i)) + e;
-                  }
-                }
-                
-                var bound1 = getFunc(scale, func, -band / 2);
-                var bound2 = getFunc(scale, func, band / 2);
-                
-                p.box.min = getMin(bound1, bound2);
-                p.box.max = getMax(bound1, bound2);
-                p.box.dist = getDist(bound1, bound2);
-                
-                // Min whiskers
-                var getFunc = function(b1, b2) {
-                  return function(d, i){
-                    var val1 = b1(d, i);
-                    var val2 = b2(d, i);
-                    
-                    return val1 > val2 ?
-                      val2 + (val1 - val2) * whiskers_ratio :
-                      val1 + (val2 - val1) * whiskers_ratio;
-                  }
-                }
-                p.wl1.min = getFunc(bound1, bound2);
-                
-                // Max whiskers
-                getFunc = function(b1, b2) {
-                  return function(d, i){
-                    var val1 = b1(d, i);
-                    var val2 = b2(d, i);
-                    
-                    return val1 > val2 ?
-                      val1 - (val1 - val2) * whiskers_ratio :
-                      val2 - (val2 - val1) * whiskers_ratio;
-                  }
-                }
-                p.wl1.max = getFunc(bound1, bound2);
-                
-                // Distance whiskers (size)
-                getFunc = function(b1, b2) {
-                  return function(d, i){
-                    return Math.abs(b1(d, i) - b2(d, i)) * whiskers_size;
-                  }
-                }
-                p.wl1.dist = getFunc(bound1, bound2);
-                
-                // Middle
-                getFunc = function(b1, b2) {
-                  return function(d, i){
-                    return (b1(d, i) + b2(d, i)) / 2;
-                  }
-                }
-                p.w1.min = getFunc(bound1, bound2);
-              }
-              
-              p.median = p.box;
-              p.q1 = p.box;
-              p.q3 = p.box;
-              p.w1.max = p.w1.min;
-              p.w1.dist = getConst(0);
-              p.w2 = p.w1;
-              p.wl2 = p.wl1;
-            }
-            else {
-              var scale = deepestCoordSys.scale[originalDimName];
-              boxplotStat = this.elements[i].attrs[dimAlias].value;
-              
-              var q1 = scale.compose(boxplotStat.quartile1.aes.func);
-              var q2 = scale.compose(boxplotStat.quartile2.aes.func);
-              var q3 = scale.compose(boxplotStat.quartile3.aes.func);
-              var w1 = scale.compose(boxplotStat.whisker1.aes.func);
-              var w2 = scale.compose(boxplotStat.whisker2.aes.func);
-              
-              p.wl1.min = w1;
-              p.wl1.max = w1;
-              p.wl1.dist = getConst(0);
-              p.w1.min = getMin(w1, q1);
-              p.w1.max = getMax(w1, q1);
-              p.w1.dist = getDist(w1, q1);
-              p.box.min = getMin(q1, q3);
-              p.box.max = getMax(q1, q3);
-              p.box.dist = getDist(q1, q3);
-              p.q1.min = q1;
-              p.q1.max = q1;
-              p.q1.dist = getConst(0);
-              p.median.min = q2;
-              p.median.max = q2;
-              p.median.dist = getConst(0);
-              p.q3.min = q3;
-              p.q3.max = q3;
-              p.q3.dist = getConst(0);
-              p.w2.min = getMin(q3, w2);
-              p.w2.max = getMax(q3, w2);
-              p.w2.dist = getDist(q3, w2);
-              p.wl2.min = w2;
-              p.wl2.max = w2;
-              p.wl2.dist = getConst(0);
-            }
-          }
-          
-          var dim1 = null;
-          var dim2 = null;
-          var boxLim = null;
-          
-          if(deepestCoordSys instanceof Rect) {
-            dim1 = 'x';
-            dim2 = 'y';
-            boxLim = 'dist';
-          }
-          else if(deepestCoordSys instanceof Polar) {
-            dim1 = 'theta';
-            dim2 = 'radius';
-            boxLim = 'max';
-          }
-          else {
-            ERROR('BoxPlot not implemented for '+getTypeName(deepestCoordSys)+' coordinate system');
-          }
-          
-          var whiskers_dasharray = '5 5'
-          var applyToString = function(f) {
-            return function(d, i) {
-              return f(d, i).toString();
-            }
-          }
-          
-          if(isUndefined(this.elements[i].attrs.stroke) &&
-             isDefined(this.elements[i].attrs.color)) {
-            this.elements[i].attrs.stroke = this.elements[i].attrs.color;
-          }
-          
-          // The box
-          var nodeBox = this.svg.selectAll('.'+eltClass+'.box')
-                              .data(dataSubset);
-          nodeBox = drawBox( nodeBox,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' box',
-                          getX,
-                          getY,
-                          posFunc[dim1].box.min,
-                          posFunc[dim2].box.min,
-                          posFunc[dim1].box[boxLim],
-                          posFunc[dim2].box[boxLim]);
-          svgSetCommonAttributesPerElem(nodeBox.enter, this.elements[i]);
-          svgSetCommonAttributesPerElem(nodeBox.update, this.elements[i]);
-          nodeBox.exit.remove();
-          
-          // Event
-          var nodeQ1 = this.svg.selectAll('.'+eltClass+'.quartile1-mask')
-                              .data(dataSubset);
-          nodeQ1 = drawSegment( nodeQ1,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' quartile1-mask',
-                          getX,
-                          getY,
-                          posFunc[dim1].q1.min,
-                          posFunc[dim2].q1.min,
-                          posFunc[dim1].q1.max,
-                          posFunc[dim2].q1.max);
-          nodeQ1.enter.style('fill', 'none');
-          nodeQ1.enter.style('stroke-width', 5);
-          nodeQ1.enter.style('stroke', 'red');
-          nodeQ1.enter.style('visibility', 'hidden');
-          nodeQ1.enter.style('pointer-events', 'all');
-          nodeQ1.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
-          nodeQ1.enter.on('mouseout',   getOnMouseOut(this));
-          nodeQ1.enter.on('click',      getOnClick(this, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
-          nodeQ1.exit.remove();
-          
-          var nodeQ3 = this.svg.selectAll('.'+eltClass+'.quartile3-mask')
-                              .data(dataSubset);
-          nodeQ3 = drawSegment( nodeQ3,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' quartile3-mask',
-                          getX,
-                          getY,
-                          posFunc[dim1].q3.min,
-                          posFunc[dim2].q3.min,
-                          posFunc[dim1].q3.max,
-                          posFunc[dim2].q3.max);
-          nodeQ3.enter.style('fill', 'none');
-          nodeQ3.enter.style('stroke-width', 5);
-          nodeQ3.enter.style('stroke', 'red');
-          nodeQ3.enter.style('visibility', 'hidden');
-          nodeQ3.enter.style('pointer-events', 'all');
-          nodeQ3.enter.on('mouseover',  getOnMouseOver(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
-          nodeQ3.enter.on('mouseout',   getOnMouseOut(this));
-          nodeQ3.enter.on('click',      getOnClick(this, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
-          nodeQ3.exit.remove();
-          
-          // Median
-          var nodeMedian = this.svg.selectAll('.'+eltClass+'.median')
-                              .data(dataSubset);
-          nodeMedian = drawSegment( nodeMedian,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' median',
-                          getX,
-                          getY,
-                          posFunc[dim1].median.min,
-                          posFunc[dim2].median.min,
-                          posFunc[dim1].median.max,
-                          posFunc[dim2].median.max);
-          svgSetCommonAttributesPerElem(nodeMedian.enter, this.elements[i]);
-          nodeMedian.enter.style('fill', 'none');
-          svgSetCommonAttributesPerElem(nodeMedian.update, this.elements[i]);
-          nodeMedian.update.style('fill', 'none');
-          nodeMedian.exit.remove();
-          
-          // Event
-          var nodeMedianMask = this.svg.selectAll('.'+eltClass+'.median-mask')
-                              .data(dataSubset);
-          nodeMedianMask = drawSegment( nodeMedianMask,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' median-mask',
-                          getX,
-                          getY,
-                          posFunc[dim1].median.min,
-                          posFunc[dim2].median.min,
-                          posFunc[dim1].median.max,
-                          posFunc[dim2].median.max);
-          nodeMedianMask.enter.style('stroke-width', 5);
-          nodeMedianMask.enter.style('stroke', 'red');
-          nodeMedianMask.enter.style('visibility', 'hidden');
-          nodeMedianMask.enter.style('pointer-events', 'all');
-          nodeMedianMask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
-          nodeMedianMask.enter.on('mouseout',   getOnMouseOut(this));
-          nodeMedianMask.enter.on('click',      getOnClick(this, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
-          nodeMedianMask.exit.remove();
-          
-          
-          // First whisker
-          var nodeWisker1 = this.svg.selectAll('.'+eltClass+'.whisker.min')
-                              .data(dataSubset);
-          nodeWisker1 = drawSegment( nodeWisker1,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker min',
-                          getX,
-                          getY,
-                          posFunc[dim1].w1.min,
-                          posFunc[dim2].w1.min,
-                          posFunc[dim1].w1.max,
-                          posFunc[dim2].w1.max);
-          nodeWisker1.enter.style('stroke-dasharray', whiskers_dasharray);
-          svgSetCommonAttributesPerElem(nodeWisker1.enter, this.elements[i]);
-          nodeWisker1.enter.style('fill', 'none');
-          nodeWisker1.update.style('stroke-dasharray', whiskers_dasharray);
-          svgSetCommonAttributesPerElem(nodeWisker1.update, this.elements[i]);
-          nodeWisker1.update.style('fill', 'none');
-          nodeWisker1.exit.remove();
-          
-          // Second whisker
-          var nodeWisker2 = this.svg.selectAll('.'+eltClass+'.whisker.max')
-                              .data(dataSubset);
-          nodeWisker2 = drawSegment( nodeWisker2,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker max',
-                          getX,
-                          getY,
-                          posFunc[dim1].w2.min,
-                          posFunc[dim2].w2.min,
-                          posFunc[dim1].w2.max,
-                          posFunc[dim2].w2.max);
-          nodeWisker2.enter.style('stroke-dasharray', whiskers_dasharray);
-          svgSetCommonAttributesPerElem(nodeWisker2.enter, this.elements[i]);
-          nodeWisker2.enter.style('fill', 'none');
-          nodeWisker2.update.style('stroke-dasharray', whiskers_dasharray);
-          svgSetCommonAttributesPerElem(nodeWisker2.update, this.elements[i]);
-          nodeWisker2.update.style('fill', 'none');
-          nodeWisker2.exit.remove();
-          
-          // First whisker limite
-          var nodeWiskerLimit1 = this.svg.selectAll('.'+eltClass+'.whisker_limit.min')
-                              .data(dataSubset);
-          nodeWiskerLimit1 = drawSegment( nodeWiskerLimit1,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker_limit min',
-                          getX,
-                          getY,
-                          posFunc[dim1].wl1.min,
-                          posFunc[dim2].wl1.min,
-                          posFunc[dim1].wl1.max,
-                          posFunc[dim2].wl1.max);
-          svgSetCommonAttributesPerElem(nodeWiskerLimit1.enter, this.elements[i]);
-          nodeWiskerLimit1.enter.style('fill', 'none');
-          svgSetCommonAttributesPerElem(nodeWiskerLimit1.update, this.elements[i]);
-          nodeWiskerLimit1.update.style('fill', 'none');
-          nodeWiskerLimit1.exit.remove();
-          
-          // Event
-          var nodeW1Mask = this.svg.selectAll('.'+eltClass+'.whisker-mask.min')
-                              .data(dataSubset);
-          nodeW1Mask = drawSegment( nodeW1Mask,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker-mask min',
-                          getX,
-                          getY,
-                          posFunc[dim1].wl1.min,
-                          posFunc[dim2].wl1.min,
-                          posFunc[dim1].wl1.max,
-                          posFunc[dim2].wl1.max);
-          nodeW1Mask.enter.style('fill', 'none');
-          nodeW1Mask.enter.style('stroke-width', 5);
-          nodeW1Mask.enter.style('stroke', 'red');
-          nodeW1Mask.enter.style('visibility', 'hidden');
-          nodeW1Mask.enter.style('pointer-events', 'all');
-          nodeW1Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
-          nodeW1Mask.enter.on('mouseout',   getOnMouseOut(this));
-          nodeW1Mask.enter.on('click',      getOnClick(this, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
-          nodeW1Mask.exit.remove();
-          
-          // Second whisker limite
-          var nodeWiskerLimit2 = this.svg.selectAll('.'+eltClass+'.whisker_limit.max')
-                              .data(dataSubset);
-          nodeWiskerLimit2 = drawSegment( nodeWiskerLimit2,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker_limit max',
-                          getX,
-                          getY,
-                          posFunc[dim1].wl2.min,
-                          posFunc[dim2].wl2.min,
-                          posFunc[dim1].wl2.max,
-                          posFunc[dim2].wl2.max);
-          svgSetCommonAttributesPerElem(nodeWiskerLimit2.enter, this.elements[i]);
-          nodeWiskerLimit2.enter.style('fill', 'none');
-          svgSetCommonAttributesPerElem(nodeWiskerLimit2.update, this.elements[i]);
-          nodeWiskerLimit2.update.style('fill', 'none');
-          nodeWiskerLimit2.exit.remove();
-          
-          // Event
-          var nodeW2Mask = this.svg.selectAll('.'+eltClass+'.whisker-mask.max')
-                              .data(dataSubset);
-          nodeW2Mask = drawSegment( nodeW2Mask,
-                          deepestCoordSys,
-                          this.transition_duration,
-                          eltClass+' whisker-mask max',
-                          getX,
-                          getY,
-                          posFunc[dim1].wl2.min,
-                          posFunc[dim2].wl2.min,
-                          posFunc[dim1].wl2.max,
-                          posFunc[dim2].wl2.max);
-          nodeW2Mask.enter.style('fill', 'none');
-          nodeW2Mask.enter.style('stroke-width', 5);
-          nodeW2Mask.enter.style('stroke', 'red');
-          nodeW2Mask.enter.style('visibility', 'hidden');
-          nodeW2Mask.enter.style('pointer-events', 'all');
-          nodeW2Mask.enter.on('mouseover',  getOnMouseOver(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
-          nodeW2Mask.enter.on('mouseout',   getOnMouseOut(this));
-          nodeW2Mask.enter.on('click',      getOnClick(this, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
-          nodeW2Mask.exit.remove();
-        }
-        else {
-          ERROR('Type of element '+i+' is not an element but an '+getTypeName(this.elements[i]));
         }
       }
     }
@@ -2500,107 +2481,32 @@
   };
     
   Rect.prototype.getX = function(pos, d, i) {
-    var X = null;
-    if(this.dimAlias['x'] == null) {
-      if(this.subSys == null) {
-        X = this.boundary['x'].max / 2;
-      }
-      else if(this.g.merge_null_axis) {
-        X = 0;
-      }
-      else {
-        X = this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      }
-    }
-    else if(pos[this.dimAlias['x']] == null) {
-      X =  0;
+    if(this.dimAlias['x'] == null ||
+       pos[this.dimAlias['x']] == null) {
+      return 0;
     }
     else {
-      X = this.scale['x'](pos[this.dimAlias['x']](d, i));
+      return this.scale['x'](pos[this.dimAlias['x']](d, i));
     }
-    
-    if(this.subSys != null) {
-      X += this.subSys.getX(pos, d, i);
-    }
-    
-    return X;
   };
   
   Rect.prototype.getY = function(pos, d, i) {
     var Y = null;
-    if(this.dimAlias['y'] == null) {
-      if(this.subSys == null) {
-        Y = this.boundary['y'].max / 2;
-      }
-      else if(this.g.merge_null_axis) {
-        Y = 0;
-      }
-      else {
-        Y = this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      }
-    }
-    else if(pos[this.dimAlias['y']] == null) {
-      Y = 0;
+    if(this.dimAlias['y'] == null ||
+       pos[this.dimAlias['y']] == null) {
+      return 0;
     }
     else {
-      Y = this.scale['y'](pos[this.dimAlias['y']](d, i));
+      return this.scale['y'](pos[this.dimAlias['y']](d, i));
     }
-    
-    if(this.subSys != null) {
-      Y += this.subSys.getY(pos, d, i);
-    }
-    
-    return Y;
   };
   
   Rect.prototype.getXOrigin = function(pos, d, i) {
-    var X = null;
-    
-    if(this.subSys == null) {
-      X = 0;
-    }
-    else if(this.dimAlias['x'] == null) {
-      if(this.g.merge_null_axis) {
-        X = 0;
-      }
-      else {
-        X = this.boundary['x'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      }
-    }
-    else {
-      X = this.scale['x'](pos[this.dimAlias['x']](d, i));
-    }
-    
-    if(this.subSys != null) {
-      X += this.subSys.getXOrigin(pos, d, i);
-    }
-    
-    return X;
+    return 0;
   };
   
   Rect.prototype.getYOrigin = function(pos, d, i) {
-    var Y = null;
-    
-    if(this.subSys == null) {
-      Y = 0;
-    }
-    else if(this.dimAlias['y'] == null) {
-      if(this.g.merge_null_axis) {
-        Y = 0;
-      }
-      else {
-        Y = this.boundary['y'].max * (1 - 1 / (1+this.g.coordSysMargin)) / 2;
-      }
-    }
-    else {
-      Y = this.scale['y'](pos[this.dimAlias['y']](d, i));
-    }
-    
-    if(this.subSys != null) {
-      Y += this.subSys.getYOrigin(pos, d, i);
-    }
-    
-    return Y;
+    return 0;
   };
   
   Rect.prototype.updateSVG = function(svg, dim, width, height, depth) {
@@ -2636,9 +2542,6 @@
     /*             *\
      * Draw Axises *
     \*             */
-    
-    // X axis
-    
     var dimInfo = [
                     { dimName:'x',
                       orient:'bottom',
@@ -3653,7 +3556,6 @@
   ///////////////////////
   // Private functions //
   ///////////////////////
-  
   
   // Add an element to the graphic
   var addElement = function(g, Type, param, originFunc) {

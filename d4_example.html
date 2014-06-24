@@ -78,7 +78,7 @@
             .time({ year:'data:year',
                     age:'data:age'})
             .bar({  x:marriageStatus,
-                    sub_cat:function(d){return d.sex.toString();},
+                    sub_cat:d4.cat('data:sex'),
                     y:d4.interval(0, 'data:people'),
                     color:function(d){return d.sex == 1 ? '#1f77b4' : '#e377c2';},
                     label:'data:people'})

@@ -1620,7 +1620,7 @@
       
       this.dataset[name] = func(param);
     }
-    
+    console.log(this.dataset[main_dataset_name]);
     // Check if every element's dataset exists
     for(var i = 0 ; i < this.elements.length ; i++) {
       if(!(this.elements[i].datasetName in this.dataset)) {
@@ -3153,6 +3153,9 @@
     var group_by = param;
     var groupByAes = {};
     
+    // True:  aggregate from the whole data (old + new)
+    // False: aggregate only from new data
+    var recomputeWholeGroup = false;
     var getNewData = function(groupedData) {
       var new_data = [];
       for(var i = 0 ; i < groupedData.length ; i++) {
@@ -3184,37 +3187,83 @@
     // GroupBy
     // data = {oldData, newData, oldProcessedData}
     var groupByFunction = function(data) {
-      // We recompute the whole thing
-      data = d3.merge([data.oldData, data.newData]);
-      
-      // Sizes of each splits, sub-splits, etc
-      var splitSizes = [];
-      
-      for(var i in group_by) {
-        computeDomain(groupByAes[i], data, 'discret');
-        splitSizes.push(groupByAes[i].discretDomain.length);
-      }
-      
-      var nestedata = allocateSplitDataArray(splitSizes, 0);
-      for(var i = 0 ; i < data.length ; i++) {
-        var dataSubset = nestedata;
+      var groupedData = [];
+      if(recomputeWholeGroup) {
+        // We recompute the whole thing
+        data = d3.merge([data.oldData, data.newData]);
         
-        for(var j in group_by) {
-          var value = groupByAes[j].func(data[i], i);
-          var id = groupByAes[j].discretDomain.indexOf(value);
-          dataSubset = dataSubset[id];
+        // Sizes of each splits, sub-splits, etc
+        var splitSizes = [];
+        
+        for(var i in group_by) {
+          computeDomain(groupByAes[i], data, 'discret');
+          splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
-        dataSubset.push(data[i]);
+        var nestedata = allocateSplitDataArray(splitSizes, 0);
+        for(var i = 0 ; i < data.length ; i++) {
+          var dataSubset = nestedata;
+          
+          for(var j in group_by) {
+            var value = groupByAes[j].func(data[i], i);
+            var id = groupByAes[j].discretDomain.indexOf(value);
+            dataSubset = dataSubset[id];
+          }
+          
+          dataSubset.push(data[i]);
+        }
+        
+        
+        
+        var it = new HierarchyIterator(nestedata);
+        while(it.hasNext()) {
+          var dataSubset = it.next();
+          if(dataSubset.length > 0) {
+            groupedData.push(dataSubset);
+          }
+        }
       }
-      
-      var groupedData = [];
-      
-      var it = new HierarchyIterator(nestedata);
-      while(it.hasNext()) {
-        var dataSubset = it.next();
-        if(dataSubset.length > 0) {
-          groupedData.push(dataSubset);
+      else {
+        var newData = data.newData;
+        var oldData = data.oldProcessedData;
+        
+        for(var i in group_by) {
+          computeDomain(groupByAes[i], newData, 'discret');
+          for(var j = 0 ; j < oldData.length ; j++) {
+            groupByAes[i].discretDomain.push(oldData[j][i]);
+          }
+        }
+        
+        var getIndex = {};
+        for(var i = 0 ; i < newData.length ; i++) {
+          var id = '';
+          
+          for(var j in group_by) {
+            var value = groupByAes[j].func(newData[i], i);
+            id += groupByAes[j].discretDomain.indexOf(value) + '-';
+          }
+          
+          var index = getIndex[id];
+          if(isUndefined(index)) {
+            index = getIndex[id] = groupedData.length;
+            groupedData[index] = {oldData:[], newData:[]};
+          }
+          groupedData[index].newData.push(newData[i]);
+        }
+        for(var i = 0 ; i < oldData.length ; i++) {
+          var id = '';
+          
+          for(var j in group_by) {
+            var value = oldData[i][j];
+            id += groupByAes[j].discretDomain.indexOf(value) + '-';
+          }
+          
+          var index = getIndex[id];
+          if(isUndefined(index)) {
+            index = getIndex[id] = groupedData.length;
+            groupedData[index] = {oldData:[], newData:[]};
+          }
+          groupedData[index].oldData.push(oldData[i]);
         }
       }
       
@@ -3223,14 +3272,22 @@
     
     // Count
     groupByFunction.count = function() {
+      recomputeWholeGroup = false;
       getNewData = function(groupedData) {
         var new_data = [];
         for(var i = 0 ; i < groupedData.length ; i++) {
-          var datum = {};
-          for(var j in group_by) {
-            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          var oldCount = 0;
+          if(groupedData[i].oldData.length > 0) {
+            oldCount = groupedData[i].oldData[0][sum_attr_name];
+            datum = groupedData[i].oldData[0];
           }
-          datum.count = groupedData[i].length;
+          else {
+            for(var j in group_by) {
+              datum[j] = groupByAes[j].func(groupedData[i].newData[0], 0);
+            }
+          }
+          
+          datum.count = oldCount + groupedData[i].newData.length;
           new_data.push(datum);
         }
         return new_data;
@@ -3241,7 +3298,7 @@
     
     // Proportion
     groupByFunction.proportion = function(param) {
-      var funcName = lib_name+'.groupBy().proportion';
+      funcName += '().proportion';
       var weight =    checkParam(funcName, param, 'weight', 1);
       var aggreg_on = {};
       
@@ -3260,6 +3317,7 @@
       var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName);
       var weightFunc = aes[aesId].func;
       
+      recomputeWholeGroup = true;
       getNewData = function(groupedData) {
         var new_data = [];
         checkAesType('number', typeof weightFunc(groupedData[0][0], 0), 'weight', funcName);
@@ -3331,7 +3389,7 @@
     
     //Sum
     groupByFunction.sum = function(param) {
-      var funcName = lib_name+'.groupBy().sum';
+      funcName += '().sum';
       var sum_attr_name = null;
       var sum_attr_func = null;
       
@@ -3350,21 +3408,33 @@
         sum_attr_func = function(){return 1;};
       }
       
+      recomputeWholeGroup = false;
       getNewData = function(groupedData) {
+        var i = 0;
+        while(groupedData[0].newData.length == 0) {
+          i++;
+        }
+        checkAesType('number', typeof sum_attr_func(groupedData[i].newData[0], 0), sum_attr_name, funcName);
+        
         var new_data = [];
-        checkAesType('number', typeof sum_attr_func(groupedData[0][0], 0), sum_attr_name, funcName);
         
         for(var i = 0 ; i < groupedData.length ; i++) {
           var sum = 0;
-          
-          for(var j = 0 ; j < groupedData[i].length ; j++) {
-            sum += sum_attr_func(groupedData[i][j], j);
-          }
-          
           var datum = {};
-          for(var j in group_by) {
-            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
+          if(groupedData[i].oldData.length > 0) {
+            sum = groupedData[i].oldData[0][sum_attr_name];
+            datum = groupedData[i].oldData[0];
           }
+          else {
+            for(var j in group_by) {
+              datum[j] = groupByAes[j].func(groupedData[i].newData[0], 0);
+            }
+          }
+          
+          for(var j = 0 ; j < groupedData[i].newData.length ; j++) {
+            sum += sum_attr_func(groupedData[i].newData[j], j);
+          }
+          
           datum[sum_attr_name] = sum;
           new_data.push(datum);
         }

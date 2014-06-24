@@ -190,7 +190,12 @@
     var statOnAes = aes[aesId];
     
     var aggregate = function(getDatum) {
+      
+      // data = {oldData, newData, oldProcessedData}
       return function(data) {
+        // We recompute the whole thing
+        data = d3.merge([data.oldData, data.newData]);
+        
         // Sizes of each splits, sub-splits, etc
         var splitSizes = [];
         
@@ -239,7 +244,7 @@
           new_data = d3.merge([new_data, getDatum(sortedDataSubset, values)]);
         }
         
-        return new_data;
+        return {oldData:[], newData:new_data};
       };
     };
     
@@ -347,7 +352,7 @@
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
     if(data instanceof Array) {
-      this.dataset[main_dataset_name] = data;
+      this.onDataLoaded(data);
     }
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
@@ -375,7 +380,7 @@
   // Set data just loaded, filter them and render if needed;
   // Not supposed to be called by the user
   Graphic.prototype.onDataLoaded = function(data) {
-    this.dataset[main_dataset_name] = data;
+    this.dataset[main_dataset_name] = {oldData:[], newData:data};
     
     if(this.render_param != null) {
       var param = this.render_param;
@@ -632,7 +637,13 @@
     /*                                                *\
      * Generation of data views (per element dataset) *
     \*                                                */
-    generateDataViews.call(this);
+    updateDataViews.call(this);
+    
+    
+    /*                                                   *\
+     * Merge old data (none) with new data (just loaded) *
+    \*                                                   */
+    mergeOldAndNewData.call(this);
     
     
     /*                                         *\
@@ -1581,30 +1592,34 @@
         ERROR('Can\'t plot without data');
       }
     }
-    else {
-      this.onDataLoaded(this.dataset[main_dataset_name]);
-    }
     //TIMER_GROUP_END('Loading', this.display_timers);
     return true;
   }
   
   
   /*
-   * Generate data views (datasets computed from the main dataset)
+   * Update data views (datasets computed from the main dataset)
    * GoG pipeline step: Algebra, Statistics
    */
-  var generateDataViews = function() {
+  var updateDataViews = function() {
     TIMER_BEGIN('Generation of data views', this.display_timers);
+    
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
       
-      if(isDefined(this.dataset[name])) {
-        WARNING('Dataset '+name+' already defined');
+      if(isUndefined(this.dataset[name])) {
+        this.dataset[name] = {oldData:[]};
       }
-      this.dataset[name] = func(this.dataset[main_dataset_name]);
+      
+      var param = { oldData:          this.dataset[main_dataset_name].oldData,
+                    newData:          this.dataset[main_dataset_name].newData,
+                    oldProcessedData: (this.dataset[main_dataset_name].oldData.length == 0)
+                                      ? []
+                                      : this.dataset[name].oldData};
+      
+      this.dataset[name] = func(param);
     }
-    this.data_view_generator = [];
     
     // Check if every element's dataset exists
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -1613,6 +1628,19 @@
       }
     }
     TIMER_END('Generation of data views', this.display_timers);
+  }
+  
+  /*
+   * Merge old and new data
+   * GoG pipeline step: None
+   */
+  var mergeOldAndNewData = function() {
+    TIMER_BEGIN('Merge old and new data', this.display_timers);
+    
+    for(var name in this.dataset) {
+      this.dataset[name] = d3.merge([this.dataset[name].oldData, this.dataset[name].newData]);
+    }
+    TIMER_END('Merge old and new data', this.display_timers);
   }
   
   
@@ -3103,14 +3131,19 @@
     var funcName = lib_name+'.filter';
     var criteria = checkParam(funcName, param, 'criteria');
     
+    // data = {oldData, newData, oldProcessedData}
     return function(data) {
+      var newData = data.newData;
       var filtered_data = [];
-      for(var i = 0 ; i < data.length ; i++) {
-        if(criteria(data[i], i)) {
-          filtered_data.push(data[i]);
+      
+      // We only filter new data (old ones already are filtered)
+      for(var i = 0 ; i < newData.length ; i++) {
+        if(criteria(newData[i], i)) {
+          filtered_data.push(newData[i]);
         }
       }
-      return filtered_data;
+      
+      return {oldData:data.oldProcessedData, newData:filtered_data};
     }
   }
   
@@ -3149,7 +3182,11 @@
     }
     
     // GroupBy
+    // data = {oldData, newData, oldProcessedData}
     var groupByFunction = function(data) {
+      // We recompute the whole thing
+      data = d3.merge([data.oldData, data.newData]);
+      
       // Sizes of each splits, sub-splits, etc
       var splitSizes = [];
       
@@ -3181,7 +3218,7 @@
         }
       }
       
-      return getNewData(groupedData);
+      return {oldData:[], newData:getNewData(groupedData)};
     };
     
     // Count
@@ -3344,15 +3381,49 @@
   // Sort data
   main_object.sort = function(param) {
     var funcName = lib_name+'.sort';
-    var comparator = checkParam(funcName, param, 'comparator');
+    var compare = checkParam(funcName, param, 'comparator');
     
+    // data = {oldData, newData, oldProcessedData}
     return function(data) {
-      var sorted_data = new Array(data.length);
-      for(var i = 0 ; i < data.length ; i++) {
-        sorted_data[i] = data[i];
+      var newData = data.newData;
+      var oldData = data.oldProcessedData;
+      var sorted_new_data = new Array(newData.length);
+      
+      for(var i = 0 ; i < newData.length ; i++) {
+        sorted_new_data[i] = newData[i];
+      }
+      sorted_new_data.sort(compare);
+      
+      // Merge new and old data (both sorted)
+      var sorted_data = new Array(oldData.length, newData.length);
+      var i = 0;
+      var j = 0;
+      var k = 0;
+      while(i < oldData.length && j < sorted_new_data.length) {
+        // oldData[i] < newData[j]
+        if(compare(oldData[i], sorted_new_data[j]) < 0) {
+          sorted_data[k] = oldData[i];
+          i++;
+        }
+        else {
+          sorted_data[k] = sorted_new_data[j];
+          j++;
+        }
+        k++;
       }
       
-      return sorted_data.sort(comparator);
+      while(i < oldData.length) {
+        sorted_data[k] = oldData[i];
+        i++;
+        k++;
+      }
+      while(j < sorted_new_data.length) {
+        sorted_data[k] = sorted_new_data[j];
+        j++;
+        k++;
+      }
+      
+      return {oldData:[], newData:sorted_data};
     }
   };
   main_object.compare = function(a, b) {
@@ -3369,7 +3440,6 @@
         return 1;
       }
       else {
-        main_object.stringCompare
         for (var i=0,n=Math.max(a.length, b.length); i<n && a.charAt(i) === b.charAt(i); ++i);
         if (i === n) {
           return 0;
@@ -3922,15 +3992,10 @@
     while(cs != null) {
       for(var i in cs.dimAlias) {
         if(cs.dimAlias[i] != null) {
-          dim[cs.dimAlias[i]] = {  isSpacial:true};
+          dim[cs.dimAlias[i]] = {isSpacial:true};
           
           // Force ordinal if the coordinate system have a sub coordinate system
-          if(cs.subSys != null) {
-            dim[cs.dimAlias[i]].forceOrdinal = true;
-          }
-          else {
-            dim[cs.dimAlias[i]].forceOrdinal = false;
-          }
+          dim[cs.dimAlias[i]].forceOrdinal = (cs.subSys != null);
         }
       }
       cs = cs.subSys;
@@ -3944,11 +4009,11 @@
     for(i in axisProperty) {
       if(isUndefined(dim[i])) {
         WARNING('In function Graphic.axis: axis '+i+' not defined');
-        continue;
       }
-      
-      for(var j in axisProperty[i]) {
-        dim[i][j] = axisProperty[i][j];
+      else {
+        for(var j in axisProperty[i]) {
+          dim[i][j] = axisProperty[i][j];
+        }
       }
     }
     
@@ -4357,6 +4422,7 @@
   var getTypeName = function(a) {
     return a.constructor.name;
   };
+  
   
   /* From: http://strd6.com/2010/08/useful-javascript-game-extensions-clamp/ */
   Number.prototype.clamp = function(min, max) {

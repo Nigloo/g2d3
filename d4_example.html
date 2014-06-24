@@ -246,6 +246,38 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var getColor = function(d){
+                var colors = {
+                        'Noyau interne':    '#fc0',
+                        'Noyau externe':    '#ff6',
+                        'Manteau inférieur':'#f99',
+                        'Manteau supérieur':'#e65c5c',
+                        'Croute terrestre': '#5B3B11',
+                        'Troposphère':      'white',
+                        'Stratosphère':     '#cff',
+                        'Mésosphère':       '#39f',
+                        'Thermosphère':     '#33c',
+                        'Ionosphère':       '#60c',
+                        'Exosphère':        'black'
+                    }
+                
+                return colors[d.couche];
+            };
+            
+            d4.graphic()
+            .hack({drawBackground:false,bar_padding:0})
+            .coord(d4.polar({theta:null}))
+            .axis({display:false})
+            .bar({  radius:d4.interval.stack('data:epaisseur'),
+                    color:getColor,
+                    label:function(d){return d.couche+': '+d.epaisseur+'km';}})
+            .data({data:dataset['couches_terre']})
+            .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.couche != 'Exosphère'}})})
+            .plot({selector:"#graph9", width:1000, height:1000, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
           
           
         </script>
@@ -283,6 +315,10 @@
         
         <div id="graph8">
             <h2>Apple Nutriment</h2>
+        </div>
+        
+        <div id="graph9">
+            <h2>Couches terrestres et atmospheriques</h2>
         </div>
         
     </body>

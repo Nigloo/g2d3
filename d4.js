@@ -3188,12 +3188,11 @@
     // data = {oldData, newData, oldProcessedData}
     var groupByFunction = function(data) {
       var groupedData = [];
+      var splitSizes = [];
+      
       if(recomputeWholeGroup) {
         // We recompute the whole thing
         data = d3.merge([data.oldData, data.newData]);
-        
-        // Sizes of each splits, sub-splits, etc
-        var splitSizes = [];
         
         for(var i in group_by) {
           computeDomain(groupByAes[i], data, 'discret');
@@ -3213,8 +3212,6 @@
           dataSubset.push(data[i]);
         }
         
-        
-        
         var it = new HierarchyIterator(nestedata);
         while(it.hasNext()) {
           var dataSubset = it.next();
@@ -3232,38 +3229,45 @@
           for(var j = 0 ; j < oldData.length ; j++) {
             groupByAes[i].discretDomain.push(oldData[j][i]);
           }
+          RemoveDupArray(groupByAes[i].discretDomain);
+          splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
-        var getIndex = {};
+        var nesteNewData = allocateSplitDataArray(splitSizes, 0);
         for(var i = 0 ; i < newData.length ; i++) {
-          var id = '';
+          var dataSubset = nesteNewData;
           
           for(var j in group_by) {
             var value = groupByAes[j].func(newData[i], i);
-            id += groupByAes[j].discretDomain.indexOf(value) + '-';
+            var id = groupByAes[j].discretDomain.indexOf(value);
+            dataSubset = dataSubset[id];
           }
           
-          var index = getIndex[id];
-          if(isUndefined(index)) {
-            index = getIndex[id] = groupedData.length;
-            groupedData[index] = {oldData:[], newData:[]};
-          }
-          groupedData[index].newData.push(newData[i]);
+          dataSubset.push(newData[i]);
         }
+        
+        var nesteOldData = allocateSplitDataArray(splitSizes, 0);
         for(var i = 0 ; i < oldData.length ; i++) {
-          var id = '';
+          var dataSubset = nesteOldData;
           
           for(var j in group_by) {
-            var value = oldData[i][j];
-            id += groupByAes[j].discretDomain.indexOf(value) + '-';
+            var value = groupByAes[j].func(oldData[i], i);
+            var id = groupByAes[j].discretDomain.indexOf(value);
+            dataSubset = dataSubset[id];
           }
           
-          var index = getIndex[id];
-          if(isUndefined(index)) {
-            index = getIndex[id] = groupedData.length;
-            groupedData[index] = {oldData:[], newData:[]};
+          dataSubset.push(oldData[i]);
+        }
+        
+        var itNew = new HierarchyIterator(nesteNewData);
+        var itOld = new HierarchyIterator(nesteOldData);
+        while(itNew.hasNext()) {
+          var newDataSubset = itNew.next();
+          var oldDataSubset = itOld.next();
+          
+          if(newDataSubset.length > 0 || oldDataSubset.length > 0) {
+            groupedData.push({oldData:oldDataSubset, newData:newDataSubset});
           }
-          groupedData[index].oldData.push(oldData[i]);
         }
       }
       

@@ -353,26 +353,34 @@
             
             var ppsb = 10;
             var maxT = 10;
+            var ind = -1;
             for(var t = 0 ; t <= maxT ; t++) {
-                dataset[t] = [];
+                ind++;
+                dataset[ind] = [];
                 for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset[t].push({col1:'A',col2:'C',col3:i%ppsb,             col4:i*(t+1),               col5:t});
+                    dataset[ind].push({col1:'A',col2:'C',col3:i%ppsb,             col4:i*(t+1),               col5:t});
                 }
+                ind++;
+                dataset[ind] = [];
                 for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset[t].push({col1:'B',col2:'C',col3:(ppsb+t-i-1)%ppsb,  col4:i*(t+1),               col5:t});
+                    dataset[ind].push({col1:'B',col2:'C',col3:(ppsb+t-i-1)%ppsb,  col4:i*(t+1),               col5:t});
                 }
+                ind++;
+                dataset[ind] = [];
                 for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset[t].push({col1:'A',col2:'D',col3:i%ppsb,             col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                    dataset[ind].push({col1:'A',col2:'D',col3:i%ppsb,             col4:(ppsb+t-i-1)*(t+1),    col5:t});
                 }
+                ind++;
+                dataset[ind] = [];
                 for(var i = 0 ; i < ppsb+t ; i++) {
-                    dataset[t].push({col1:'B',col2:'D',col3:(ppsb+t-i-1)%ppsb,  col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                    dataset[ind].push({col1:'B',col2:'D',col3:(ppsb+t-i-1)%ppsb,  col4:(ppsb+t-i-1)*(t+1),    col5:t});
                 }
                 ppsb++;
             }
             
             
             G['11'] = d4.graphic()
-            .hack({display_timers:false,transition_enabled:true})
+            .hack({display_timers:false,transition_duration:250})
             .coord(d4.rect({subSys: d4.polar()}))
             //.coord(d4.rect({x:'x',y:'y',subSys:d4.rect({x:'theta',y:'radius'})}))
             .time({t:'data:col5'})
@@ -399,11 +407,11 @@
             .data({data:dataset[0]})
             .plot({selector:"#graph11", width:1000, height:1000, margin_left:50, margin_bottom:40});
             //*/
-            var numDataset = 1;
+            var datasetLoaded = 1;
             function pushData() {
-                if(numDataset <= maxT) {
-                    G['11'].pushData(dataset[numDataset]);
-                    numDataset++;
+                if(datasetLoaded < dataset.length) {
+                    G['11'].pushData(dataset[datasetLoaded]);
+                    datasetLoaded++;
                 }
             }
             

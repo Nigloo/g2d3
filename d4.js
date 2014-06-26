@@ -371,7 +371,6 @@
   };
   
   Graphic.prototype.pushData = function(data) {
-    if(isUndefined(data))throw 'FAIL!!!';
     for(var datasetName in this.dataset) {
       this.dataset[datasetName] = {oldData:this.dataset[datasetName],
                                    newData:[]};
@@ -926,41 +925,39 @@
           
           // Lines
           else if(this.elements[i] instanceof Line) {
-            var interpolation;
             if(dataSubset.length > 0) {
-              interpolation = this.elements[i].attrs.interpolation.func(dataSubset[0], 0);
-            }
-            else {
-              interpolation = '';
-            }
-            
-            var lineFunction = d3.svg.line()
-                                 .x(getX)
-                                 .y(getY)
-                                 .interpolate(interpolation);
-            
-            var node;
-            // On enter
-            if(svg.select('.'+eltClass).empty()) {
-              node = svg.append('path').attr('class', eltClass);
-            }
-            // On update
-            else {
-              node = svg.select('.'+eltClass);
-              if(this.transition_duration > 0) {
-                node = node.transition().duration(this.transition_duration);
+              var interpolation = this.elements[i].attrs.interpolation.func(dataSubset[0], 0);
+              
+              var lineFunction = d3.svg.line()
+                                   .x(getX)
+                                   .y(getY)
+                                   .interpolate(interpolation);
+              
+              var node;
+              // On enter
+              if(svg.select('.'+eltClass).empty()) {
+                node = svg.append('path').attr('class', eltClass);
+              }
+              // On update
+              else {
+                node = svg.select('.'+eltClass);
+                if(this.transition_duration > 0) {
+                  node = node.transition().duration(this.transition_duration);
+                }
+              }
+              
+              node.attr("d", lineFunction(dataSubset));
+              
+              if(dataSubset.length > 0) {
+                svgSetAttributePerGroup(node, 'stroke', this.elements[i], 'color', dataSubset[0], 0);
+                svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0], 0);
+                svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0], 0);
               }
             }
-            
-            node.attr("d", lineFunction(dataSubset));
-            
-            if(dataSubset.length > 0) {
-              svgSetAttributePerGroup(node, 'stroke', this.elements[i], 'color', dataSubset[0], 0);
-              svgSetCommonAttributesPerGroup(node, this.elements[i], dataSubset[0], 0);
-              svgSetAttributePerGroup(node, 'stroke-linecap', this.elements[i], 'stroke_linecap', dataSubset[0], 0);
+            else {
+              // On exit
+              svg.select('.'+eltClass).remove();
             }
-            
-            // On exit: nothing to do, there will just be an empty path
           }
           
           // Bars
@@ -3130,6 +3127,7 @@
                               .data(infoSubCoordSys);
       
       // On update
+      subCoordSysNode.attr('class', function(d){;return 'depth'+(depth+1)+' sub-graphic-'+d[0]+'-'+d[1];});
       (this.g.transition_duration > 0
       ? subCoordSysNode.transition().duration(this.g.transition_duration)
       : subCoordSysNode)
@@ -3342,6 +3340,12 @@
                   .attr('stroke-opacity', 1);
         }
       }
+      else {
+        (this.g.transition_duration > 0
+        ? axisNode.transition().duration(this.g.transition_duration)
+        : axisNode)
+        .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')');
+      }
       
       
       var ticksInfo = [];
@@ -3416,7 +3420,12 @@
                   .attr('stroke-opacity', 1);
         }
       }
-      
+      else {
+        (this.g.transition_duration > 0
+        ? axisNode.transition().duration(this.g.transition_duration)
+        : axisNode)
+        .attr('transform', 'translate(' +this.centerX+ ','+this.centerY+')');
+      }
       
       var ticksInfo = [];
       for(var i = 0 ; i < ticks.length ; i++) {

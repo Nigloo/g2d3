@@ -30,7 +30,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            /*
             var dataset = [
                 {col1:5,    col2:5,     col3:300,   col4:0},
                 {col1:10,   col2:20,    col3:1200,  col4:1},
@@ -174,21 +174,23 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            /*
+            
             G['5'] = d4.graphic()
             .hack({ transition_duration:0,
                     display_timers:true,
                     drawBackground:false})
             .time({t:function(d){return parseInt(d.vn6 * 100)}})
-            .coord(d4.polar())
-            .symbol({   theta:'data:bn6',
+            .coord(d4.rect({subSys:d4.polar()}))
+            .symbol({   x:function(d){return parseInt(d.vn7 * 50)},
+                        y:function(d){return parseInt(d.vn8 * 10)},
+                        theta:'data:bn6',
                         radius:'data:sn6',
                         fill:'white',
                         stroke_width:2,
                         stroke:function(d){return d.sn6 > 0.5 ? 'red' : 'blue'}})
             .data({data:d4.loadFromFile({file:'data/big.csv'})})
             .plot({selector:"#graph5", width:1024, height:768, margin:50});
-            */
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -315,7 +317,8 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            */
+            /*
             var dataset = [];
             for(var t = 0 ; t < 10 ; t++)
             for(var i = 0 ; i < 3 ; i++)
@@ -325,7 +328,8 @@
                 dataset.push({t:t,x1:i,y1:j,x2:k,y2:l});
             
             G['10'] = d4.graphic()
-            .hack({display_timers:false})
+            .hack({ display_timers:false,
+                    transition_duration:2000})
             .coord( d4.rect({x:'x1',y:'y1',subSys:
                     d4.rect({x:'x2',y:'y2',subSys:
                     d4.rect({x:'x3',y:'y3'})})}))
@@ -338,9 +342,74 @@
                         y3:d4.cat(0)})
             .data({data:dataset})
             .plot({selector:"#graph10", width:1000, height:1000, margin_left:50, margin_bottom:40});
+            function pushD() {
+                 G['10'].pushData([{t:0,x1:'A',y1:'B',x2:0,y2:0}]);
+            }
+            //*/
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            //*
+            var dataset = [];
+            
+            var ppsb = 10;
+            var maxT = 10;
+            for(var t = 0 ; t <= maxT ; t++) {
+                dataset[t] = [];
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset[t].push({col1:'A',col2:'C',col3:i%ppsb,             col4:i*(t+1),               col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset[t].push({col1:'B',col2:'C',col3:(ppsb+t-i-1)%ppsb,  col4:i*(t+1),               col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset[t].push({col1:'A',col2:'D',col3:i%ppsb,             col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                }
+                for(var i = 0 ; i < ppsb+t ; i++) {
+                    dataset[t].push({col1:'B',col2:'D',col3:(ppsb+t-i-1)%ppsb,  col4:(ppsb+t-i-1)*(t+1),    col5:t});
+                }
+                ppsb++;
+            }
+            
+            
+            G['11'] = d4.graphic()
+            .hack({display_timers:false,transition_enabled:true})
+            .coord(d4.rect({subSys: d4.polar()}))
+            //.coord(d4.rect({x:'x',y:'y',subSys:d4.rect({x:'theta',y:'radius'})}))
+            .time({t:'data:col5'})
+            //.axis({axis:'theta', display_axis:false})
+            .element({  x:'data:col1',
+                        y: 'data:col2',
+                        theta:d4.cat('data:col3'),
+                        radius:'data:col4'})
+            .line({     fill:'none',
+                        stroke:'red',
+                        stroke_width:2,
+                        interpolation:function (d) {if(d.col1=='A'&&d.col2=='C'){
+                                                        return 'linear';
+                                                    } else if(d.col1=='A'&&d.col2=='D') {
+                                                        return 'cardinal';
+                                                    } else if(d.col1=='B'&&d.col2=='C') {
+                                                        return 'step';
+                                                    } else if(d.col1=='B'&&d.col2=='D') {
+                                                        return 'basis';
+                                                    }}})
+            .symbol({   color:'data:col3',
+                        shape:'data:col4',
+                        label:'data:col3'})
+            .data({data:dataset[0]})
+            .plot({selector:"#graph11", width:1000, height:1000, margin_left:50, margin_bottom:40});
+            //*/
+            var numDataset = 1;
+            function pushData() {
+                if(numDataset <= maxT) {
+                    G['11'].pushData(dataset[numDataset]);
+                    numDataset++;
+                }
+            }
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
+            
             
             function prev(i) {
                 G[i].previousStep('t');
@@ -384,6 +453,10 @@
         <div id="graph9"></div>
         
         <div id="graph10"></div>
+        <input type="button" value="Push data" onclick="pushD()"/>
+        
+        <div id="graph11"></div>
+        <input type="button" value="Push data" onclick="pushData()"/>
         
     </body>
 </html>   

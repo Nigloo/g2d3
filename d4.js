@@ -370,7 +370,9 @@
     return this;
   };
   
+  // Push data
   Graphic.prototype.pushData = function(data) {
+    
     for(var datasetName in this.dataset) {
       this.dataset[datasetName] = {oldData:this.dataset[datasetName],
                                    newData:[]};
@@ -381,13 +383,22 @@
     
     mergeOldAndNewData.call(this);
     
-    this.updateSliders();
+    TIMER_GROUP_BEGIN('Updating SVG', this.display_timers);
     
+    TIMER_BEGIN('Updating background and axises', this.display_timers);
     var svg = this.svg.select('.depth0');
-    
     this.spacialCoord.updateSVG(svg, this.dim, this.width, this.height, 0);
+    TIMER_END('Updating background and axises', this.display_timers);
     
+    TIMER_BEGIN('Updating sliders', this.display_timers);
+    this.updateSliders();
+    TIMER_END('UpdatingUpdating sliders', this.display_timers);
+    
+    TIMER_BEGIN('Updating elements', this.display_timers);
     this.updateElements();
+    TIMER_END('Updating elements', this.display_timers);
+    
+    TIMER_GROUP_END('Updating SVG', this.display_timers);
     
     return this;
   };
@@ -2262,8 +2273,8 @@
      * Update dimensions' domains                              *
      * EXCEPT the deepest spacial coordinate system dimensions *
     \*                                                         */
-    TIMER_GROUP_BEGIN('Computing scales', this.display_timers);
-    TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
+    TIMER_GROUP_BEGIN('Updating scales', this.display_timers);
+    TIMER_BEGIN('Updating dimension domain 1/2', this.display_timers);
     
     // Re-init domain where no old data
     for(var i in this.dim) {
@@ -2316,7 +2327,7 @@
       
       this.dim[i].domain = domain;
     }
-    TIMER_END('Computing dimension domain 1/2', this.display_timers);
+    TIMER_END('Updating dimension domain 1/2', this.display_timers);
     
     
     /*                                 *\
@@ -2414,7 +2425,7 @@
     /*                                      *\
      * Computing stacked interval functions *
     \*                                      */
-    TIMER_BEGIN('Computing stacked intervals\'values', this.display_timers);
+    TIMER_BEGIN('Updating stacked intervals\'values', this.display_timers);
     for(var i = 0 ; i < this.elements.length ; i++) {
       for(var attr in this.elements[i].attrs) {
         var attr_val = this.elements[i].attrs[attr].value;
@@ -2447,14 +2458,14 @@
         }
       }
     }
-    TIMER_END('Computing stacked intervals\'values', this.display_timers);
+    TIMER_END('Updating stacked intervals\'values', this.display_timers);
     
     
     /*                                          *\
      * Computing the deepest spacial coordinate *
      * system dimensions' domains               *
     \*                                          */
-    TIMER_BEGIN('Computing dimension domain 2/2', this.display_timers);
+    TIMER_BEGIN('Updating dimension domain 2/2', this.display_timers);
     for(var i in this.dim) {
       if(this.dim[i].forceOrdinal) {
         continue;
@@ -2512,13 +2523,13 @@
       
       this.dim[i].domain = domain;
     }
-    TIMER_END('Computing dimension domain 2/2', this.display_timers);
+    TIMER_END('Updating dimension domain 2/2', this.display_timers);
     
     
     /*                  *\
      * Computing scales *
     \*                  */
-    TIMER_BEGIN('Computing scales themselves', this.display_timers);
+    TIMER_BEGIN('Updating scales themselves', this.display_timers);
     // For the coordinate system
     this.spacialCoord.computeScale( this.dim, 
                                     this.width,
@@ -2593,8 +2604,8 @@
         }
       }
     }
-    TIMER_END('Computing scales themselves', this.display_timers);
-    TIMER_GROUP_END('Computing scales', this.display_timers);
+    TIMER_END('Updating scales themselves', this.display_timers);
+    TIMER_GROUP_END('Updating scales', this.display_timers);
   }
   
   

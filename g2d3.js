@@ -1,10 +1,10 @@
 !function() {
 'use strict';
   
-  var lib_name = 'd4';
+  var lib_name = 'g2d3';
   
   var main_object = {
-    version: '0.4'
+    version: '0.5'
   };
   window[lib_name] = main_object;
   

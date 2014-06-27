@@ -21,7 +21,7 @@
             }
         </style>
         <script type="text/javascript" src="d3.v3.js"></script>
-        <script type="text/javascript" src="d4.js"></script>
+        <script type="text/javascript" src="g2d3.js"></script>
         <script type="text/javascript">
             
             "use strict";
@@ -37,7 +37,7 @@
                 {col1:20,   col2:3,     col3:3000,  col4:2},
                 {col1:40,   col2:17,    col3:6000,  col4:3}];
             
-            G['1-1'] = d4.graphic()
+            G['1-1'] = g2d3.graphic()
             .element({  x:function(d){return d.col1;},
                         y:'data:col2',
                         stroke_width:function(d,i){return d.col4+1;},
@@ -61,7 +61,7 @@
             .plot({selector:"#graph1-1", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            G['1-2'] = d4.graphic()
+            G['1-2'] = g2d3.graphic()
             .element({  x:'data:col1',
                         y:'data:col2'})
             .line()
@@ -94,11 +94,11 @@
             }
             
             
-            G['2'] = d4.graphic()
-            .coord(d4.rect({x:'cat1',
+            G['2'] = g2d3.graphic()
+            .coord(g2d3.rect({x:'cat1',
                             // We don't redefine y, so it's default name will be 'y1'
                             // since 'y' is already taken by the sub-system
-                            subSys: d4.rect()
+                            subSys: g2d3.rect()
                             }))
             .element({  cat1:'data:col1',
                         y1:'data:col2',
@@ -115,14 +115,14 @@
                         stroke_width:2,
                         shape:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
-            .dataView({name:'default_data', func:d4.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
+            .dataView({name:'default_data', func:g2d3.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
             .plot({selector:"#graph2", width:800, height:600, margin:30});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             /*
-            G['3'] = d4.graphic()
-            .coord(d4.polar())
+            G['3'] = g2d3.graphic()
+            .coord(g2d3.polar())
             .time({t:'data:col2'})
             .symbol({   theta:'data:col3',
                         radius:function(d){return (d.col1+d.col2)%20;},
@@ -131,16 +131,16 @@
                         fill:'white',
                         stroke:'data:col1',
                         stroke_width:2})
-            .data({data:d4.loadFromFile({file:'data/test.csv'})})
+            .data({data:g2d3.loadFromFile({file:'data/test.csv'})})
             .plot({selector:"#graph3", width:1024, height:768, margin:50});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            G['4'] = d4.graphic()
+            G['4'] = g2d3.graphic()
             .hack({display_timers:false,transition_enabled:true})
-            .coord(d4.rect({subSys: d4.polar()}))
-            //.coord(d4.rect({x:'x',y:'y',subSys:d4.rect({x:'theta',y:'radius'})}))
+            .coord(g2d3.rect({subSys: g2d3.polar()}))
+            //.coord(g2d3.rect({x:'x',y:'y',subSys:g2d3.rect({x:'theta',y:'radius'})}))
             .time({t:'data:col5'})
             .axis({axis:'x', display_ticks:false})
             .axis({axis:'y', display_axis:false})
@@ -148,7 +148,7 @@
             .axis({axis:'theta', display_axis:false})
             .element({  x:'data:col1',
                         y: 'data:col2',
-                        theta:d4.cat('data:col3'),
+                        theta:g2d3.cat('data:col3'),
                         radius:'data:col4'})
             .line({     fill:'none',
                         stroke:'red',
@@ -165,7 +165,7 @@
             .symbol({   color:'data:col3',
                         shape:'data:col4',
                         label:'data:col3'})
-            .data({data:d4.loadFromDatabase({   host:'localhost',
+            .data({data:g2d3.loadFromDatabase({   host:'localhost',
                                                 dbname:'test_db',
                                                 user:'user_test',
                                                 pwd:'123456',
@@ -175,12 +175,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
-            G['5'] = d4.graphic()
+            G['5'] = g2d3.graphic()
             .hack({ transition_duration:0,
                     display_timers:true,
                     drawBackground:false})
             .time({t:function(d){return parseInt(d.vn6 * 100)}})
-            .coord(d4.rect({subSys:d4.polar()}))
+            .coord(g2d3.rect({subSys:g2d3.polar()}))
             .symbol({   x:function(d){return parseInt(d.vn7 * 50)},
                         y:function(d){return parseInt(d.vn8 * 10)},
                         theta:'data:bn6',
@@ -188,7 +188,7 @@
                         fill:'white',
                         stroke_width:2,
                         stroke:function(d){return d.sn6 > 0.5 ? 'red' : 'blue'}})
-            .data({data:d4.loadFromFile({file:'data/big.csv'})})
+            .data({data:g2d3.loadFromFile({file:'data/big.csv'})})
             .plot({selector:"#graph5", width:1024, height:768, margin:50});
             */
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,11 +201,11 @@
                     for(var y = 0 ; y < 5 ; y++)
                         dataset.push({cat:cat[i], y:parseInt(Math.random()*10), t:t});
             
-            G['6-1'] = d4.graphic()
-            .coord(d4.polar({theta:'dim1', radius:'dim2'}))
+            G['6-1'] = g2d3.graphic()
+            .coord(g2d3.polar({theta:'dim1', radius:'dim2'}))
             .time({t:'data:t'})
             .bar({  dim1:'data:cat',
-                    dim2:d4.interval.stack('data:y'),
+                    dim2:g2d3.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
                     color:function(d,i){return i;},
@@ -213,11 +213,11 @@
             .data({data:dataset})
             .plot({selector:"#graph6-1", width:600, height:600, margin:30});
             
-            G['6-2'] = d4.graphic()
-            .coord(d4.polar({theta:'dim2', radius:'dim1'}))
+            G['6-2'] = g2d3.graphic()
+            .coord(g2d3.polar({theta:'dim2', radius:'dim1'}))
             .time({t:'data:t'})
             .bar({  dim1:'data:cat',
-                    dim2:d4.interval.stack('data:y'),
+                    dim2:g2d3.interval.stack('data:y'),
                     group:'data:cat',
                     stroke:'black',
                     color:function(d,i){return i;},
@@ -225,24 +225,24 @@
             .data({data:dataset})
             .plot({selector:"#graph6-2", width:600, height:600, margin:30});
                         
-            G['6-3'] = d4.graphic()
-            .coord(d4.rect({x:'dim1', y:'dim2'}))
+            G['6-3'] = g2d3.graphic()
+            .coord(g2d3.rect({x:'dim1', y:'dim2'}))
             .time({t:'data:t'})
             .bar({  dim1:'data:cat',
-                    dim2:d4.interval.stack('data:y'),
+                    dim2:g2d3.interval.stack('data:y'),
                     group:'data:cat',
                     color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-3", width:600, height:600, margin:30});
             
-            G['6-4'] = d4.graphic()
+            G['6-4'] = g2d3.graphic()
             //.hack({merge_null_axis:false})
-            .coord(d4.rect({x:'dim1', y:null,
-                            subSys:d4.rect({x:'sub_cat', y:'dim2'})}))
+            .coord(g2d3.rect({x:'dim1', y:null,
+                            subSys:g2d3.rect({x:'sub_cat', y:'dim2'})}))
             .time({t:'data:t'})
             .bar({  dim1:'data:cat',
-                    dim2:d4.interval(0, 'data:y'),
+                    dim2:g2d3.interval(0, 'data:y'),
                     sub_cat:function(d,i){return i;},
                     //group:'data:cat',
                     color:function(d,i){return i;},
@@ -259,7 +259,7 @@
                 for(var j = 0 ; j < cat.length ; j++)
                     dataset.push({x:cat[j], y:i});
             
-            G['7'] = d4.graphic()
+            G['7'] = g2d3.graphic()
             .time({ tx:'data:x',
                     ty:'data:y'})
             .symbol({   x:'data:x',
@@ -282,18 +282,18 @@
                         dataset.push({cat:cat[i], value:parseInt(Math.random()*300)-100, t:t});
                 }
             
-            G['8'] = d4.graphic()
-            .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
-            //.coord(d4.rect({  y:     'dim1', x:     'dim2'}))
-            //.coord(d4.polar({ theta: 'dim1', radius:'dim2'}))
-            //.coord(d4.polar({ radius:'dim1', theta: 'dim2'}))
-            //.coord(d4.rect({  x:     null,   y:     'dim2'}))
-            //.coord(d4.rect({  x:     'dim2', y:     null  }))
-            //.coord(d4.polar({ theta: null,   radius:'dim2'}))
-            //.coord(d4.polar({ theta: 'dim2', radius:null}))
+            G['8'] = g2d3.graphic()
+            .coord(g2d3.rect({  x:     'dim1', y:     'dim2'}))
+            //.coord(g2d3.rect({  y:     'dim1', x:     'dim2'}))
+            //.coord(g2d3.polar({ theta: 'dim1', radius:'dim2'}))
+            //.coord(g2d3.polar({ radius:'dim1', theta: 'dim2'}))
+            //.coord(g2d3.rect({  x:     null,   y:     'dim2'}))
+            //.coord(g2d3.rect({  x:     'dim2', y:     null  }))
+            //.coord(g2d3.polar({ theta: null,   radius:'dim2'}))
+            //.coord(g2d3.polar({ theta: 'dim2', radius:null}))
             .time({t:'data:t'})
             .boxplot({  dim1:'data:cat',
-                        dim2:d4.boxplotStat('data:value'),
+                        dim2:g2d3.boxplotStat('data:value'),
                         fill:'#FF5050',
                         stroke:'#FF5050',
                         stroke_width:1.5,
@@ -307,11 +307,11 @@
             .data({data:dataset})
             .plot({selector:"#graph8", width:1024, height:768, margin:50});
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            G['9'] = d4.graphic()
-            .coord(d4.rect({  x:     'dim1', y:     'dim2'}))
+            G['9'] = g2d3.graphic()
+            .coord(g2d3.rect({  x:     'dim1', y:     'dim2'}))
             .time({t:'data:t'})
             .boxplot({  dim1:'data:cat',
-                        dim2:d4.boxplotStat('data:value')})
+                        dim2:g2d3.boxplotStat('data:value')})
             .data({data:dataset})
             .plot({selector:"#graph9", width:1024, height:768, margin:50});
             
@@ -345,15 +345,15 @@
             }
             
             
-            G['10'] = d4.graphic()
+            G['10'] = g2d3.graphic()
             .hack({display_timers:true,transition_duration:500})
-            .coord(d4.rect({subSys: d4.polar()}))
-            //.coord(d4.rect({x:'x',y:'y',subSys:d4.rect({x:'theta',y:'radius'})}))
+            .coord(g2d3.rect({subSys: g2d3.polar()}))
+            //.coord(g2d3.rect({x:'x',y:'y',subSys:g2d3.rect({x:'theta',y:'radius'})}))
             .time({t:'data:col5'})
             .axis({axis:'theta', display:false})
             .element({  x:'data:col1',
                         y: 'data:col2',
-                        theta:d4.cat('data:col3'),
+                        theta:g2d3.cat('data:col3'),
                         radius:'data:col4'})
             .line({     fill:'none',
                         stroke:'red',

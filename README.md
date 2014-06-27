@@ -1,4 +1,4 @@
-d4
+g2d3
 ==
 
-[Wiki](https://github.com/Nigloo/d4/wiki)
+[Wiki](https://github.com/Nigloo/g2d3/wiki)

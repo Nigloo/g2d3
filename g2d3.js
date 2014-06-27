@@ -379,6 +379,8 @@
     }
     this.dataset[main_dataset_name].newData = data;
     
+    updateDataViews.call(this);
+    
     updateScales.call(this);
     
     mergeOldAndNewData.call(this);
@@ -684,8 +686,8 @@
      * Merge old data (none) with new data (just loaded) *
     \*                                                   */
     mergeOldAndNewData.call(this);
-    
-    
+    //console.log(this.dataset[main_dataset_name]);
+    //return this;
     /*                                         *\
      * Standardization of elements' attributes *
     \*                                         */
@@ -695,6 +697,7 @@
      * Compute scales  *
     \*                 */
     computeScales.call(this);
+    
     
     /*                *\
      * Generating svg *
@@ -1973,8 +1976,9 @@
         computeDomain(this.dim[i].aes[j], dataset, 'discret');
         var dom = this.dim[i].aes[j].discretDomain;
         
-        for(var k = 0 ; k < dom.length ; k++)
+        for(var k = 0 ; k < dom.length ; k++) {
           domain.push(dom[k]);
+        }
       }
       RemoveDupArray(domain);
       
@@ -2300,10 +2304,12 @@
       var oldData = this.dataset[datasetName].oldData;
       for(var attr in this.elements[i].attrs) {
         var attr_val = this.elements[i].attrs[attr].value;
-        var aes = this.elements[i].attrs[attr].aes;
-        if(oldData.length == 0) {
-          aes.discretDomain = [];
-          aes.continuousDomain = [Infinity, -Infinity];
+        if(this.elements[i].attrs[attr].type != 'dimension') {
+          var aes = this.elements[i].attrs[attr].aes;
+          if(oldData.length == 0) {
+            aes.discretDomain = [];
+            aes.continuousDomain = [Infinity, -Infinity];
+          }
         }
       }
     }
@@ -2430,8 +2436,8 @@
       for(var attr in this.elements[i].attrs) {
         var attr_val = this.elements[i].attrs[attr].value;
         if(attr_val instanceof Interval && attr_val.stacked) {
-          var originFunc = attr_val.boundary2.aes.func;
-          var stepFunc = attr_val.boundary1.aes.func;
+          var originFunc = attr_val.attrs.boundary2.aes.func;
+          var stepFunc = attr_val.attrs.boundary1.aes.func;
           var Id = attr_val.attrs.boundary1.Id;
           
           var it = new HierarchyIterator(this.nestedData[i]);
@@ -3070,9 +3076,9 @@
           axisNode = svg.append('g')
                       .attr('class', 'axis '+axisDim)
                       .classed(dimName, true)
-                      .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')')
+                      .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')');
         
-          if(this.g.transition_duration > 0) {
+          if(this.g.transition_duration > 0 && false) {
             axisNode.attr('fill-opacity', 0)
                     .attr('stroke-opacity', 0)
                   .transition().duration(this.g.transition_duration)
@@ -3101,7 +3107,7 @@
             axisNode.select('.domain').remove();
           }
           if(!dim[axisDim].displayTicks) {
-            axisNode.selectAll('.tick').remove();
+            axisNode.selectAll('.tick').transition().duration(0).remove();
           }
         }
       }
@@ -3915,6 +3921,7 @@
       for(var i = 0 ; i < newData.length ; i++) {
         sorted_new_data[i] = newData[i];
       }
+      
       sorted_new_data.sort(compare);
       
       // Merge new and old data (both sorted)
@@ -3972,6 +3979,62 @@
     }
   };
   
+  
+  // Melt data
+  main_object.melt = function(param) {
+    var funcName = lib_name+'.melt';
+    var ids =           checkParam(funcName, param, 'ids',            null);
+    var measures =      checkParam(funcName, param, 'measures',       null);
+    var variable_name = checkParam(funcName, param, 'variable_name',  'variable');
+    var value_name =    checkParam(funcName, param, 'value_name',     'value');
+    
+    if(ids == null && measures == null) {
+      ERROR('In function '+funcName+', both parameters ids and measures are missing. You need to set at leat one of them');
+    }
+    
+    // data = {oldData, newData, oldProcessedData}
+    return function(data) {
+      var newData = data.newData;
+      var melted_data = [];
+      
+      if(ids == null) {
+        ids = [];
+        for(var field in newData[0]) {
+          if(measures.indexOf(field) < 0) {
+            ids.push(field);
+          }
+        }
+      }
+      else if(measures == null) {
+        measures = [];
+        for(var field in newData[0]) {
+          if(ids.indexOf(field) < 0) {
+            measures.push(field);
+          }
+        }
+      }
+      
+      // We only melt new data (old ones already are melted)
+      for(var i = 0 ; i < newData.length ; i++) {
+        for(var j = 0 ; j < measures.length ; j++) {
+          var datum = {};
+          for(var k = 0 ; k < ids.length ; k++) {
+            datum[ids[k]] = newData[i][ids[k]];
+          }
+          datum[variable_name] = measures[j];
+          datum[value_name] = newData[i][measures[j]];
+          // Cast into number if possible
+          var value = +datum[value_name];
+          if(!isNaN(value)) {
+            datum[value_name] = value;
+          }
+          melted_data.push(datum);
+        }
+      }
+      
+      return {oldData:data.oldProcessedData, newData:melted_data};
+    }
+  }
   
   /////////////////////
   // Popup functions //
@@ -4500,16 +4563,17 @@
   var RemoveDupArray = function(a){
     var alreadyIn = {};
     
-    for (var i = 0 ; i < a.length;){
+    var j = 0;
+    for (var i = 0 ; i < a.length; i++){
       var val = a[i];
-      if(alreadyIn[val]) {
-        a.splice(i, 1);
-      }
-      else {
+      
+      if(!alreadyIn[val]) {
         alreadyIn[val] = true;
-        i++;
+        a[j] = val;
+        j++;
       }
     }
+    a.splice(j);
   };
   
   // Determinate on which dimension we have to force to ordinal scale

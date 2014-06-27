@@ -27,7 +27,7 @@
             "use strict";
             
             var G = [];
-            
+            /*
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -193,7 +193,7 @@
             */
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            /*
             var dataset = [];
             var cat = ['A', 'B', 'C', 'D', 'E', 'F'];
             for(var t = 0 ; t < 7 ; t++)
@@ -346,7 +346,7 @@
             
             
             G['10'] = g2d3.graphic()
-            .hack({display_timers:true,transition_duration:500})
+            .hack({display_timers:false,transition_duration:500})
             .coord(g2d3.rect({subSys: g2d3.polar()}))
             //.coord(g2d3.rect({x:'x',y:'y',subSys:g2d3.rect({x:'theta',y:'radius'})}))
             .time({t:'data:col5'})
@@ -390,6 +390,95 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
+            var data = [];
+            var cat = ['A', 'B', 'C', 'D', 'E', 'F'];
+            for(var t = 0 ; t < 7 ; t++)
+                for(var i = 0 ; i < cat.length ; i++)
+                    for(var j = 0 ; j < 5 ; j++)
+                        data.push({cat:cat[i], order:j, y:Math.floor(((j+1)*2+(i+1)*(i+1))*(1+t/5)), t:t});
+            
+            //+ Jonas Raoni Soares Silva
+            //@ http://jsfromhell.com/array/shuffle [v1.0]
+            function shuffle(o){ //v1.0
+                for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+                return o;
+            };
+            
+            shuffle(data);
+            
+            
+            var nbSlices = 10;
+            var start = 0;
+            var slicedDataset = [];
+            for(var i = 0 ; i < nbSlices ; i++) {
+                var end = (i+1)*data.length/nbSlices;
+                slicedDataset.push(data.slice(start, end));
+                start = end;
+            }
+            
+            G['11'] = g2d3.graphic()
+            .hack({ drawBackground:false,
+                    linear_scale_padding:0})
+            .time({t:'data:t'})
+            .bar({  x:'data:cat',
+                    y:g2d3.interval.stack('data:y'),
+                    group:'data:cat',
+                    color:'data:order',
+                    label:'data:y'})
+            .data({data:slicedDataset[0]})
+            .dataView({ name:'default_data',func:g2d3.sort({comparator:function(a, b) {
+                return  (g2d3.compare(a.cat, b.cat) ? g2d3.compare(a.cat, b.cat) :
+                        a.t - b.t                   ? a.t - b.t : 
+                                                      a.order - b.order);
+                }})})
+            .plot({selector:"#graph11", width:600, height:600, margin:30});
+            
+            var loaded = 1;
+            window.addEventListener("load", function() {
+                d3.select('#dataPushButton2').attr('value', 'Push data (left '+(nbSlices-loaded)+'/'+nbSlices+')');
+            }, true);
+            function pushData() {
+                G['11'].pushData(slicedDataset[loaded]);
+                loaded++;
+                d3.select('#dataPushButton2').attr('value', 'Push data (left '+(nbSlices-loaded)+'/'+nbSlices+')');
+                if(nbSlices == loaded) {
+                    d3.select('#dataPushButton2').attr('disabled',true);
+                }
+            }
+            */
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            var processData = function(data) {
+                var newData = data.newData;
+
+                // We only melt new data (old ones already are melted)
+                for(var i = 0 ; i < newData.length ; i++) {
+                    newData[i].n = +newData[i].bv.slice(2);
+                    newData[i].bv = newData[i].bv.slice(0,2);
+                }
+
+                return {oldData:data.oldProcessedData, newData:newData};
+            }
+            
+            G['12'] = g2d3.graphic()
+            .hack({ drawBackground:false,
+                    transition_duration:0,
+                    display_timers:true})
+            .coord(g2d3.polar())
+            .time({t:'data:n'})
+            .axis({axis:'theta', display:false})
+            .symbol({   theta:'data:wid',
+                        radius:'data:time',
+                        color:g2d3.cat('data:bv')
+                        })
+            .data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
+            .dataView({ name:'default_data',func:g2d3.melt({ids:['wid'], variable_name:'bv', value_name:'time'})})
+            .dataView({ name:'default_data',func:processData})
+            .plot({selector:"#graph12", width:1024, height:768, margin:50});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
             
             function prev(i) {
                 G[i].previousStep('t');
@@ -432,9 +521,12 @@
         
         <div id="graph9"></div>
         
-        
         <div id="graph10"></div>
         <input type="button" id="dataPushButton" value="Push data" onclick="startPushing()"/>
         
+        <div id="graph11"></div>
+        <input type="button" id="dataPushButton2" value="Push data" onclick="pushData()"/>
+        
+        <div id="graph12"></div>
     </body>
 </html>   

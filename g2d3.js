@@ -328,7 +328,7 @@
     }
     
     funcParamStat.data = name+'.statistic';
-    funcParamStat[stat_on_attr] = d4.boxplotBoxStat();
+    funcParamStat[stat_on_attr] = main_object.boxplotBoxStat();
     this.boxplotBox(funcParamStat);
     
     funcParamOutliers.data = name+'.outlier';
@@ -850,17 +850,17 @@
             return function(d, i) {
               var eltId = eltClass+'-'+i;
               var timeId = getTimeId(g.currentTime);
-              var pos = d4.mouse(g);
+              var pos = main_object.mouse(g);
               
-              if(!d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-                  d4.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
+              if(!main_object.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+                  main_object.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
               }
             };
           };
           
           var getOnMouseOut = function(g) {
             return function(d, i) {
-              d4.hidePopup({id:'hover', graphic:g, duration:500});
+              main_object.hidePopup({id:'hover', graphic:g, duration:500});
             };
           };
           
@@ -869,12 +869,12 @@
               var eltId = eltClass+'-'+i;
               var timeId = getTimeId(g.currentTime);
               
-              if(d4.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-                d4.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
+              if(main_object.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
+                main_object.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
               }
               else {
-                d4.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:d4.mouse(g), text:getText(d)});
-                d4.hidePopup({id:'hover', graphic:g});
+                main_object.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:main_object.mouse(g), text:getText(d)});
+                main_object.hidePopup({id:'hover', graphic:g});
               }
             };
           };

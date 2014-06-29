@@ -356,7 +356,7 @@
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
     if(data instanceof Array) {
-      this.onDataLoaded(data);
+      onDataLoaded(this, data);
     }
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
@@ -393,11 +393,11 @@
     TIMER_END('Updating background and axises', this.display_timers);
     
     TIMER_BEGIN('Updating sliders', this.display_timers);
-    this.updateSliders();
+    updateSliders.call(this);
     TIMER_END('UpdatingUpdating sliders', this.display_timers);
     
     TIMER_BEGIN('Updating elements', this.display_timers);
-    this.updateElements();
+    updateElements.call(this);
     TIMER_END('Updating elements', this.display_timers);
     
     TIMER_GROUP_END('Updating SVG', this.display_timers);
@@ -414,18 +414,6 @@
     this.data_view_generator.push({name:name, func:func});
     
     return this;
-  };
-  
-  // Set data just loaded, filter them and render if needed;
-  // Not supposed to be called by the user
-  Graphic.prototype.onDataLoaded = function(data) {
-    this.dataset[main_dataset_name] = {oldData:[], newData:data};
-    
-    if(this.render_param != null) {
-      var param = this.render_param;
-      this.render_param = null;
-      this.render(param);
-    }
   };
   
   // Set spacial coordinate system (Rect({x:'x', y:'y'}) by default)
@@ -562,8 +550,8 @@
     var index = this.dim[timeDimension].domain.indexOf(value);
     if(index >= 0 && this.currentTime[timeDimension] != index) {
       this.currentTime[timeDimension] = index;
-      this.updateElements();
-      this.updateSliders();
+      updateElements.call(this);
+      updateSliders.call(this);
       removePopups(this);
     }
     
@@ -578,8 +566,8 @@
     
     if(this.currentTime[timeDimension] < this.dim[timeDimension].domain.length-1){
       this.currentTime[timeDimension]++;
-      this.updateElements();
-      this.updateSliders();
+      updateElements.call(this);
+      updateSliders.call(this);
       removePopups(this);
     }
     
@@ -594,16 +582,32 @@
     
     if(this.currentTime[timeDimension] > 0){
       this.currentTime[timeDimension]--;
-      this.updateElements();
-      this.updateSliders();
+      updateElements.call(this);
+      updateSliders.call(this);
       removePopups(this);
     }
     
     return this;
   };
-
+  
+  /* The function to render the plot                     */
+  /* Automatically attaches itself to the window.onLoad  */
+  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick */
+  Graphic.prototype.plot = function(param) {
+    ASSERT(render, "No function render in this; how am I  supposed to render ??");
+    
+    // debugger
+    var theGraphic = this;
+    window.addEventListener("load", function() { render.call(theGraphic, param); }, true);
+    
+    return this;
+  };
+  
+  
+  /* In the following functions, 'this' reference the graphic */
+  
   // Render the graphic in svg
-  Graphic.prototype.render = function(param) {
+  var render = function(param) {
     // Check parameters
     var funcName = 'Graphic.render';
     var selector =  checkParam(funcName, param, 'selector', 'body');
@@ -681,13 +685,11 @@
     \*                                                */
     updateDataViews.call(this);
     
-    
     /*                                                   *\
      * Merge old data (none) with new data (just loaded) *
     \*                                                   */
     mergeOldAndNewData.call(this);
-    //console.log(this.dataset[main_dataset_name]);
-    //return this;
+    
     /*                                         *\
      * Standardization of elements' attributes *
     \*                                         */
@@ -698,7 +700,6 @@
     \*                 */
     computeScales.call(this);
     
-    
     /*                *\
      * Generating svg *
     \*                */
@@ -708,7 +709,7 @@
   };
   
   // (Re)draw elements of the graphics
-  Graphic.prototype.updateElements = function() {
+  var updateElements = function() {
     /*                   *\
      * Utility functions *
     \*                   */
@@ -1582,7 +1583,7 @@
   };
   
   // Update position of time sliders' cursor
-  Graphic.prototype.updateSliders = function() {
+  var updateSliders = function() {
     var sliderSize = this.width;
     
     for(var i in this.timeSlider) {
@@ -1622,25 +1623,10 @@
     return this;
   };
   
-  /* The function to render the plot                     */
-  /* Automatically attaches itself to the window.onLoad  */
-  /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick */
-  Graphic.prototype.plot = function(param) {
-    ASSERT(this.render, "No function render in this; how am I  supposed to render ??");
-    
-    // debugger
-    var theGraphic = this;
-    window.addEventListener("load", function() { theGraphic.render(param); }, true);
-    
-    return this;
-  };
-  
   
   ///////////////////////////
   // Render step functions //
   ///////////////////////////
-  
-  /* In the following functions, 'this' reference the graphic */
   
   /*
    * Load data
@@ -2653,7 +2639,7 @@
         var index = g.dim[slider.dimName].domain.indexOf(slider.mouseToValue(posX));
         if(g.currentTime[slider.dimName] != index) {
           g.currentTime[slider.dimName] = index;
-          g.updateElements();
+          updateElements.call(g);
           removePopups(g);
         }
       }
@@ -2768,12 +2754,12 @@
       
       offsetY += sliderHeight;
     }
-    this.updateSliders();
+    updateSliders.call(this);
     TIMER_END('Drawing sliders', this.display_timers);
     
     // Draw elements
     TIMER_BEGIN('Drawing elements', this.display_timers);
-    this.updateElements();
+    updateElements.call(this);
     TIMER_END('Drawing elements', this.display_timers);
     
     TIMER_GROUP_END('Generating SVG', this.display_timers);
@@ -3503,6 +3489,17 @@
   // Loading functions //
   ///////////////////////
   
+  // Set data just loaded and render if needed;
+  var onDataLoaded = function(g, data) {
+    g.dataset[main_dataset_name] = {oldData:[], newData:data};
+    
+    if(g.render_param != null) {
+      var param = g.render_param;
+      g.render_param = null;
+      render.call(g, param);
+    }
+  };
+  
     // Data loader
   function DataLoader() {
     this.g = null;
@@ -3514,7 +3511,7 @@
         ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
       }
       
-      self.g.onDataLoaded(dataset);
+      onDataLoaded(self.g, dataset);
     };
   }
 

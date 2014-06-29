@@ -470,7 +470,8 @@
             .axis({axis:'theta', display:false})
             .symbol({   theta:'data:wid',
                         radius:'data:time',
-                        color:g2d3.cat('data:bv')
+                        color:g2d3.cat('data:bv'),
+                        label:'data:wid'
                         })
             .data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
             .dataView({ name:'default_data',func:g2d3.melt({ids:['wid'], variable_name:'bv', value_name:'time'})})

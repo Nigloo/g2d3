@@ -2031,7 +2031,7 @@
     return dsv;
   };
   d3.csv = d3.dsv(",", "text/csv");
-  d3.tsv = d3.dsv("	", "text/tab-separated-values");
+  d3.tsv = d3.dsv(" ", "text/tab-separated-values");
   d3.touch = function(container, touches, identifier) {
     if (arguments.length < 3) identifier = touches, touches = d3_eventSource().changedTouches;
     if (touches) for (var i = 0, n = touches.length, touch; i < n; ++i) {

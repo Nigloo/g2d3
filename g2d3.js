@@ -1771,7 +1771,7 @@
           delete this.elements[i].attrs[attr];
         }
       }
-      
+      RemoveDupArray(unusedParamOriginFunc);
       checkUnusedParam(unusedParamOriginFunc.join(' or '), unusedParam);
       
       // Add time dimensions as attribute
@@ -4835,7 +4835,6 @@
     var aes_ret_type = typeof aes_ret_val;
     
     if(isDefined(aes.column) && aes_ret_type === 'undefined') {
-      console.log(aes_ret_val);
       ERROR('column '+aes.column+' not found in the '+(aes.datasetName == main_dataset_name ? 'main dataset': 'dataset '+aes.datasetName));
     }
     
@@ -4992,7 +4991,7 @@
     }
     
     if(unusedParam.length > 0) {
-      var msg = 'In function '+funcName+', parameter'+(unusedParam.length>1?'s':'')+' ';
+      var msg = 'In function '+funcName+': parameter'+(unusedParam.length>1?'s':'')+' ';
       for(var i = 0 ; i < unusedParam.length ; i++) {
         msg +=  i == 0                    ? unusedParam[i] :
                 i == unusedParam.length-1 ? ' and '+unusedParam[i] :

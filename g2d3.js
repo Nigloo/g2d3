@@ -56,10 +56,10 @@
     this.bar_padding = 1;
     
     
-    this.render_param = null;
     this.data_view_generator = [];
     
     // Attributes non null only after render
+    this.selector = null;
     this.width = null;
     this.height = null;
     this.margin = null;
@@ -356,7 +356,7 @@
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
     if(data instanceof Array) {
-      onDataLoaded(this, data);
+      this.pushData(data);
     }
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
@@ -372,36 +372,28 @@
   
   // Push data
   Graphic.prototype.pushData = function(data) {
-    
-    for(var datasetName in this.dataset) {
-      this.dataset[datasetName] = {oldData:this.dataset[datasetName],
-                                   newData:[]};
+    if(this.dataset[main_dataset_name] == null) {
+      this.dataset[main_dataset_name] = { oldData:[],
+                                          newData:data};
+      if(this.selector != null) {
+        render.call(this);
+      }
     }
-    this.dataset[main_dataset_name].newData = data;
-    
-    updateDataViews.call(this);
-    
-    updateScales.call(this);
-    
-    mergeOldAndNewData.call(this);
-    
-    TIMER_GROUP_BEGIN('Updating SVG', this.display_timers);
-    
-    TIMER_BEGIN('Updating background and axises', this.display_timers);
-    var svg = this.svg.select('.depth0');
-    this.spacialCoord.updateSVG(svg, this.dim, this.width, this.height, 0);
-    TIMER_END('Updating background and axises', this.display_timers);
-    
-    TIMER_BEGIN('Updating sliders', this.display_timers);
-    updateSliders.call(this);
-    TIMER_END('UpdatingUpdating sliders', this.display_timers);
-    
-    TIMER_BEGIN('Updating elements', this.display_timers);
-    updateElements.call(this);
-    TIMER_END('Updating elements', this.display_timers);
-    
-    TIMER_GROUP_END('Updating SVG', this.display_timers);
-    
+    else {
+      for(var datasetName in this.dataset) {
+        this.dataset[datasetName] = {oldData:this.dataset[datasetName],
+                                     newData:[]};
+      }
+      this.dataset[main_dataset_name].newData = data;
+      
+      updateDataViews.call(this);
+      
+      updateScales.call(this);
+      
+      mergeOldAndNewData.call(this);
+      
+      updateSVG.call(this);
+    }
     return this;
   };
   
@@ -596,7 +588,6 @@
   Graphic.prototype.plot = function(param) {
     ASSERT(render, "No function render in this; how am I  supposed to render ??");
     
-    // debugger
     var theGraphic = this;
     window.addEventListener("load", function() { render.call(theGraphic, param); }, true);
     
@@ -608,47 +599,47 @@
   
   // Render the graphic in svg
   var render = function(param) {
-    // Check parameters
-    var funcName = 'Graphic.render';
-    var selector =  checkParam(funcName, param, 'selector', 'body');
-    this.width =    checkParam(funcName, param, 'width',    640);
-    this.height =   checkParam(funcName, param, 'height',   360);
-    this.margin = { left:   checkParam(funcName, param, 'margin', 30),
-                    top:    checkParam(funcName, param, 'margin', 10),
-                    right:  checkParam(funcName, param, 'margin', 10),
-                    bottom: checkParam(funcName, param, 'margin', 20)};
-    this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
-    this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
-    this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
-    this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
-    
-    if(this.elements.length == 0) {
-      ERROR('no element in the graphic');
-    }
-    
-    // Reserve some space for the graphic while loading
-    // Add Canvas
-    if(this.svg == null) {
-      this.svg = d3.select(selector)
+    if(this.selector == null) {
+      // Check parameters
+      var funcName = 'Graphic.render';
+      this.selector = checkParam(funcName, param, 'selector', 'body');
+      this.width =    checkParam(funcName, param, 'width',    640);
+      this.height =   checkParam(funcName, param, 'height',   360);
+      this.margin = { left:   checkParam(funcName, param, 'margin', 30),
+                      top:    checkParam(funcName, param, 'margin', 10),
+                      right:  checkParam(funcName, param, 'margin', 10),
+                      bottom: checkParam(funcName, param, 'margin', 20)};
+      this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
+      this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
+      this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
+      this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
+      
+      if(this.elements.length == 0) {
+        ERROR('no element in the graphic');
+      }
+      
+      // Reserve some space for the graphic while loading
+      // Add Canvas
+      
+      this.svg = d3.select(this.selector)
                    .append("svg")
                    .attr("width", this.width)
                    .attr("height", this.height);
                    
       if(this.svg.empty()) {
-        ERROR('can\'t find '+selector);
+        ERROR('can\'t find '+this.selector);
       }
     }
-    
     
     /*           *\
      * Load data *
     \*           */
-    if(!loadData.call(this, param)) {
+    if(!loadData.call(this)) {
       return this;
     }
     
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
-          selector,
+          this.selector,
           this.width,
           this.height));
     LOG("Margin: left={0}, right={1}, top={2}, bottom={3}".format(
@@ -703,7 +694,7 @@
     /*                *\
      * Generating svg *
     \*                */
-    generateSVG.call(this);
+    updateSVG.call(this);
     
     return this;
   };
@@ -1632,10 +1623,9 @@
    * Load data
    * GoG pipeline step: Variables
    */
-  var loadData = function(param) {
+  var loadData = function() {
     if(this.dataset[main_dataset_name] == null) {
       if(this.dataLoader != null) {
-        this.render_param = param;
         //TIMER_GROUP_BEGIN('Loading', this.display_timers);
         this.dataLoader.sendXhrRequest();
         return false;
@@ -2605,7 +2595,7 @@
    * Generate the svg code
    * GoG pipeline step: Geometry, Coordinates, Aesthetics
    */
-  var generateSVG = function() {
+  var updateSVG = function() {
     TIMER_GROUP_BEGIN('Generating SVG', this.display_timers);
     
     // Remove loading bar
@@ -2622,137 +2612,139 @@
     
     // Add time sliders
     TIMER_BEGIN('Drawing sliders', this.display_timers);
-    var getOnBrushed = function(slider, g) {
-      return function(){
-        var posX = slider.brush.extent()[0];
+    if(this.timeSlider == null) {
+      var getOnBrushed = function(slider, g) {
+        return function(){
+          var posX = slider.brush.extent()[0];
 
-        if (d3.event.sourceEvent) { // not a programmatic event
-          posX = d3.mouse(this)[0];
+          if (d3.event.sourceEvent) { // not a programmatic event
+            posX = d3.mouse(this)[0];
+            
+            posX = posX.clamp(0, sliderSize);
+            
+            slider.brush.extent([posX, posX]);
+          }
           
-          posX = posX.clamp(0, sliderSize);
+          slider.handle.interrupt().transition();
+          slider.handle.attr("cx", posX);
+          var index = g.dim[slider.dimName].domain.indexOf(slider.mouseToValue(posX));
+          if(g.currentTime[slider.dimName] != index) {
+            g.currentTime[slider.dimName] = index;
+            updateElements.call(g);
+            removePopups(g);
+          }
+        }
+      };
+      
+      var getOnBrushEnd = function(slider, g) {
+        return function(){
+          var posX = slider.brush.extent()[0];
+
+          if (d3.event.sourceEvent) { // not a programmatic event
+            posX = d3.mouse(this)[0];
+            posX.clamp(0, sliderSize);
+            
+            posX = slider.valueToMouse(slider.mouseToValue(posX));
+            
+            slider.brush.extent([posX, posX]);
+          }
           
-          slider.brush.extent([posX, posX]);
+          slider.handle.interrupt().transition().attr("cx", posX);
+        }
+      };
+      
+      this.timeSlider = {};
+      var sliderSize = this.width;
+      var offsetY = this.height + this.margin.top + this.margin.bottom;
+      
+      for(var i in this.dim) {
+        if(this.dim[i].isSpacial) {
+          continue;
         }
         
-        slider.handle.interrupt().transition();
-        slider.handle.attr("cx", posX);
-        var index = g.dim[slider.dimName].domain.indexOf(slider.mouseToValue(posX));
-        if(g.currentTime[slider.dimName] != index) {
-          g.currentTime[slider.dimName] = index;
-          updateElements.call(g);
-          removePopups(g);
-        }
-      }
-    };
-    
-    var getOnBrushEnd = function(slider, g) {
-      return function(){
-        var posX = slider.brush.extent()[0];
-
-        if (d3.event.sourceEvent) { // not a programmatic event
-          posX = d3.mouse(this)[0];
-          posX.clamp(0, sliderSize);
-          
-          posX = slider.valueToMouse(slider.mouseToValue(posX));
-          
-          slider.brush.extent([posX, posX]);
-        }
+        this.timeSlider[i] = {};
         
-        slider.handle.interrupt().transition().attr("cx", posX);
+        var values = new Array(this.dim[i].domain.length);
+        for(var j = 0 ; j < this.dim[i].domain.length ; j++) {
+          values[j] = this.dim[i].domain[j];
+        }
+        var dom = [];
+        for(var j = 0 ; j < values.length - 1 ; j++){
+          dom.push((j+0.8) * sliderSize / (values.length - 1));
+        }
+        var mouseToValue = d3.scale.threshold()
+                                   .domain(dom)
+                                   .range(values);
+        var valueToMouse = d3.scale.ordinal()
+                                   .domain(values)
+                                   .rangePoints([0, sliderSize], 0);
+        
+        var axis = d3.svg.axis()
+                     .scale(valueToMouse)
+                     .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
+                     .orient('bottom')
+                     .tickSize(0)
+                     .tickPadding(12);
+        
+        var brush = d3.svg.brush()
+                      .x(valueToMouse)
+                      .extent([0, 0]);
+        
+        var slider = this.svg.append('g').attr('class', 'slider '+i)
+                                         .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
+        this.timeSlider[i].svg = slider;
+        
+        var axisNode = slider.append('g').attr('class', 'axis')
+                                     .attr('transform', 'translate(0,'+sliderHeight/2 +')')
+                                     .style('font', '10px sans-serif')
+                                     .style('-webkit-user-select', 'none')
+                                     .style('-moz-user-select', 'none')
+                                     .style('user-select', 'none')
+                                     .call(axis);
+        
+        axisNode.select('.domain').style('fill', 'none')
+                                  .style('stroke', '#000')
+                                  .style('stroke-opacity', '0.3')
+                                  .style('stroke-width', '10')
+                                  .style('stroke-linecap', 'round')
+            .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
+                                  .style('stroke', '#ddd')
+                                  .style('stroke-opacity', '1')
+                                  .style('stroke-width', '8');
+        
+        var brushNode = slider.append('g').attr('class', 'brush')
+                                          .call(brush);
+        
+        brushNode.selectAll('.extent,.resize').remove();
+        brushNode.select('.background').attr('width', sliderSize + handleSize)
+                                   .attr('height', handleSize)
+                                   .attr('x', -handleSize/2)
+                                   .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
+                                   .style('cursor', 'auto');
+        
+        var handle = brushNode.append('circle').attr('class', 'handle')
+                                               .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
+                                               .attr('r', handleSize/2)
+                                               .style('fill', '#fff')
+                                               .style('stroke', '#000')
+                                               .style('stroke-opacity', '0.5')
+                                               .style('stroke-width', '1.25px')
+                                               .style('pointer-events', 'none');
+        
+        this.timeSlider[i].dimName = i;
+        this.timeSlider[i].mouseToValue = mouseToValue;
+        this.timeSlider[i].valueToMouse = valueToMouse;
+        this.timeSlider[i].axis = axis;
+        this.timeSlider[i].axisNode = axisNode;
+        this.timeSlider[i].brush = brush;
+        this.timeSlider[i].handle = handle;
+        
+        brush.on('brush', getOnBrushed(this.timeSlider[i], this));
+        brush.on('brushend', getOnBrushEnd(this.timeSlider[i], this));
+        handle.call(brush.event);
+        
+        offsetY += sliderHeight;
       }
-    };
-    
-    this.timeSlider = {};
-    var sliderSize = this.width;
-    var offsetY = this.height + this.margin.top + this.margin.bottom;
-    
-    for(var i in this.dim) {
-      if(this.dim[i].isSpacial) {
-        continue;
-      }
-      
-      this.timeSlider[i] = {};
-      
-      var values = new Array(this.dim[i].domain.length);
-      for(var j = 0 ; j < this.dim[i].domain.length ; j++) {
-        values[j] = this.dim[i].domain[j];
-      }
-      var dom = [];
-      for(var j = 0 ; j < values.length - 1 ; j++){
-        dom.push((j+0.8) * sliderSize / (values.length - 1));
-      }
-      var mouseToValue = d3.scale.threshold()
-                                 .domain(dom)
-                                 .range(values);
-      var valueToMouse = d3.scale.ordinal()
-                                 .domain(values)
-                                 .rangePoints([0, sliderSize], 0);
-      
-      var axis = d3.svg.axis()
-                   .scale(valueToMouse)
-                   .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
-                   .orient('bottom')
-                   .tickSize(0)
-                   .tickPadding(12);
-      
-      var brush = d3.svg.brush()
-                    .x(valueToMouse)
-                    .extent([0, 0]);
-      
-      var slider = this.svg.append('g').attr('class', 'slider '+i)
-                                       .attr('transform', 'translate('+this.margin.left+','+offsetY+')');
-      this.timeSlider[i].svg = slider;
-      
-      var axisNode = slider.append('g').attr('class', 'axis')
-                                   .attr('transform', 'translate(0,'+sliderHeight/2 +')')
-                                   .style('font', '10px sans-serif')
-                                   .style('-webkit-user-select', 'none')
-                                   .style('-moz-user-select', 'none')
-                                   .style('user-select', 'none')
-                                   .call(axis);
-      
-      axisNode.select('.domain').style('fill', 'none')
-                                .style('stroke', '#000')
-                                .style('stroke-opacity', '0.3')
-                                .style('stroke-width', '10')
-                                .style('stroke-linecap', 'round')
-          .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
-                                .style('stroke', '#ddd')
-                                .style('stroke-opacity', '1')
-                                .style('stroke-width', '8');
-      
-      var brushNode = slider.append('g').attr('class', 'brush')
-                                        .call(brush);
-      
-      brushNode.selectAll('.extent,.resize').remove();
-      brushNode.select('.background').attr('width', sliderSize + handleSize)
-                                 .attr('height', handleSize)
-                                 .attr('x', -handleSize/2)
-                                 .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
-                                 .style('cursor', 'auto');
-      
-      var handle = brushNode.append('circle').attr('class', 'handle')
-                                             .attr('transform', 'translate(0,'+(sliderHeight/2)+')')
-                                             .attr('r', handleSize/2)
-                                             .style('fill', '#fff')
-                                             .style('stroke', '#000')
-                                             .style('stroke-opacity', '0.5')
-                                             .style('stroke-width', '1.25px')
-                                             .style('pointer-events', 'none');
-      
-      this.timeSlider[i].dimName = i;
-      this.timeSlider[i].mouseToValue = mouseToValue;
-      this.timeSlider[i].valueToMouse = valueToMouse;
-      this.timeSlider[i].axis = axis;
-      this.timeSlider[i].axisNode = axisNode;
-      this.timeSlider[i].brush = brush;
-      this.timeSlider[i].handle = handle;
-      
-      brush.on('brush', getOnBrushed(this.timeSlider[i], this));
-      brush.on('brushend', getOnBrushEnd(this.timeSlider[i], this));
-      handle.call(brush.event);
-      
-      offsetY += sliderHeight;
     }
     updateSliders.call(this);
     TIMER_END('Drawing sliders', this.display_timers);
@@ -3489,17 +3481,6 @@
   // Loading functions //
   ///////////////////////
   
-  // Set data just loaded and render if needed;
-  var onDataLoaded = function(g, data) {
-    g.dataset[main_dataset_name] = {oldData:[], newData:data};
-    
-    if(g.render_param != null) {
-      var param = g.render_param;
-      g.render_param = null;
-      render.call(g, param);
-    }
-  };
-  
     // Data loader
   function DataLoader() {
     this.g = null;
@@ -3511,7 +3492,7 @@
         ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
       }
       
-      onDataLoaded(self.g, dataset);
+      self.g.pushData(dataset);
     };
   }
 
@@ -3539,6 +3520,34 @@
     
     return dl;
   };
+  
+  main_object.loadByChunk = function(param) {
+    var funcName = lib_name+'.loadByChunk';
+    var connexion_id = checkParam(funcName, param, 'id');
+    var first_unique_id = 0;
+    
+    var dl = new DataLoader();
+    dl.id = id;
+    dl.next_chunk_nb = 0;
+    dl.next_unique_id = 0;
+    
+    var xhr = d3.text(filename)
+                .on('progress', getProgressListener(dl))
+                .response(function(request) {
+                  TIMER_END('Loading CSV file', dl.g.display_timers);
+                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
+                  var data = d3.csv.parse(request.responseText, processRow);
+                  TIMER_END('Parsing CSV', dl.g.display_timers);
+                  return data;
+                });
+    
+    dl.sendXhrRequest = function() {
+      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
+      xhr.get(dl.load);
+    }
+    
+    return dl;
+  }
   
   // Load data from a database
   main_object.loadFromDatabase = function(param) {

@@ -3913,6 +3913,24 @@
     return groupByFunction;
   };
   
+  // Adds a new column
+  main_object.setColumns = function(param) {
+    return function(data) {
+      var newData = data.newData;
+      var theData = [];
+      for(var i = 0 ; i < newData.length ; i++) {
+        var d = newData[i]
+        for(var col in param) {
+          d[col] = param[col](d)
+          if(!d[col]) WARNING("In addColumns: the function associated with column {0} has returned undefined. Maybe you have forgotten a return statement...".format(col))
+        }
+        theData.push(d)
+      }
+      
+      return {oldData:data.oldProcessedData, newData:theData};
+    }
+  }
+  
   // Sort data
   main_object.sort = function(param) {
     var funcName = lib_name+'.sort';
@@ -3985,6 +4003,16 @@
     }
   };
   
+  main_object.sortBy = function(param) {
+    for(var col in param) {
+      var order = param[col]
+      if( (order == "descending") || (order == "-")) {
+        return main_object.sort({comparator:function(a, b) { return a[col] - b[col]; }})
+      } else {
+        return main_object.sort({comparator:function(a, b) { return b[col] - a[col]; }})
+      }
+    }
+  }
   
   // Melt data
   main_object.melt = function(param) {
@@ -4999,6 +5027,16 @@
     }
   };
   
+  var CHECK_PARAMS = function(param, acceptedOptions) {
+    for(var p in param) {
+      if(acceptedOptions.indexOf(p) < 0) {
+        WARNING("The following parameter is not recognized by the function: {0}. Expected parameters are: {1}".format(p, acceptedOptions.join()));
+        return false;
+      }
+    }
+    return true;
+  };
+  
   var LOG = function(msg) {return;
     if(console.log) {
       console.log(msg)
@@ -5074,5 +5112,47 @@
     }
     return formatted;
   };
+  
+  ///////////////////
+  // The function to add some jitter to coordinates.
+  // The parameter "index" can be used to make sure one value is generated for a given index value
+  ///////////////////
+  // From Antoine Trouvé (Sebastien: please put that at the right place in the file)
+  ///////////////////
+  main_object.jitter = function(param) {
+    ASSERT(param["col"], "Please specify parameter col to jitter");
+    ASSERT(param["val"], "Please specify parameter cval to jitter");
+    
+    ASSERT(CHECK_PARAMS(param, ["col", "val", "index"]), "Bad parameters to function jitter !")
+
+    var res = undefined;
+
+    if(param.index) {
+      res = function(d) {
+        // Makes sure the data contains the data column
+        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
+        // Looks up for the index
+        var indexValue = d[param.index];
+        // Try to get the jitter value at the index
+        var jitterAtIndex = res.jitterArray[indexValue];
+        // Calculates the jitter or the given index if it does not exist yet
+        if(!jitterAtIndex) {
+          jitterAtIndex = d[param.col] + Math.random()*param.val;
+          res.jitterArray[indexValue] = jitterAtIndex
+        }
+        // Returns the jitter
+        return jitterAtIndex;
+      }
+      res.jitterArray = {}
+    } else {
+      res = function(d) {
+        // Makes sure the data contains the data column
+        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
+        return d[param.col] + Math.random()*param.val 
+      }
+    }
+    
+    return res;
+  }
   
 }();

@@ -190,8 +190,7 @@
       attrAes[i] = aes[aesId];
     }
     
-    var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName);
-    var statOnAes = aes[aesId];
+    var statOnAes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, stat_on, main_dataset_name, 'stat_on', funcName)];
     
     var aggregate = function(getDatum) {
       
@@ -208,7 +207,7 @@
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
-        checkAesType('number', typeof statOnAes.func(data[0], 0), 'stat_on', funcName);
+        checkAesType('number', statOnAes, statOnAes.func(data[0], 0), 'stat_on', funcName);
         
         var nestedata = allocateSplitDataArray(splitSizes, 0);
         for(var i = 0 ; i < data.length ; i++) {
@@ -345,6 +344,7 @@
     var funcName = 'Graphic.on';
     var event =     checkParam(funcName, param, 'event');
     var listener =  checkParam(funcName, param, 'listener');
+    checkUnusedParam(funcName, param);
     
     this.lastElementAdded.listeners[event] = listener;
     
@@ -355,8 +355,10 @@
   Graphic.prototype.data = function(param) {
     var funcName = 'Graphic.data';
     var data = checkParam(funcName, param, 'data');
+    checkUnusedParam(funcName, param);
+    
     if(data instanceof Array) {
-      this.pushData(data);
+      this.pushData({data:data});
     }
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
@@ -371,7 +373,11 @@
   };
   
   // Push data
-  Graphic.prototype.pushData = function(data) {
+  Graphic.prototype.pushData = function(param) {
+    var funcName = 'Graphic.pushData';
+    var data = checkParam(funcName, param, 'data');
+    checkUnusedParam(funcName, param);
+    
     if(this.dataset[main_dataset_name] == null) {
       this.dataset[main_dataset_name] = { oldData:[],
                                           newData:data};
@@ -402,6 +408,7 @@
     var funcName = 'Graphic.dataView';
     var name = checkParam(funcName, param, 'name');
     var func = checkParam(funcName, param, 'func');
+    checkUnusedParam(funcName, param);
     
     this.data_view_generator.push({name:name, func:func});
     
@@ -450,7 +457,7 @@
           return nameBase;
         }
         else {
-          var i = 1;
+          var i = 2;
           while(this.spacialDimName.indexOf(nameBase+i) >= 0) {
             i++;
           }
@@ -484,7 +491,9 @@
     }
     
     if(isUndefined(param)) {
-      this.temporalDim = {};
+      // By default, t dimension is defined but with null value,
+      // meaning that it will be removed if not used
+      this.temporalDim = {t:null};
     }
     else {
       this.temporalDim = param;
@@ -508,6 +517,7 @@
     var display =       checkParam(funcName, param, 'display',  true);
     var displayAxis =   checkParam(funcName, param, 'display_axis',  display);
     var displayTicks =  checkParam(funcName, param, 'display_ticks',  display);
+    checkUnusedParam(funcName, param);
     
     if(dimAlias === null) {
       dimAlias = [];
@@ -586,8 +596,6 @@
   /* Automatically attaches itself to the window.onLoad  */
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick */
   Graphic.prototype.plot = function(param) {
-    ASSERT(render, "No function render in this; how am I  supposed to render ??");
-    
     var theGraphic = this;
     window.addEventListener("load", function() { render.call(theGraphic, param); }, true);
     
@@ -613,6 +621,7 @@
       this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
       this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
       this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
+      checkUnusedParam(funcName, param);
       
       if(this.elements.length == 0) {
         ERROR('no element in the graphic');
@@ -650,6 +659,43 @@
     
     this.width -=  (this.margin.left + this.margin.right);
     this.height -= (this.margin.top + this.margin.bottom);
+    
+    // Remove unused dimensions
+    var dimensions = {};
+    for(var cs = this.spacialCoord ; cs != null ; cs = cs.subSys) {
+      for(var i = 0 ; i < cs.dimName.length ; i++) {
+        var originalName = cs.dimName[i];
+        if(cs.dimAlias[originalName] != null) {
+          dimensions[cs.dimAlias[originalName]] = { used:false,
+                                                    spacial:true,
+                                                    originalName:originalName,
+                                                    csDimAlias:cs.dimAlias};
+        }
+      }
+    }
+    for(var dimName in this.temporalDim) {
+      dimensions[dimName] = { used:false,
+                              spacial:false};
+    }
+    for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var attr in this.elements[i].attrs) {
+        if(attr in dimensions) {
+          dimensions[attr].used = true;
+        }
+      }
+    }
+    for(var dimName in dimensions) {
+      var dimension = dimensions[dimName];
+      if(!dimension.used) {
+        if(dimension.spacial) {
+          dimension.csDimAlias[dimension.originalName] = null;
+          this.spacialDimName.splice(this.spacialDimName.indexOf(dimName), 1);
+        }
+        else if(this.temporalDim[dimName] == null){
+          delete this.temporalDim[dimName];
+        }
+      }
+    }
     
     
     // Information on each dimension
@@ -1609,6 +1655,8 @@
       var posX = this.timeSlider[i].valueToMouse(value);
       
       this.timeSlider[i].handle.transition().attr('cx', posX);
+      this.timeSlider[i].text.text(value)
+                        .transition().attr('x', posX);
     }
     
     return this;
@@ -1628,16 +1676,12 @@
       if(this.dataLoader != null) {
         //TIMER_GROUP_BEGIN('Loading', this.display_timers);
         this.dataLoader.sendXhrRequest();
-        return false;
       }
-      else {
-        ERROR('Can\'t plot without data');
-      }
+      return false;
     }
     //TIMER_GROUP_END('Loading', this.display_timers);
     return true;
   }
-  
   
   /*
    * Update data views (datasets computed from the main dataset)
@@ -1686,7 +1730,6 @@
     TIMER_END('Merge old and new data', this.display_timers);
   }
   
-  
   /*
    * Cleaning and standardization of elements' attributes
    * GoG pipeline step: None
@@ -1699,6 +1742,8 @@
      * Add time dimensions as attribute               *
     \*                                                */
     for(var i = 0 ; i < this.elements.length ; i++) {
+      var unusedParam = {};
+      var unusedParamOriginFunc = [];
       for(var attr in this.elements[i].attrs) {
         // This attribute is a dimension
         if(this.spacialDimName.indexOf(attr) >= 0 ||
@@ -1718,13 +1763,21 @@
         // Useless attribute
         if(this.elements[i].attrs[attr].type === 'unknown' ||
            this.elements[i].attrs[attr].value == null) {
+          if(attr != 'data' && this.elements[i].attrs[attr].type === 'unknown') {
+            unusedParam[attr] = true;
+            unusedParamOriginFunc.push(this.elements[i].attrs[attr].originFunc);
+          }  
+          
           delete this.elements[i].attrs[attr];
         }
       }
       
+      checkUnusedParam(unusedParamOriginFunc.join(' or '), unusedParam);
+      
       // Add time dimensions as attribute
       for(var attr in this.temporalDim) {
-        if(isUndefined(this.elements[i].attrs[attr])) {
+        if(this.temporalDim[attr] != null &&
+           isUndefined(this.elements[i].attrs[attr])) {
           this.elements[i].attrs[attr] = {  type:'dimension',
                                             value:this.temporalDim[attr],
                                             originFunc:'Graphic.time',
@@ -1791,27 +1844,25 @@
           
           originFunc = lib_name+'.interval'+(attr_val.stacked ? '.stack' : '');
           
-          var aesId1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.boundary1.value, datasetName, attr, originFunc);
-          var aesId2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.boundary2.value, datasetName, attr, originFunc);
+          var aesBound1 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.boundary1.value, datasetName, attr, originFunc)];
+          var aesBound2 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.boundary2.value, datasetName, attr, originFunc)];
           
           // Check data type return by those aesthetics
-          var aes_ret_type = typeof aes[aesId1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'first param', originFunc);
-          aes_ret_type = typeof aes[aesId2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'second param', originFunc);
+          checkAesType('number', aesBound1, aesBound1.func(dataset[0], 0), 'first param', originFunc);
+          checkAesType('number', aesBound2, aesBound2.func(dataset[0], 0), 'second param', originFunc);
           
-          attr_val.attrs.boundary1.aes = aes[aesId1];
-          attr_val.attrs.boundary2.aes = aes[aesId2];
+          attr_val.attrs.boundary1.aes = aesBound1;
+          attr_val.attrs.boundary2.aes = aesBound2;
           
           // Not stacked
           if(!attr_val.stacked) {
-            this.dim[attr].aes.push(attr_val.attrs.boundary1.aes);
+            this.dim[attr].aes.push(aesBound1);
             this.dim[attr].aesElemId.push(i);
-            this.dim[attr].aes.push(attr_val.attrs.boundary2.aes);
+            this.dim[attr].aes.push(aesBound2);
             this.dim[attr].aesElemId.push(i);
             
-            attr_val.attrs.boundary1.func = attr_val.attrs.boundary1.aes.func;
-            attr_val.attrs.boundary2.func = attr_val.attrs.boundary2.aes.func;
+            attr_val.attrs.boundary1.func = aesBound1.func;
+            attr_val.attrs.boundary2.func = aesBound2.func;
           }
           else {
             var Id = this.nbCalcultedValues[datasetName];
@@ -1850,42 +1901,37 @@
           }
           
           
-          var aesQ1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile1.value, datasetName, attr, originFunc);
-          var aesQ2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile2.value, datasetName, attr, originFunc);
-          var aesQ3 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile3.value, datasetName, attr, originFunc);
-          var aesW1 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.whisker1.value,  datasetName, attr, originFunc);
-          var aesW2 = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.whisker2.value,  datasetName, attr, originFunc);
+          var aesQ1 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile1.value, datasetName, attr, originFunc)];
+          var aesQ2 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile2.value, datasetName, attr, originFunc)];
+          var aesQ3 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.quartile3.value, datasetName, attr, originFunc)];
+          var aesW1 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.whisker1.value,  datasetName, attr, originFunc)];
+          var aesW2 = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val.attrs.whisker2.value,  datasetName, attr, originFunc)];
           
-          var aes_ret_type = typeof aes[aesQ1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile1', originFunc);
-          aes_ret_type = typeof aes[aesQ2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile2', originFunc);
-          aes_ret_type = typeof aes[aesQ3].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'quartile3', originFunc);
-          aes_ret_type = typeof aes[aesW1].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'whisker1', originFunc);
-          aes_ret_type = typeof aes[aesW2].func(dataset[0], 0);
-          checkAesType('number', aes_ret_type, 'whisker2', originFunc);
+          checkAesType('number', aesQ1, aesQ1.func(dataset[0], 0), 'quartile1', originFunc);
+          checkAesType('number', aesQ2, aesQ2.func(dataset[0], 0), 'quartile2', originFunc);
+          checkAesType('number', aesQ3, aesQ3.func(dataset[0], 0), 'quartile3', originFunc);
+          checkAesType('number', aesW1, aesW1.func(dataset[0], 0), 'whisker1', originFunc);
+          checkAesType('number', aesW2, aesW2.func(dataset[0], 0), 'whisker2', originFunc);
           
-          attr_val.attrs.quartile1.aes = aes[aesQ1];
-          attr_val.attrs.quartile2.aes = aes[aesQ2];
-          attr_val.attrs.quartile3.aes = aes[aesQ3];
-          attr_val.attrs.whisker1.aes =  aes[aesW1];
-          attr_val.attrs.whisker2.aes =  aes[aesW2];
+          attr_val.attrs.quartile1.aes = aesQ1;
+          attr_val.attrs.quartile2.aes = aesQ2;
+          attr_val.attrs.quartile3.aes = aesQ3;
+          attr_val.attrs.whisker1.aes =  aesW1;
+          attr_val.attrs.whisker2.aes =  aesW2;
           
           // Just min and max values
-          this.dim[attr].aes.push(attr_val.attrs.whisker1.aes);
+          this.dim[attr].aes.push(aesW1);
           this.dim[attr].aesElemId.push(i);
-          this.dim[attr].aes.push(attr_val.attrs.whisker2.aes);
+          this.dim[attr].aes.push(aesW2);
           this.dim[attr].aesElemId.push(i);
         }
         else {
           // Get the aestetic id
           var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, datasetName, attr, originFunc);
+          var aes_ret_val = aes[aesId].func(dataset[0], 0);
           
           // Check data type return by this aesthetic
-          var aes_ret_type = typeof aes[aesId].func(dataset[0], 0);
-          checkAesType(attr_type, aes_ret_type, attr, originFunc);
+          checkAesType(attr_type, aes[aesId], aes_ret_val, attr, originFunc);
           
           
           if(attr_type == 'dimension') {
@@ -1894,7 +1940,7 @@
           }
           
           this.elements[i].attrs[attr].aes = aes[aesId];
-          this.elements[i].attrs[attr].aes.ret_type = aes_ret_type;
+          this.elements[i].attrs[attr].aes.ret_type = typeof aes_ret_val;
         }
       }
       
@@ -1920,7 +1966,6 @@
     }
     TIMER_END('Standardization of elements\' attributes', this.display_timers);
   }
-  
   
   /*
    * Compute scale for every aesthetic which need it 
@@ -2243,7 +2288,6 @@
     TIMER_END('Computing scales themselves', this.display_timers);
     TIMER_GROUP_END('Computing scales', this.display_timers);
   }
-  
   
   /*
    * Update scales
@@ -2590,7 +2634,6 @@
     TIMER_GROUP_END('Updating scales', this.display_timers);
   }
   
-  
   /*
    * Generate the svg code
    * GoG pipeline step: Geometry, Coordinates, Aesthetics
@@ -2601,9 +2644,12 @@
     // Remove loading bar
     this.svg.select('#loading-bar').remove();
     
-    var svg = this.svg.append('g')
+    var svg = this.svg.select('g.depth0');
+    if(svg.empty()) {
+      svg = this.svg.append('g')
                 .attr('class', 'depth0')
                 .attr('transform', 'translate('+this.margin.left+','+this.margin.top+')');
+    }
     
     // Draw axises, backgrounds, and generate svg base to add elements
     TIMER_BEGIN('Drawing background and axises', this.display_timers);
@@ -2625,9 +2671,13 @@
             slider.brush.extent([posX, posX]);
           }
           
+          var value = slider.mouseToValue(posX);
           slider.handle.interrupt().transition();
           slider.handle.attr("cx", posX);
-          var index = g.dim[slider.dimName].domain.indexOf(slider.mouseToValue(posX));
+          slider.text.interrupt().transition();
+          slider.text.attr("x", posX).text(value);
+          
+          var index = g.dim[slider.dimName].domain.indexOf(value);
           if(g.currentTime[slider.dimName] != index) {
             g.currentTime[slider.dimName] = index;
             updateElements.call(g);
@@ -2650,6 +2700,7 @@
           }
           
           slider.handle.interrupt().transition().attr("cx", posX);
+          slider.text.interrupt().transition().attr("x", posX).text(slider.mouseToValue(posX));
         }
       };
       
@@ -2719,7 +2770,7 @@
         brushNode.select('.background').attr('width', sliderSize + handleSize)
                                    .attr('height', handleSize)
                                    .attr('x', -handleSize/2)
-                                   .attr('transform', 'translate(0,'+(sliderHeight/2-handleSize/2)+')')
+                                   .attr('transform', 'translate(0,'+((sliderHeight-handleSize)/2)+')')
                                    .style('cursor', 'auto');
         
         var handle = brushNode.append('circle').attr('class', 'handle')
@@ -2731,6 +2782,10 @@
                                                .style('stroke-width', '1.25px')
                                                .style('pointer-events', 'none');
         
+        var text = brushNode.append('text').attr('transform', 'translate(0,'+((sliderHeight-handleSize)/2-3)+')')
+                                           .style('text-anchor', 'middle')
+                                           .style('pointer-events', 'none');
+        
         this.timeSlider[i].dimName = i;
         this.timeSlider[i].mouseToValue = mouseToValue;
         this.timeSlider[i].valueToMouse = valueToMouse;
@@ -2738,10 +2793,12 @@
         this.timeSlider[i].axisNode = axisNode;
         this.timeSlider[i].brush = brush;
         this.timeSlider[i].handle = handle;
+        this.timeSlider[i].text = text;
         
         brush.on('brush', getOnBrushed(this.timeSlider[i], this));
         brush.on('brushend', getOnBrushEnd(this.timeSlider[i], this));
         handle.call(brush.event);
+        text.call(brush.event);
         
         offsetY += sliderHeight;
       }
@@ -3492,7 +3549,7 @@
         ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
       }
       
-      self.g.pushData(dataset);
+      self.g.pushData({data:dataset});
     };
   }
 
@@ -3500,21 +3557,43 @@
   main_object.loadFromFile = function(param) {
     var funcName = lib_name+'.loadFromFile';
     var filename = checkParam(funcName, param, 'file');
+    checkUnusedParam(funcName, param);
     
     var dl = new DataLoader();
+    
+    var extension = filename.slice(filename.lastIndexOf('.')+1).toUpperCase();
+    var parse = null;
+    
+    if(extension == 'CSV') {
+      parse = d3.csv.parse;
+    }
+    else if(extension == 'TSV') {
+      parse = d3.tsv.parse;
+    }
+    else if (extension == 'JSON') {
+      parse = function(text) {
+        return JSON.parse(text, function (key, value) {
+          var num = +value;
+          return isNan(num) ? value : num;
+        });
+      }
+    }
+    else {
+      ERROR('In function '+funcName+': file format unsupported');
+    }
     
     var xhr = d3.text(filename)
                 .on('progress', getProgressListener(dl))
                 .response(function(request) {
-                  TIMER_END('Loading CSV file', dl.g.display_timers);
-                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
-                  var data = d3.csv.parse(request.responseText, processRow);
-                  TIMER_END('Parsing CSV', dl.g.display_timers);
+                  TIMER_END('Loading '+extension+' file', dl.g.display_timers);
+                  TIMER_BEGIN('Parsing '+extension, dl.g.display_timers);
+                  var data = parse(request.responseText, processRow);
+                  TIMER_END('Parsing '+extension, dl.g.display_timers);
                   return data;
                 });
     
     dl.sendXhrRequest = function() {
-      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
+      TIMER_BEGIN('Loading '+extension+' file', dl.g.display_timers);
       xhr.get(dl.load);
     }
     
@@ -3524,6 +3603,7 @@
   main_object.loadByChunk = function(param) {
     var funcName = lib_name+'.loadByChunk';
     var connexion_id = checkParam(funcName, param, 'id');
+    checkUnusedParam(funcName, param);
     var first_unique_id = 0;
     
     var dl = new DataLoader();
@@ -3557,6 +3637,7 @@
     var user =    checkParam(funcName, param, 'user');
     var pwd =     checkParam(funcName, param, 'pwd');
     var request = checkParam(funcName, param, 'request');
+    checkUnusedParam(funcName, param);
     
     
     var dl = new DataLoader();
@@ -3591,6 +3672,7 @@
   main_object.filter = function(param) {
     var funcName = lib_name+'.filter';
     var criteria = checkParam(funcName, param, 'criteria');
+    checkUnusedParam(funcName, param);
     
     // data = {oldData, newData, oldProcessedData}
     return function(data) {
@@ -3779,13 +3861,13 @@
         aggregOnAes[i] = aes[aesId];
       }
       
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName);
-      var weightFunc = aes[aesId].func;
+      var weightAes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName)];
+      var weightFunc = weightAes.func;
       
       recomputeWholeGroup = true;
       getNewData = function(groupedData) {
         var new_data = [];
-        checkAesType('number', typeof weightFunc(groupedData[0][0], 0), 'weight', funcName);
+        checkAesType('number', weightAes, weightFunc(groupedData[0][0], 0), 'weight', funcName);
         var data = d3.merge(groupedData);
         var splitSizes = [];
         for(var i in aggreg_on) {
@@ -3856,12 +3938,14 @@
     groupByFunction.sum = function(param) {
       funcName += '().sum';
       var sum_attr_name = null;
+      var sum_aes = null;
       var sum_attr_func = null;
       
       for(var i in param) {
         if(sum_attr_name == null) {
           sum_attr_name = i;
-          sum_attr_func = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, param[i], main_dataset_name, i, funcName)].func;
+          var sum_aes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, param[i], main_dataset_name, i, funcName)];
+          sum_attr_func = sum_aes.func;
         }
         else {
           WARNING('More than 1 parameter passed to '+funcName+': '+i+' ignored');
@@ -3879,7 +3963,7 @@
         while(groupedData[0].newData.length == 0) {
           i++;
         }
-        checkAesType('number', typeof sum_attr_func(groupedData[i].newData[0], 0), sum_attr_name, funcName);
+        checkAesType('number', sum_aes, sum_attr_func(groupedData[i].newData[0], 0), sum_attr_name, funcName);
         
         var new_data = [];
         
@@ -3935,6 +4019,7 @@
   main_object.sort = function(param) {
     var funcName = lib_name+'.sort';
     var compare = checkParam(funcName, param, 'comparator');
+    checkUnusedParam(funcName, param);
     
     // data = {oldData, newData, oldProcessedData}
     return function(data) {
@@ -4021,6 +4106,7 @@
     var measures =      checkParam(funcName, param, 'measures',       null);
     var variable_name = checkParam(funcName, param, 'variable_name',  'variable');
     var value_name =    checkParam(funcName, param, 'value_name',     'value');
+    checkUnusedParam(funcName, param);
     
     if(ids == null && measures == null) {
       ERROR('In function '+funcName+', both parameters ids and measures are missing. You need to set at leat one of them');
@@ -4058,9 +4144,9 @@
           datum[variable_name] = measures[j];
           datum[value_name] = newData[i][measures[j]];
           // Cast into number if possible
-          var value = +datum[value_name];
+          var value = +datum[variable_name];
           if(!isNaN(value)) {
-            datum[value_name] = value;
+            datum[variable_name] = value;
           }
           melted_data.push(datum);
         }
@@ -4083,6 +4169,7 @@
     var position =  checkParam(funcName, param, 'position', [0, 0]);
     var text =      checkParam(funcName, param, 'text',     '');
     var duration =  checkParam(funcName, param, 'duration', 0);
+    checkUnusedParam(funcName, param);
     
     id.unshift('pop-up');
     var selector = '';
@@ -4132,6 +4219,7 @@
     var id =        checkParam(funcName, param, 'id');
     id = (id instanceof Array) ? id : [id];
     var duration =  checkParam(funcName, param, 'duration', 0);
+    checkUnusedParam(funcName, param);
     
     id.unshift('pop-up');
     var selector = '';
@@ -4153,6 +4241,7 @@
     var g =         checkParam(funcName, param, 'graphic');
     var id =        checkParam(funcName, param, 'id');
     id = (id instanceof Array) ? id : [id];
+    checkUnusedParam(funcName, param);
     
     id.unshift('pop-up');
     var selector = '';
@@ -4213,6 +4302,7 @@
     var q3 = checkParam(funcName, param, 'quartile3', data_binding_prefix+'quartile3');
     var w1  = checkParam(funcName, param, 'whisker1',  data_binding_prefix+'whisker1');
     var w2  = checkParam(funcName, param, 'whisker2',  data_binding_prefix+'whisker2');
+    checkUnusedParam(funcName, param);
     
     return new BoxPlotBoxStat(q1, q2, q3, w1, w2);
   };
@@ -4676,7 +4766,8 @@
         };
         
         aes.push({func:toFunction(column),
-                  datasetName:datasetName});
+                  datasetName:datasetName,
+                  column:column});
         id = aes.length - 1;
         dataCol2Aes[column].push(id);
       }
@@ -4693,8 +4784,7 @@
         
         aes.push({func:toFunction(attr_val),
                   datasetName:datasetName,
-                  // We set the domains while we know it's a constant value
-                  discretDomain:[attr_val]});
+                  constant:attr_val});
         id = aes.length - 1;
         
         if(typeof attr_val === 'number')
@@ -4741,7 +4831,14 @@
   };
   
   // Check aesthetic type
-  var checkAesType = function(attr_type, aes_ret_type, attr, originFunc) {
+  var checkAesType = function(attr_type, aes, aes_ret_val, attr, originFunc) {
+    var aes_ret_type = typeof aes_ret_val;
+    
+    if(isDefined(aes.column) && aes_ret_type === 'undefined') {
+      console.log(aes_ret_val);
+      ERROR('column '+aes.column+' not found in the '+(aes.datasetName == main_dataset_name ? 'main dataset': 'dataset '+aes.datasetName));
+    }
+    
     switch(attr_type) {
       case 'dimension':
         if(aes_ret_type != 'number' && aes_ret_type != 'string') {
@@ -4776,19 +4873,27 @@
     // Discret domain
     if(type == 'discret') {
       if(isUndefined(aes.discretDomain)) {
-        var f = aes.func;
-        aes.discretDomain = [];
-        for(var k = 0 ; k < dataset.length ; k++) {
-          aes.discretDomain.push(f(dataset[k], k));
+        if(isDefined(aes.constant)) {
+          aes.discretDomain = [aes.constant];
         }
-        RemoveDupArray(aes.discretDomain);
+        else {
+          var f = aes.func;
+          aes.discretDomain = [];
+          for(var k = 0 ; k < dataset.length ; k++) {
+            aes.discretDomain.push(f(dataset[k], k));
+          }
+          RemoveDupArray(aes.discretDomain);
+        }
       }
     }
     // Continue domain
     else {
       if(isUndefined(aes.continuousDomain)) {
+        if(isDefined(aes.constant)) {
+          aes.continuousDomain = [aes.constant, aes.constant];
+        }
         // Compute continuous domain from discret one
-        if(isDefined(aes.discretDomain)) {
+        else if(isDefined(aes.discretDomain)) {
           aes.continuousDomain = d3.extent(aes.discretDomain);
         }
         else {
@@ -4854,6 +4959,7 @@
   };
   
   // Check if a parameter is defined or not and return its value or default value if any
+  // This function consume the parameter
   var checkParam = function(funcName, param, paramName, defaultValue) {
     // Parameter value not set
     if(isUndefined(param) || isUndefined(param[paramName])) {
@@ -4872,9 +4978,30 @@
     }
     // Parameter value set
     else {
-      return param[paramName];
+      var tmp = param[paramName];
+      delete param[paramName];
+      return tmp;
     }
   };
+  
+  // Check if there are unused parameters left
+  var checkUnusedParam = function(funcName, param) {
+    var unusedParam = [];
+    for(var i in param) {
+      unusedParam.push(i);
+    }
+    
+    if(unusedParam.length > 0) {
+      var msg = 'In function '+funcName+', parameter'+(unusedParam.length>1?'s':'')+' ';
+      for(var i = 0 ; i < unusedParam.length ; i++) {
+        msg +=  i == 0                    ? unusedParam[i] :
+                i == unusedParam.length-1 ? ' and '+unusedParam[i] :
+                                            ', '+unusedParam[i];
+      }
+      msg += ' ignored';
+      WARNING(msg);
+    }
+  }
   
   // Get a listener that update a loading bar
   var getProgressListener = function(dl) {
@@ -5027,17 +5154,7 @@
     }
   };
   
-  var CHECK_PARAMS = function(param, acceptedOptions) {
-    for(var p in param) {
-      if(acceptedOptions.indexOf(p) < 0) {
-        WARNING("The following parameter is not recognized by the function: {0}. Expected parameters are: {1}".format(p, acceptedOptions.join()));
-        return false;
-      }
-    }
-    return true;
-  };
-  
-  var LOG = function(msg) {return;
+  var LOG = function(msg) {
     if(console.log) {
       console.log(msg)
     }
@@ -5089,7 +5206,6 @@
     return a.constructor.name;
   };
   
-  
   /* From: http://strd6.com/2010/08/useful-javascript-game-extensions-clamp/ */
   Number.prototype.clamp = function(min, max) {
     return Math.min(Math.max(this, min), max);
@@ -5117,7 +5233,7 @@
   // The function to add some jitter to coordinates.
   // The parameter "index" can be used to make sure one value is generated for a given index value
   ///////////////////
-  // From Antoine Trouvé (Sebastien: please put that at the right place in the file)
+  // From Antoine Trouvé (Sébastien: please put that at the right place in the file)
   ///////////////////
   main_object.jitter = function(param) {
     ASSERT(param["col"], "Please specify parameter col to jitter");

@@ -53,8 +53,7 @@
             
             g2d3.graphic()
             .hack({ bar_padding:0, linear_scale_padding:0, drawBackground:false})
-            .coord(g2d3.rect({x:'x', y:null,
-                            subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
+            .coord(g2d3.rect({x:'x', subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
             .time({t:'data:year'})
             .bar({  x:'data:age',
                     sub_cat:g2d3.cat('data:sex'),
@@ -73,8 +72,7 @@
             
             g2d3.graphic()
             .hack({ bar_padding:0, linear_scale_padding:0, drawBackground:false})
-            .coord(g2d3.rect({x:'x', y:null,
-                            subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
+            .coord(g2d3.rect({x:'x', subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
             .time({ year:'data:year',
                     age:'data:age'})
             .bar({  x:marriageStatus,
@@ -91,8 +89,7 @@
             
             g2d3.graphic()
             .hack({drawBackground:false, bar_padding:0})
-            .coord(g2d3.rect({y:null,
-                            subSys:g2d3.polar({radius:null})}))
+            .coord(g2d3.rect({subSys:g2d3.polar()}))
             .time({ year:'data:year'})
             .axis({axis:'theta', display:false})
             .bar({  x:genderName,
@@ -267,7 +264,7 @@
             
             g2d3.graphic()
             .hack({drawBackground:false,bar_padding:0})
-            .coord(g2d3.polar({theta:null}))
+            .coord(g2d3.polar())
             .axis({display:false})
             .bar({  radius:g2d3.interval.stack('data:epaisseur'),
                     color:getColor,

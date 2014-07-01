@@ -42,6 +42,7 @@
                         y:'data:col2',
                         stroke_width:function(d,i){return d.col4+1;},
                         stroke:function(d,i){return d.col4;},
+                        swagg:1337,
                         fill:'none'})
             .line({     stroke_width:3,
                         stroke:function(){return 'blue';},
@@ -49,6 +50,7 @@
                         stroke_linecap:'round'})
             .symbol({   size:function(d){var r = 5*(d.col4+1)+5; return 3.1415*r*r;},
                         fill:'yellow',
+                        yolo:42,
                         fill_opacity:0.5})
             .symbol({   x:10,
                         y:10,
@@ -95,13 +97,9 @@
             
             
             G['2'] = g2d3.graphic()
-            .coord(g2d3.rect({x:'cat1',
-                            // We don't redefine y, so it's default name will be 'y1'
-                            // since 'y' is already taken by the sub-system
-                            subSys: g2d3.rect()
-                            }))
-            .element({  cat1:'data:col1',
-                        y1:'data:col2',
+            .coord(g2d3.rect({subSys: g2d3.rect()}))
+            .element({  x2:'data:col1',
+                        y2:'data:col2',
                         x:'data:col3',
                         y:'data:col4'})
             .line(  {   fill:'none',
@@ -219,7 +217,7 @@
             
             G['6-4'] = g2d3.graphic()
             //.hack({merge_null_axis:false})
-            .coord(g2d3.rect({x:'dim1', y:null,
+            .coord(g2d3.rect({x:'dim1',
                             subSys:g2d3.rect({x:'sub_cat', y:'dim2'})}))
             .time({t:'data:t'})
             .bar({  dim1:'data:cat',
@@ -330,9 +328,9 @@
             .hack({display_timers:false,transition_duration:500})
             .coord(g2d3.rect({subSys: g2d3.polar()}))
             //.coord(g2d3.rect({x:'x',y:'y',subSys:g2d3.rect({x:'theta',y:'radius'})}))
-            .time({t:'data:col5'})
             .axis({axis:'theta', display:false})
-            .element({  x:'data:col1',
+            .element({  t:'data:col5',
+                        x:'data:col1',
                         y: 'data:col2',
                         theta:g2d3.cat('data:col3'),
                         radius:'data:col4'})
@@ -351,14 +349,13 @@
             .symbol({   color:'data:col3',
                         shape:'data:col4',
                         label:'data:col3'})
-            .data({data:dataset[0]})
             .plot({selector:"#graph10", width:1000, height:1000, margin_left:50, margin_bottom:40});
             
             function startPushing() {
-                var datasetLoaded = 1;
+                var datasetLoaded = 0;
                 var pushData = function() {
                     if(datasetLoaded < dataset.length) {
-                        G['10'].pushData(dataset[datasetLoaded]);
+                        G['10'].pushData({data:dataset[datasetLoaded]});
                         G['10'].nextStep('t');
                         datasetLoaded++;
                         setTimeout(pushData ,1000);
@@ -400,13 +397,12 @@
             G['11'] = g2d3.graphic()
             .hack({ drawBackground:false,
                     linear_scale_padding:0})
-            .time({t:'data:t'})
-            .bar({  x:'data:cat',
+            .bar({  t:'data:t',
+                    x:'data:cat',
                     y:g2d3.interval.stack('data:y'),
                     group:'data:cat',
                     color:'data:order',
                     label:'data:y'})
-            .data({data:slicedDataset[0]})
             .dataView({ name:'default_data',func:g2d3.sort({comparator:function(a, b) {
                 return  (g2d3.compare(a.cat, b.cat) ? g2d3.compare(a.cat, b.cat) :
                         a.t - b.t                   ? a.t - b.t : 
@@ -414,12 +410,12 @@
                 }})})
             .plot({selector:"#graph11", width:600, height:600, margin:30});
             
-            var loaded = 1;
+            var loaded = 0;
             window.addEventListener("load", function() {
                 d3.select('#dataPushButton2').attr('value', 'Push data (left '+(nbSlices-loaded)+'/'+nbSlices+')');
             }, true);
             function pushData() {
-                G['11'].pushData(slicedDataset[loaded]);
+                G['11'].pushData({data:slicedDataset[loaded]});
                 loaded++;
                 d3.select('#dataPushButton2').attr('value', 'Push data (left '+(nbSlices-loaded)+'/'+nbSlices+')');
                 if(nbSlices == loaded) {
@@ -447,9 +443,9 @@
                     transition_duration:0,
                     display_timers:true})
             .coord(g2d3.polar())
-            .time({t:'data:n'})
             .axis({axis:'theta', display:false})
-            .symbol({   theta:'data:wid',
+            .symbol({   t:'data:n',
+                        theta:'data:wid',
                         radius:'data:time',
                         color:g2d3.cat('data:bv'),
                         label:'data:wid'

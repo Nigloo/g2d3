@@ -123,6 +123,8 @@
             G['3'] = g2d3.graphic()
             .coord(g2d3.polar())
             .time({t:'data:col2'})
+            .axis({axis:'theta', ticks:['v00','v02','v04','v06','v08','v10','v12','v14','v16','v18']})
+            .axis({axis:'radius', ticks:[0,1,2,4,8,16]})
             .symbol({   theta:'data:col3',
                         radius:function(d){return (d.col1+d.col2)%20;},
                         size:100,
@@ -242,6 +244,10 @@
             G['7'] = g2d3.graphic()
             .time({ tx:'data:x',
                     ty:'data:y'})
+            .axis({axis:'tx', display_axis:false})
+            .axis({axis:'ty', display_ticks:false})
+            .axis({axis:'x', ticks:['A', 'C', 'E', 'G', 'I', 'K']})
+            .axis({axis:'y', ticks:[1,3,5,7,9,15,-2]})
             .symbol({   x:'data:x',
                         y:'data:y',
                         fill:'red',
@@ -396,8 +402,11 @@
             }
             
             G['11'] = g2d3.graphic()
-            .hack({ drawBackground:false,
-                    linear_scale_padding:0})
+            .hack({ drawBackground:false})
+            .axis({axis:'t', display_axis:false})
+            .axis({axis:'t', display_ticks:false})
+            .axis({axis:'y', min:0, max:500})
+            .axis({axis:'x', min:'B', max:'fail'})
             .bar({  t:'data:t',
                     x:'data:cat',
                     y:g2d3.interval.stack('data:y'),
@@ -444,6 +453,7 @@
                     transition_duration:0,
                     display_timers:true})
             .coord(g2d3.polar())
+            .axis({axis:'t', ticks:[10,20,30,40,50,60,70,80,90,100,101,5,4]})
             .axis({axis:'theta', display:false})
             .symbol({   t:'data:n',
                         theta:'data:wid',
@@ -454,7 +464,7 @@
             .data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
             .dataView({ name:'default_data',func:g2d3.melt({ids:['wid'], variable_name:'bv', value_name:'time'})})
             .dataView({ name:'default_data',func:processData})
-            .plot({selector:"#graph12", width:1024, height:768, margin:50});
+            .plot({selector:"#graph12", width:1024, height:768, margin:100});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////

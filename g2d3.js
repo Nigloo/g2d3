@@ -513,13 +513,17 @@
     
     this.axis_function_called = true;
     var funcName = 'Graphic.axis';
-    var dimAlias =      checkParam(funcName, param, 'axis',     null);
-    var display =       checkParam(funcName, param, 'display',  true);
-    var displayAxis =   checkParam(funcName, param, 'display_axis',  display);
-    var displayTicks =  checkParam(funcName, param, 'display_ticks',  display);
+    var dimAlias =      checkParam(funcName, param, 'axis',           null);
+    var display =       checkParam(funcName, param, 'display',        null);
+    var displayAxis =   checkParam(funcName, param, 'display_axis',   null);
+    var displayTicks =  checkParam(funcName, param, 'display_ticks',  null);
+    var ticks =         checkParam(funcName, param, 'ticks',          null);
+    var min =           checkParam(funcName, param, 'min',            null);
+    var max =           checkParam(funcName, param, 'max',            null);
+    
     checkUnusedParam(funcName, param);
     
-    if(dimAlias === null) {
+    if(dimAlias == null) {
       dimAlias = [];
       for(var i = 0 ; i < this.spacialDimName.length ; i++) {
         dimAlias.push(this.spacialDimName[i]);
@@ -532,10 +536,22 @@
       dimAlias = [dimAlias];
     }
     
+    if(display != null) {
+      displayAxis = display;
+      displayTicks = display;
+    }
+    
     for(var i = 0 ; i < dimAlias.length ; i++) {
-      var axProp = this.axisProperty[dimAlias[i]] = {};
-      axProp.displayAxis = displayAxis;
-      axProp.displayTicks = displayTicks;
+      if(isUndefined(this.axisProperty[dimAlias[i]])) {
+        this.axisProperty[dimAlias[i]] = {};
+      }
+      var axProp = this.axisProperty[dimAlias[i]];
+      
+      axProp.displayAxis =  isUndefined(axProp.displayAxis)   ? true : (displayAxis == null   ? axProp.displayAxis  : displayAxis);
+      axProp.displayTicks = isUndefined(axProp.displayTicks)  ? true : (displayTicks == null  ? axProp.displayTicks : displayTicks);
+      axProp.ticks =        isUndefined(axProp.ticks)         ? null : (ticks == null         ? axProp.ticks        : ticks);
+      axProp.min =          isUndefined(axProp.min)           ? null : (min == null           ? axProp.min          : min);
+      axProp.max =          isUndefined(axProp.max)           ? null : (max == null           ? axProp.max          : max);
     }
     
     return this;
@@ -705,7 +721,7 @@
     this.dim = getDimensionsInfo( this.spacialCoord,
                                   this.temporalDim,
                                   this.axisProperty);
-                                  
+    
     // Reserve some space for sliders
     
     var nbSlider = 0;
@@ -1643,12 +1659,24 @@
               .rangePoints([0, sliderSize], 0);
         
         slider.brush.x(slider.valueToMouse);
-        slider.axis.tickValues(values);
         
-        (this.transition_duration > 0
-        ? slider.axisNode.transition().duration(this.transition_duration)
-        : slider.axisNode)
-        .call(slider.axis);
+        var ticks = getCustomTicks(this.dim[i]);
+        if(ticks != null) {
+          slider.axis.tickValues(ticks);
+        }
+        
+        var axisNode = slider.axisNode;
+        if(this.transition_duration > 0) {
+          axisNode = axisNode.transition().duration(this.transition_duration);
+        }
+        axisNode.call(slider.axis);
+        
+        if(!this.dim[i].displayAxis) {
+          slider.axisNode.selectAll('.domain').remove();
+        }
+        if(!this.dim[i].displayTicks) {
+          slider.axisNode.selectAll('.tick').remove();
+        }
       }
       
       var value = this.dim[i].domain[this.currentTime[i]];
@@ -1980,12 +2008,9 @@
      * EXCEPT the deepest spacial coordinate system dimensions *
     \*                                                         */
     TIMER_GROUP_BEGIN('Computing scales', this.display_timers);
+    
     TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
     for(var i in this.dim) {
-      if(isUndefined(this.dim[i].aes)) {
-        ERROR('Error: dimension '+i+' unused');
-      }
-      
       if(!this.dim[i].forceOrdinal) {
         continue;
       }
@@ -2197,7 +2222,7 @@
           }
         }
         if(domain[0] == domain[1]) {
-          domain = addPadding(domain, this.linear_scale_padding);
+          domain = addPadding(domain);
         }
       }
       
@@ -2286,7 +2311,29 @@
       }
     }
     TIMER_END('Computing scales themselves', this.display_timers);
+    
+    // Display warning if min and/or max values are set for non linear scales
+    var warn = [];
+    for(var i in this.dim) {
+      if(this.dim[i].discret) {
+        var unused = [];
+        if(this.dim[i].min != null) {
+          unused.push('min');
+        }
+        if(this.dim[i].max != null) {
+          unused.push('max');
+        }
+        if(unused.length > 0) {
+          warn.push('In function Graphic.axis: parameter'+(unused.length>1?'s ':' ')+unused.join(' and ')+' ignored. You can\'t set min or max of an ordinal scale.');
+        }
+      }
+    }
+    
     TIMER_GROUP_END('Computing scales', this.display_timers);
+    
+    for(var i = 0 ; i < warn.length ; i++) {
+      WARNING(warn[i]);
+    }
   }
   
   /*
@@ -2543,7 +2590,7 @@
           }
         }
         if(domain[0] == domain[1]) {
-          domain = addPadding(domain, this.linear_scale_padding);
+          domain = addPadding(domain);
         }
       }
       
@@ -2732,7 +2779,6 @@
         
         var axis = d3.svg.axis()
                      .scale(valueToMouse)
-                     .tickValues(values) // TODO: if only numbers, don't generate 1 tick per value
                      .orient('bottom')
                      .tickSize(0)
                      .tickPadding(12);
@@ -2758,10 +2804,11 @@
                                   .style('stroke-opacity', '0.3')
                                   .style('stroke-width', '10')
                                   .style('stroke-linecap', 'round')
-            .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
+        .select(function(){return this.parentNode.appendChild(this.cloneNode(true));})
                                   .style('stroke', '#ddd')
                                   .style('stroke-opacity', '1')
                                   .style('stroke-width', '8');
+        
         
         var brushNode = slider.append('g').attr('class', 'brush')
                                           .call(brush);
@@ -2964,8 +3011,16 @@
         subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimAlias[i]].domain.length - 1 + this.g.ordinal_scale_padding);
       }
       else {
+        var dom = addPadding(dim[this.dimAlias[i]].domain, this.g.linear_scale_padding);
+        if(dim[this.dimAlias[i]].min != null) {
+          dom[0] = dim[this.dimAlias[i]].min;
+        }
+        if(dim[this.dimAlias[i]].max != null) {
+          dom[1] = dim[this.dimAlias[i]].max;
+        }
+        
         this.scale[i] = d3.scale.linear()
-                        .domain(addPadding(dim[this.dimAlias[i]].domain, this.g.linear_scale_padding))
+                        .domain(dom)
                         .range(ranges[i])
                         .nice();
         subSize[i] = size[i] / (this.scale[i].domain()[1] - this.scale[i].domain()[0]);
@@ -3100,10 +3155,11 @@
       
       if(scale != null) {
         var axisNode = svg.select('g.axis.'+axisDim);
-        var axis = d3.svg.axis().scale(scale).orient(dimInfo[i].orient);
+        var axis = d3.svg.axis().scale(scale).orient(dimInfo[i].orient).outerTickSize(0);
         
-        if(!dim[axisDim].discret) {
-          axis.ticks(5);
+        var ticks = getCustomTicks(dim[axisDim]);
+        if(ticks != null) {
+          axis.tickValues(ticks);
         }
         
         // On enter
@@ -3122,28 +3178,21 @@
           }
           
           axisNode.call(axis);
-          
-          if(!dim[axisDim].displayAxis) {
-            axisNode.select('.domain').remove();
-          }
-          if(!dim[axisDim].displayTicks) {
-            axisNode.selectAll('.tick').remove();
-          }
         }
         // On update
         else {
-          if(this.g.transition_duration > 0) {
-            axisNode = axisNode.transition().duration(this.g.transition_duration);
-          }
-          axisNode.attr('transform', 'translate(0,'+dimInfo[i].offsetY+')')
-                  .call(axis);
-          
-          if(!dim[axisDim].displayAxis) {
-            axisNode.select('.domain').remove();
-          }
-          if(!dim[axisDim].displayTicks) {
-            axisNode.selectAll('.tick').transition().duration(0).remove();
-          }
+          (this.g.transition_duration > 0
+          ? axisNode.transition().duration(this.g.transition_duration)
+          : axisNode)
+          .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')')
+          .call(axis);
+        }
+        
+        if(!dim[axisDim].displayAxis) {
+          axisNode.select('.domain').remove();
+        }
+        if(!dim[axisDim].displayTicks) {
+          axisNode.selectAll('.tick').remove();
         }
       }
     }
@@ -3230,8 +3279,16 @@
       dim[this.dimAlias['theta']].band = (2 * Math.PI) / dim[this.dimAlias['theta']].domain.length;
     }
     else {
+      var dom = dim[this.dimAlias['theta']].domain;
+      if(dim[this.dimAlias['theta']].min != null) {
+        dom[0] = dim[this.dimAlias['theta']].min;
+      }
+      if(dim[this.dimAlias['theta']].max != null) {
+        dom[1] = dim[this.dimAlias['theta']].max;
+      }
+      
       this.scale['theta'] = d3.scale.linear()
-                                    .domain(dim[this.dimAlias['theta']].domain)
+                                    .domain(dom)
                                     .range([0, 2*Math.PI]);
       dim[this.dimAlias['theta']].band = 2 * Math.PI / (this.scale['theta'].domain()[1] - this.scale['theta'].domain()[0]);
     }
@@ -3248,8 +3305,16 @@
       dim[this.dimAlias['radius']].band = this.boundary['radius'].max / dim[this.dimAlias['radius']].domain.length;
     }
     else {
+      var dom = dim[this.dimAlias['radius']].domain.slice();
+      if(dim[this.dimAlias['radius']].min != null) {
+        dom[0] = dim[this.dimAlias['radius']].min;
+      }
+      if(dim[this.dimAlias['radius']].max != null) {
+        dom[1] = dim[this.dimAlias['radius']].max;
+      }
+      
       this.scale['radius'] = d3.scale.linear()
-                      .domain(dim[this.dimAlias['radius']].domain)
+                      .domain(dom)
                       .range([0, this.boundary['radius'].max])
                       .nice();
       dim[this.dimAlias['radius']].band = this.boundary['radius'].max / (this.scale['radius'].domain()[1] - this.scale['radius'].domain()[0]);
@@ -3365,17 +3430,19 @@
     // Radius 'axis'
     if(this.dimAlias['radius'] != null) {
       var axisNode = svg.select('g.axis.'+this.dimAlias['radius']);
-      var ticks;
       
-      if(dim[this.dimAlias['radius']].discret) {
-        ticks = this.scale['radius'].domain();
-      }
-      else {
-        ticks = this.scale['radius'].ticks(5);
-        var dom = this.scale['radius'].domain();
-        ticks.push(dom[0]);
-        ticks.push(dom[1]);
-        RemoveDupArray(ticks);
+      var ticks = getCustomTicks(dim[this.dimAlias['radius']]);
+      if(ticks == null) {
+        if(dim[this.dimAlias['radius']].discret) {
+          ticks = this.scale['radius'].domain();
+        }
+        else {
+          ticks = this.scale['radius'].ticks(5);
+          var dom = this.scale['radius'].domain();
+          ticks.push(dom[0]);
+          ticks.push(dom[1]);
+          RemoveDupArray(ticks);
+        }
       }
       
       if(axisNode.empty()) {
@@ -3445,19 +3512,21 @@
     // Theta axis
     if(this.dimAlias['theta'] != null) {
       var axisNode = svg.select('g.axis.'+this.dimAlias['theta']);
-      var ticks;
       
-      if(dim[this.dimAlias['theta']].discret) {
-        ticks = this.scale['theta'].domain();
+      var ticks = getCustomTicks(dim[this.dimAlias['theta']]);
+      if(ticks == null) {
+        if(dim[this.dimAlias['theta']].discret) {
+          ticks = this.scale['theta'].domain();
+        }
+        else {
+          ticks = this.scale['theta'].ticks(8);
+          var dom = this.scale['theta'].domain();
+          //ticks.push(dom[0]);
+          //ticks.push(dom[1]);
+          //RemoveDupArray(ticks);
+        }
       }
-      else {
-        ticks = this.scale['theta'].ticks(8);
-        var dom = this.scale['theta'].domain();
-        //ticks.push(dom[0]);
-        //ticks.push(dom[1]);
-        //RemoveDupArray(ticks);
-      }
-      
+    
       if(axisNode.empty()) {
         axisNode = svg.append('g')
                     .attr('class', 'axis '+this.dimAlias['theta'])
@@ -4666,6 +4735,40 @@
     return {enter:onEnter, update:onUpdate, exit:onExit};
   }
   
+  // Remove ticks out of the domain and return them is a new Array
+  var getCustomTicks = function(dim) {
+    if(dim.ticks == null) {
+      return null;
+    }
+    else {
+      var ticks = dim.ticks.slice();
+      
+      // Remove ticks out of the domain
+      var dom = dim.domain;
+      if(dim.discret) {
+        for(var i = 0 ; i < ticks.length ;) {
+          if(dom.indexOf(ticks[i]) < 0) {
+            ticks.splice(i,1);
+          }
+          else {
+            i++;
+          }
+        }
+      }
+      else {
+        for(var i = 0 ; i < ticks.length ;) {
+          if(ticks[i] < dom[0] || ticks[i] > dom[1]) {
+            ticks.splice(i,1);
+          }
+          else {
+            i++;
+          }
+        }
+      }
+      return ticks;
+    }
+  }
+  
   // Add padding to a continue interval
   var addPadding = function(interval, padding) {
     if(interval[0] != interval[1]) {
@@ -4724,7 +4827,7 @@
     
     for(i in axisProperty) {
       if(isUndefined(dim[i])) {
-        WARNING('In function Graphic.axis: axis '+i+' not defined');
+        WARNING('In function Graphic.axis: axis '+i+' not defined. All parameters ignored.');
       }
       else {
         for(var j in axisProperty[i]) {
@@ -5154,7 +5257,7 @@
   };
   
   var LOG = function(msg) {
-    if(console.log) {
+    if(console.log) {return;
       console.log(msg)
     }
   };

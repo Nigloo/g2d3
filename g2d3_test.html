@@ -213,7 +213,7 @@
             .bar({  dim1:'data:cat',
                     dim2:g2d3.interval.stack('data:y'),
                     group:'data:cat',
-                    color:function(d,i){return i;},
+                    color:g2d3.cat(function(d,i){return i;}),
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-3", width:600, height:600, margin:30});
@@ -407,6 +407,7 @@
             .axis({axis:'t', display_ticks:false})
             .axis({axis:'y', min:0, max:500})
             .axis({axis:'x', min:'B', max:'fail'})
+            .axis({axis:'t', max:'fail'})
             .bar({  t:'data:t',
                     x:'data:cat',
                     y:g2d3.interval.stack('data:y'),

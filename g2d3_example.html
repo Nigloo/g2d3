@@ -108,7 +108,7 @@
             .hack({drawBackground:false, bar_padding:0}).bar({  radius:' ',theta:0,color:'none'})
             .coord(g2d3.polar())
             .time({ year:'data:year'})
-            .axis({ display:false})
+            .axis({ axis:['radius', 'theta'], display:false})
             .bar({  radius:g2d3.cat('data:sex'),
                     theta:g2d3.interval.stack('data:proportion'),
                     group:'data:sex',
@@ -191,6 +191,7 @@
             g2d3.graphic()
             .hack({drawBackground:false})
             .coord(g2d3.polar())
+            .axis({axis:'radius', min:0})
             .element({  theta:'data:Function',
                         radius:'data:Budget',
                         group:'data:Type',
@@ -202,7 +203,6 @@
             .symbol({   fill:'white',
                         size:25,
                         label:function(d){return d.Type+' for '+d.Function+': $'+d.Budget+'K'}})
-            .symbol({   radius:0,size:0})
             .data({data:dataset['AllocatedBudgetVersusActualSpending']})
             .plot({selector:"#graph6", width:800, height:600});
             

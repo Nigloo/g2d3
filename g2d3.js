@@ -532,7 +532,7 @@
         dimAlias.push(i);
       }
     }
-    else {
+    else if(!(dimAlias instanceof Array)){
       dimAlias = [dimAlias];
     }
     
@@ -2184,13 +2184,13 @@
       if(discret) {
         domain = [];
         for(var j = 0 ; j < dim.aes.length ; j++) {
+          if(isUndefined(dim.aes[j].discretDomain)) {
+            dim.aes[j].discretDomain = [];
+          }
           var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
           while(it.hasNext()) {
             var dataSubset = it.next();
             // Compute discret domain
-            if(isUndefined(dim.aes[j].discretDomain)) {
-              dim.aes[j].discretDomain = [];
-            }
             updateDomain(dim.aes[j], dataSubset, 'discret');
             var dom = dim.aes[j].discretDomain;
             for(var k = 0 ; k < dom.length ; k++) {
@@ -2205,13 +2205,13 @@
         domain = [Infinity, -Infinity];
         var dim = this.dim[i];
         for(var j = 0 ; j < dim.aes.length ; j++) {
+          if(isUndefined(dim.aes[j].continuousDomain)) {
+            dim.aes[j].continuousDomain = [Infinity, -Infinity];
+          }
           var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
           while(it.hasNext()) {
             var dataSubset = it.next();
             // Compute continue domain
-            if(isUndefined(dim.aes[j].continuousDomain)) {
-              dim.aes[j].continuousDomain = [Infinity, -Infinity];
-            }
             updateDomain(dim.aes[j], dataSubset, 'continue');
             var dom = dim.aes[j].continuousDomain;
             
@@ -2255,17 +2255,22 @@
         
         switch(attr_type) {
           case 'color':
-            if(attr_aes.ret_type === 'string' && !forceCategorical) {
+            if(forceCategorical) {
+              // Compute discret domain
+              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
+              // Scaling
+              var scale = d3.scale.category10().domain(attr_aes.discretDomain);
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
+            }
+            else if(attr_aes.ret_type === 'string') {
               // No scaling
               this.elements[i].attrs[attr].func = attr_aes.func;
             }
             else {
               // Compute continuous domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              
+              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
               // Scaling
-              var scale = d3.scale.category10().domain(attr_aes.discretDomain);
-              
+              var scale = continuousColorScale(attr_aes.continuousDomain, ['blue', 'cyan', 'yellow', 'red']);
               this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
             }
             break;
@@ -2324,7 +2329,8 @@
           unused.push('max');
         }
         if(unused.length > 0) {
-          warn.push('In function Graphic.axis: parameter'+(unused.length>1?'s ':' ')+unused.join(' and ')+' ignored. You can\'t set min or max of an ordinal scale.');
+          warn.push('In function Graphic.axis: parameter'+(unused.length>1?'s ':' ')+unused.join(' and ')+' ignored for the axis '+i+'. '+
+          'You can\'t set min or max for an ordinal scale.');
         }
       }
     }
@@ -2622,17 +2628,22 @@
         
         switch(attr_type) {
           case 'color':
-            if(attr_aes.ret_type === 'string' && !forceCategorical) {
+            if(forceCategorical) {
+              // Compute discret domain
+              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
+              // Scaling
+              var scale = d3.scale.category10().domain(attr_aes.discretDomain);
+              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
+            }
+            else if(attr_aes.ret_type === 'string') {
               // No scaling
               this.elements[i].attrs[attr].func = attr_aes.func;
             }
             else {
-              // Compute discret domain
-              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              
+              // Compute continuous domain
+              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
               // Scaling
-              var scale = d3.scale.category10().domain(attr_aes.discretDomain);
-              
+              var scale = continuousColorScale(attr_aes.continuousDomain, ['blue', 'cyan', 'yellow', 'red']);
               this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
             }
             break;
@@ -4769,6 +4780,26 @@
     }
   }
   
+  // Return a continuous color scale
+  /* Inspired from: https://groups.google.com/forum/#!topic/d3-js/B31N2zSVEiE */
+  var continuousColorScale = function(domain, range, baseScale) {
+    if(isUndefined(baseScale)) {
+      baseScale = d3.scale.linear;
+    }
+    
+    var thresholds = new Array(range.length);
+    var step = 1 / (range.length - 1);
+    for(var i = 0 ; i < range.length ; i++) {
+      thresholds[i] = i*step;
+    }
+    
+    var scale = baseScale().domain(domain).nice();
+    scale.domain(thresholds.map(scale.invert));
+    scale.range(range);
+    
+    return scale;
+  }
+  
   // Add padding to a continue interval
   var addPadding = function(interval, padding) {
     if(interval[0] != interval[1]) {
@@ -4981,8 +5012,13 @@
         else {
           var f = aes.func;
           aes.discretDomain = [];
-          for(var k = 0 ; k < dataset.length ; k++) {
-            aes.discretDomain.push(f(dataset[k], k));
+          
+          var it = new HierarchyIterator(dataset);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            for(var i = 0 ; i < dataSubset.length ; i++) {
+              aes.discretDomain.push(f(dataSubset[i], i));
+            }
           }
           RemoveDupArray(aes.discretDomain);
         }
@@ -4999,7 +5035,19 @@
           aes.continuousDomain = d3.extent(aes.discretDomain);
         }
         else {
-          aes.continuousDomain = d3.extent(dataset, aes.func);
+          aes.continuousDomain = [Infinity, -Infinity];
+          
+          var it = new HierarchyIterator(dataset);
+          while(it.hasNext()) {
+            var dataSubset = it.next();
+            var dom = d3.extent(dataSubset, aes.func);
+            if(aes.continuousDomain[0] > dom[0]) {
+              aes.continuousDomain[0] = dom[0];
+            }
+            if(aes.continuousDomain[1] < dom[1]) {
+              aes.continuousDomain[1] = dom[1];
+            }
+          }
         }
       }
     }
@@ -5010,9 +5058,18 @@
     // Discret domain
     if(type == 'discret') {
       var f = aes.func;
+      if(isUndefined(aes.discretDomain)) {
+        aes.discretDomain = [];
+      }
+      
       var oldLength = aes.discretDomain.length;
-      for(var i = 0 ; i < newData.length ; i++) {
-        aes.discretDomain.push(f(newData[i], i));
+      
+      var it = new HierarchyIterator(newData);
+      while(it.hasNext()) {
+        var dataSubset = it.next();
+        for(var i = 0 ; i < dataSubset.length ; i++) {
+          aes.discretDomain.push(f(dataSubset[i], i));
+        }
       }
       RemoveDupArray(aes.discretDomain);
       
@@ -5024,13 +5081,20 @@
     }
     // Continue domain
     else {
-      var range = d3.extent(newData, aes.func);
-      
-      if(aes.continuousDomain[0] > range[0]) {
-        aes.continuousDomain[0] = range[0];
+      if(isUndefined(aes.continuousDomain)) {
+        aes.continuousDomain = [Infinity, -Infinity];
       }
-      if(aes.continuousDomain[1] < range[1]) {
-        aes.continuousDomain[1] = range[1];
+      
+      var it = new HierarchyIterator(newData);
+      while(it.hasNext()) {
+        var dataSubset = it.next();
+        var dom = d3.extent(dataSubset, aes.func);
+        if(aes.continuousDomain[0] > dom[0]) {
+          aes.continuousDomain[0] = dom[0]
+        }
+        if(aes.continuousDomain[1] < dom[1]) {
+          aes.continuousDomain[1] = dom[1]
+        }
       }
     }
   };
@@ -5159,7 +5223,7 @@
   };
   HierarchyIterator.prototype.next = function() {
     if(!this.hasNext()) {
-      throw StopIteration;
+      throw 'StopIteration';
     }
     
     var ret = this.h;

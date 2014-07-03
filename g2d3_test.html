@@ -163,7 +163,7 @@
                                                     } else if(d.col1=='B'&&d.col2=='D') {
                                                         return 'basis';
                                                     }}})
-            .symbol({   color:'data:col3',
+            .symbol({   color:function(d,i){return i;},
                         shape:'data:col4',
                         label:'data:col3'})
             .data({data:g2d3.loadFromDatabase({   host:'localhost',
@@ -206,7 +206,7 @@
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-2", width:600, height:600, margin:30});
-                        
+            
             G['6-3'] = g2d3.graphic()
             .coord(g2d3.rect({x:'dim1', y:'dim2'}))
             .time({t:'data:t'})
@@ -292,6 +292,7 @@
                         label:'data:quartile2'})
             .data({data:dataset})
             .plot({selector:"#graph8", width:1024, height:768, margin:50});
+            
 /////////////////////////////////////////////////////////////////////////////////////////////////
             G['9'] = g2d3.graphic()
             .coord(g2d3.rect({  x:     'dim1', y:     'dim2'}))

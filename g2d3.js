@@ -203,7 +203,7 @@
         var splitSizes = [];
         
         for(var i in group_by) {
-          computeDomain(groupByAes[i], data, 'discret');
+          updateDomain(groupByAes[i], [], data, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
@@ -504,54 +504,42 @@
   
   // Change axis properties
   Graphic.prototype.axis = function(param) {
-    if(this.axisProperty == null) {
-      this.axisProperty = {};
-      if(isDefined(param)) {
-        this.axis();
-      }
-    }
-    
     this.axis_function_called = true;
     var funcName = 'Graphic.axis';
-    var dimAlias =      checkParam(funcName, param, 'axis',           null);
-    var display =       checkParam(funcName, param, 'display',        null);
-    var displayAxis =   checkParam(funcName, param, 'display_axis',   null);
-    var displayTicks =  checkParam(funcName, param, 'display_ticks',  null);
-    var ticks =         checkParam(funcName, param, 'ticks',          null);
-    var min =           checkParam(funcName, param, 'min',            null);
-    var max =           checkParam(funcName, param, 'max',            null);
-    
+    var prop = {};
+    var  dimAlias =     checkParam(funcName, param, 'axis',           'all');
+    prop.display =      checkParam(funcName, param, 'display',        null);
+    prop.displayAxis =  checkParam(funcName, param, 'display_axis',   null);
+    prop.displayTicks = checkParam(funcName, param, 'display_ticks',  null);
+    prop.ticks =        checkParam(funcName, param, 'ticks',          null);
+    prop.min =          checkParam(funcName, param, 'min',            null);
+    prop.max =          checkParam(funcName, param, 'max',            null);
     checkUnusedParam(funcName, param);
     
-    if(dimAlias == null) {
-      dimAlias = [];
-      for(var i = 0 ; i < this.spacialDimName.length ; i++) {
-        dimAlias.push(this.spacialDimName[i]);
-      }
-      for(var i in this.temporalDim) {
-        dimAlias.push(i);
-      }
-    }
-    else if(!(dimAlias instanceof Array)){
+    if(!(dimAlias instanceof Array)){
       dimAlias = [dimAlias];
     }
     
-    if(display != null) {
-      displayAxis = display;
-      displayTicks = display;
+    if(prop.display != null) {
+      prop.displayAxis = prop.display;
+      prop.displayTicks = prop.display;
+      prop.display = null;
     }
     
+    if(this.axisProperty == null) {
+      this.axisProperty = {};
+    }
     for(var i = 0 ; i < dimAlias.length ; i++) {
       if(isUndefined(this.axisProperty[dimAlias[i]])) {
         this.axisProperty[dimAlias[i]] = {};
       }
       var axProp = this.axisProperty[dimAlias[i]];
       
-      axProp.displayAxis =  isUndefined(axProp.displayAxis)   ? true : (displayAxis == null   ? axProp.displayAxis  : displayAxis);
-      axProp.displayTicks = isUndefined(axProp.displayTicks)  ? true : (displayTicks == null  ? axProp.displayTicks : displayTicks);
-      axProp.ticks =        isUndefined(axProp.ticks)         ? null : (ticks == null         ? axProp.ticks        : ticks);
-      axProp.min =          isUndefined(axProp.min)           ? null : (min == null           ? axProp.min          : min);
-      axProp.max =          isUndefined(axProp.max)           ? null : (max == null           ? axProp.max          : max);
+      for(var j in prop) {
+        if(prop[j] != null) {
+          axProp[j] = prop[j];
+        }
+      }
     }
     
     return this;
@@ -738,11 +726,6 @@
     \*                                                */
     updateDataViews.call(this);
     
-    /*                                                   *\
-     * Merge old data (none) with new data (just loaded) *
-    \*                                                   */
-    mergeOldAndNewData.call(this);
-    
     /*                                         *\
      * Standardization of elements' attributes *
     \*                                         */
@@ -751,7 +734,12 @@
     /*                 *\
      * Compute scales  *
     \*                 */
-    computeScales.call(this);
+    updateScales.call(this);
+    
+    /*                                                   *\
+     * Merge old data (none) with new data (just loaded) *
+    \*                                                   */
+    mergeOldAndNewData.call(this);
     
     /*                *\
      * Generating svg *
@@ -1844,7 +1832,7 @@
     
     for(var i = 0 ; i < this.elements.length ; i++) {
       var datasetName = this.elements[i].datasetName;
-      var dataset = this.dataset[datasetName];
+      var dataset = this.dataset[datasetName].newData;
       if(isUndefined(this.nbCalcultedValues[datasetName])) {
         this.nbCalcultedValues[datasetName] = 0;
       }
@@ -1996,354 +1984,11 @@
   }
   
   /*
-   * Compute scale for every aesthetic which need it 
-   * Also compute interval.stack values because this the only place
+   * Update scale for every aesthetic which need it 
+   * Also (re)compute interval.stack values because this the only place
    * where we can compute it (after nesting data and before computing
    * scales themselves)
    * GoG pipeline step: "Scale", Geometry, Coordinates, Aesthetics
-   */
-  var computeScales = function() {
-    /*                                                         *\
-     * Computing dimensions' domains                           *
-     * EXCEPT the deepest spacial coordinate system dimensions *
-    \*                                                         */
-    TIMER_GROUP_BEGIN('Computing scales', this.display_timers);
-    
-    TIMER_BEGIN('Computing dimension domain 1/2', this.display_timers);
-    for(var i in this.dim) {
-      if(!this.dim[i].forceOrdinal) {
-        continue;
-      }
-      
-      var domain = [];
-      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
-        // Compute discret domain
-        var dataset = this.dataset[this.dim[i].aes[j].datasetName];
-        computeDomain(this.dim[i].aes[j], dataset, 'discret');
-        var dom = this.dim[i].aes[j].discretDomain;
-        
-        for(var k = 0 ; k < dom.length ; k++) {
-          domain.push(dom[k]);
-        }
-      }
-      RemoveDupArray(domain);
-      
-      
-      this.dim[i].domain = domain;
-      this.dim[i].discret = true;
-    }
-    TIMER_END('Computing dimension domain 1/2', this.display_timers);
-    
-    
-    /*                                 *\
-     * Splitting data for each element *
-    \*                                 */
-    TIMER_BEGIN('Nesting data', this.display_timers);
-    // Initialising current 'time' (i.e. position in spacial dimensions)
-    this.currentTime = [];
-    for(var i in this.dim) {
-      if(!this.dim[i].isSpacial) {
-        this.currentTime[i] = 0;
-      }
-    }
-    
-    // Sizes of each splits, sub-splits, etc
-    var splitSizes = [];
-    
-    // Splitting data according to temporal dimensions
-    this.splitTempDimId = [];
-    for(var i in this.currentTime) {
-      // Split
-      this.splitTempDimId.push(i);
-      splitSizes.push(this.dim[i].domain.length);
-    }
-    
-    // Splitting data according to spacial dimensions in the same order
-    // coordinates system are imbricated. That important because when
-    // displaying elements, we want to go throught data in that order
-    this.splitSpacialDimId = [];
-    var coordSys = this.spacialCoord;
-    while(coordSys.subSys != null) {
-      for(var i = 0 ; i < coordSys.dimName.length ; i++) {
-        var dimAlias = coordSys.dimAlias[coordSys.dimName[i]];
-        if(dimAlias != null) {
-          this.splitSpacialDimId.push(dimAlias);
-          splitSizes.push(this.dim[dimAlias].domain.length);
-        }
-      }
-      coordSys = coordSys.subSys;
-    }
-    
-    this.nestedData = [];
-    
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      var dataset = this.dataset[this.elements[i].datasetName];
-      
-      // Splitting data according to group
-      var groupAes = this.elements[i].attrs.group.aes;
-      computeDomain(groupAes, dataset, 'discret');
-      splitSizes.push(groupAes.discretDomain.length);
-      this.nestedData.push(allocateSplitDataArray(splitSizes, 0));
-      splitSizes.pop();
-      
-      for(var j = 0 ; j < dataset.length ; j++) {
-        var dataSubset = this.nestedData[i];
-        
-        for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
-          var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], j);
-          var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
-          dataSubset = dataSubset[id];
-        }
-        
-        for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
-          var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], j);
-          var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
-          dataSubset = dataSubset[id];
-        }
-        
-        var groupAes = this.elements[i].attrs.group.aes;
-        var value = groupAes.func(dataset[j], j);
-        var id = groupAes.discretDomain.indexOf(value);
-        dataSubset = dataSubset[id];
-        
-        dataSubset.push(dataset[j]);
-      }
-    }
-    TIMER_END('Nesting data', this.display_timers);
-    
-    
-    /*                                   *\
-     * Computing stacked interval values *
-    \*                                   */
-    TIMER_BEGIN('Computing stacked intervals\'values', this.display_timers);
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        var attr_val = this.elements[i].attrs[attr].value;
-        if(attr_val instanceof Interval && attr_val.stacked) {
-          var dataset = this.dataset[this.elements[i].datasetName];
-          var originFunc = attr_val.attrs.boundary2.aes.func;
-          var stepFunc = attr_val.attrs.boundary1.aes.func;
-          
-          if(isUndefined(dataset[0]._calculated_values)) {
-            for(var j = 0 ; j < dataset.length ; j++) {
-              dataset[j]._calculated_values = [];
-            }
-          }
-          
-          var Id = attr_val.attrs.boundary1.Id;
-          
-          var it = new HierarchyIterator(this.nestedData[i]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            
-            if(dataSubset.length > 0) {
-              dataSubset[0]._calculated_values[Id] = originFunc(dataSubset[0], 0);
-              dataSubset[0]._calculated_values[Id+1] = stepFunc(dataSubset[0], 0);
-            }
-            for(var j = 1 ; j < dataSubset.length ; j++) {
-              dataSubset[j]._calculated_values[Id] = dataSubset[j-1]._calculated_values[Id+1];
-              dataSubset[j]._calculated_values[Id+1] = dataSubset[j]._calculated_values[Id] + stepFunc(dataSubset[j], j);
-            }
-          }
-        }
-      }
-    }
-    TIMER_END('Computing stacked intervals\'values', this.display_timers);
-    
-    
-    /*                                          *\
-     * Computing the deepest spacial coordinate *
-     * system dimensions' domains               *
-    \*                                          */
-    TIMER_BEGIN('Computing dimension domain 2/2', this.display_timers);
-    for(var i in this.dim) {
-      var dim = this.dim[i];
-      if(dim.forceOrdinal) {
-        continue;
-      }
-      
-      var domain;
-      var ordinal;
-      
-      // Don't force discret domain (i.e. continue if only number values)
-      var discret = false;
-      for(var j = 0 ; j < dim.aes.length ; j++) {
-        if(this.elements[dim.aesElemId[j]].attrs[i].forceCat) {
-          discret = true;
-          break;
-        }
-        
-        var dataset = this.dataset[dim.aes[j].datasetName];
-        if(typeof dim.aes[j].func(dataset[0], 0) != 'number') {
-          discret = true;
-          break;
-        }
-      }
-      
-      // Discret domain
-      if(discret) {
-        domain = [];
-        for(var j = 0 ; j < dim.aes.length ; j++) {
-          if(isUndefined(dim.aes[j].discretDomain)) {
-            dim.aes[j].discretDomain = [];
-          }
-          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute discret domain
-            updateDomain(dim.aes[j], dataSubset, 'discret');
-            var dom = dim.aes[j].discretDomain;
-            for(var k = 0 ; k < dom.length ; k++) {
-              domain.push(dom[k]);
-            }
-          }
-        }
-        RemoveDupArray(domain);
-      }
-      // Continue domain
-      else {
-        domain = [Infinity, -Infinity];
-        var dim = this.dim[i];
-        for(var j = 0 ; j < dim.aes.length ; j++) {
-          if(isUndefined(dim.aes[j].continuousDomain)) {
-            dim.aes[j].continuousDomain = [Infinity, -Infinity];
-          }
-          var it = new HierarchyIterator(this.nestedData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute continue domain
-            updateDomain(dim.aes[j], dataSubset, 'continue');
-            var dom = dim.aes[j].continuousDomain;
-            
-            if(dom[0] < domain[0])
-              domain[0] = dom[0];
-            if(dom[1] > domain[1])
-              domain[1] = dom[1];
-          }
-        }
-        if(domain[0] == domain[1]) {
-          domain = addPadding(domain);
-        }
-      }
-      
-      this.dim[i].domain = domain;
-      this.dim[i].discret = discret;
-    }
-    TIMER_END('Computing dimension domain 2/2', this.display_timers);
-    
-    
-    /*                  *\
-     * Computing scales *
-    \*                  */
-    TIMER_BEGIN('Computing scales themselves', this.display_timers);
-    // For the coordinate system
-    this.spacialCoord.computeScale( this.dim, 
-                                    this.width,
-                                    this.height);
-    
-    // For other attributes
-    for(var i = 0 ; i < this.elements.length ; i++) {
-      for(var attr in this.elements[i].attrs) {
-        // Skip dimension attributes
-        if(this.elements[i].attrs[attr].type === 'dimension') {
-          continue;
-        }
-        
-        var attr_type = this.elements[i].attrs[attr].type;
-        var attr_aes = this.elements[i].attrs[attr].aes;
-        var forceCategorical = this.elements[i].attrs[attr].forceCat;
-        
-        switch(attr_type) {
-          case 'color':
-            if(forceCategorical) {
-              // Compute discret domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              // Scaling
-              var scale = d3.scale.category10().domain(attr_aes.discretDomain);
-              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
-            }
-            else if(attr_aes.ret_type === 'string') {
-              // No scaling
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else {
-              // Compute continuous domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
-              // Scaling
-              var scale = continuousColorScale(attr_aes.continuousDomain, ['blue', 'cyan', 'yellow', 'red']);
-              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
-            }
-            break;
-          
-          case 'symbol':
-            if(attr_aes.ret_type === 'string' && !forceCategorical) {
-              // No scaling
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else {
-              // Compute discret domain
-              computeDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              
-              // Scaling
-              var scale = d3.scale.ordinal()
-                                  .domain(attr_aes.discretDomain)
-                                  .range(d3.svg.symbolTypes);
-              
-              this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
-            }
-            break;
-          
-          case 'string':
-            // No scaling
-            if(attr_aes.ret_type === 'string') {
-              this.elements[i].attrs[attr].func = attr_aes.func;
-            }
-            else { // Just apply toString
-              var applyToString = function (f) {
-                return function (d, i) {
-                  return f(d, i).toString();
-                }
-              };
-              this.elements[i].attrs[attr].func = applyToString(attr_aes.func);
-            }
-            break;
-          
-          case 'number':
-            // No scaling
-            this.elements[i].attrs[attr].func = attr_aes.func;
-            break;
-        }
-      }
-    }
-    TIMER_END('Computing scales themselves', this.display_timers);
-    
-    // Display warning if min and/or max values are set for non linear scales
-    var warn = [];
-    for(var i in this.dim) {
-      if(this.dim[i].discret) {
-        var unused = [];
-        if(this.dim[i].min != null) {
-          unused.push('min');
-        }
-        if(this.dim[i].max != null) {
-          unused.push('max');
-        }
-        if(unused.length > 0) {
-          warn.push('In function Graphic.axis: parameter'+(unused.length>1?'s ':' ')+unused.join(' and ')+' ignored for the axis '+i+'. '+
-          'You can\'t set min or max for an ordinal scale.');
-        }
-      }
-    }
-    
-    TIMER_GROUP_END('Computing scales', this.display_timers);
-    
-    for(var i = 0 ; i < warn.length ; i++) {
-      WARNING(warn[i]);
-    }
-  }
-  
-  /*
-   * Update scales
    */
   var updateScales = function() {
     /*                                                         *\
@@ -2351,9 +1996,8 @@
      * EXCEPT the deepest spacial coordinate system dimensions *
     \*                                                         */
     TIMER_GROUP_BEGIN('Updating scales', this.display_timers);
-    TIMER_BEGIN('Updating dimension domain 1/2', this.display_timers);
     
-    // Re-init domain where no old data
+    // (Re)init domain where no old data
     for(var i in this.dim) {
       for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
         var aes = this.dim[i].aes[j];
@@ -2362,13 +2006,7 @@
           aes.discretDomain = [];
           aes.continuousDomain = [Infinity, -Infinity];
           
-          if(this.dim[i].discret) {
-            this.dim[i].domain = [];
-          }
-          else {
-            this.dim[i].domain = [Infinity, -Infinity];
-          }
-          this.dim[i].reseted = true;
+          delete this.dim[i].domain;
         }
       }
     }
@@ -2387,16 +2025,23 @@
       }
     }
     
+    
+    TIMER_BEGIN('Updating dimension domain 1/2', this.display_timers);
     for(var i in this.dim) {
       if(!this.dim[i].forceOrdinal) {
         continue;
       }
       
+      if(isUndefined(this.dim[i].domain)) {
+        this.dim[i].domain = [];
+      }
       var domain = this.dim[i].domain;
+      
       for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
         // Compute discret domain
+        var oldData = this.dataset[this.dim[i].aes[j].datasetName].oldData
         var newData = this.dataset[this.dim[i].aes[j].datasetName].newData;
-        var newValues = updateDomain(this.dim[i].aes[j], newData, 'discret');
+        var newValues = updateDomain(this.dim[i].aes[j], oldData, newData, 'discret');
         
         for(var k = 0 ; k < newValues.length ; k++) {
           domain.push(newValues[k]);
@@ -2404,7 +2049,8 @@
       }
       RemoveDupArray(domain);
       
-      this.dim[i].domain = domain;
+      this.dim[i].domain = domain; // TODO: remove ?
+      this.dim[i].discret = true;
     }
     TIMER_END('Updating dimension domain 1/2', this.display_timers);
     
@@ -2413,25 +2059,52 @@
      * Splitting data for each element *
     \*                                 */
     TIMER_BEGIN('Nesting data', this.display_timers);
+    // First time we split data
+    if(this.currentTime == null) {
+      this.currentTime = [];
+      for(var i in this.dim) {
+        if(!this.dim[i].isSpacial) {
+          this.currentTime[i] = 0;
+        }
+      }
+      
+      // Splitting data according to temporal dimensions
+      this.splitTempDimId = [];
+      for(var i in this.currentTime) {
+        // Split
+        this.splitTempDimId.push(i);
+      }
+      
+      // Splitting data according to spacial dimensions in the same order
+      // coordinates system are imbricated. That important because when
+      // displaying elements, we want to go throught data in that order
+      this.splitSpacialDimId = [];
+      var coordSys = this.spacialCoord;
+      while(coordSys.subSys != null) {
+        for(var i = 0 ; i < coordSys.dimName.length ; i++) {
+          var dimAlias = coordSys.dimAlias[coordSys.dimName[i]];
+          if(dimAlias != null) {
+            this.splitSpacialDimId.push(dimAlias);
+          }
+        }
+        coordSys = coordSys.subSys;
+      }
+    }
     
     // Sizes of each splits, sub-splits, etc
     var splitSizes = [];
-    
-    // Splitting data according to temporal dimensions
     for(var i = 0 ; i < this.splitTempDimId.length ; i++) {
       splitSizes.push(this.dim[this.splitTempDimId[i]].domain.length);
     }
-    
-    // Splitting data according to spacial dimensions
     for(var i = 0 ; i < this.splitSpacialDimId.length ; i++) {
       splitSizes.push(this.dim[this.splitSpacialDimId[i]].domain.length);
     }
     
     // Updating domain of group attribute
     for(var i = 0 ; i < this.elements.length ; i++) {
-      var dataset = this.dataset[this.elements[i].datasetName].newData;
+      var dataset = this.dataset[this.elements[i].datasetName];
       var groupAes = this.elements[i].attrs.group.aes;
-      updateDomain(groupAes, dataset, 'discret');
+      updateDomain(groupAes, dataset.oldData, dataset.newData, 'discret');
     }
     
     this.nestedData = [];
@@ -2443,29 +2116,31 @@
       for(var i = 0 ; i < this.elements.length ; i++) {
         var dataset = this.dataset[this.elements[i].datasetName][dataCat];
         
+        var indexOffset = (dataCat == 'newData') ? this.dataset[this.elements[i].datasetName].oldData.length : 0;
+        
         // Splitting data according to group
         var groupAes = this.elements[i].attrs.group.aes;
         splitSizes.push(groupAes.discretDomain.length);
-        nestedData[dataCat].push(allocateSplitDataArray(splitSizes, 0));
+        nestedData[dataCat][i] = allocateSplitDataArray(splitSizes, 0);
         splitSizes.pop();
         
         for(var j = 0 ; j < dataset.length ; j++) {
           var dataSubset = nestedData[dataCat][i];
           
           for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
-            var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], j);
+            var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], indexOffset + j);
             var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
             dataSubset = dataSubset[id];
           }
           
           for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
-            var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], j);
+            var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], indexOffset + j);
             var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
             dataSubset = dataSubset[id];
           }
           
           var groupAes = this.elements[i].attrs.group.aes;
-          var value = groupAes.func(dataset[j], j);
+          var value = groupAes.func(dataset[j], indexOffset + j);
           var id = groupAes.discretDomain.indexOf(value);
           dataSubset = dataSubset[id];
           
@@ -2509,6 +2184,7 @@
       for(var attr in this.elements[i].attrs) {
         var attr_val = this.elements[i].attrs[attr].value;
         if(attr_val instanceof Interval && attr_val.stacked) {
+          var newData = this.dataset[this.elements[i].datasetName].newData;
           var originFunc = attr_val.attrs.boundary2.aes.func;
           var stepFunc = attr_val.attrs.boundary1.aes.func;
           var Id = attr_val.attrs.boundary1.Id;
@@ -2549,58 +2225,60 @@
       if(this.dim[i].forceOrdinal) {
         continue;
       }
+      var dim = this.dim[i];
       
-      var domain = this.dim[i].domain;
+      if(isUndefined(dim.discret)) {
+        // Don't force discret domain (i.e. continue if only number values)
+        dim.discret = false;
+        for(var j = 0 ; j < dim.aes.length ; j++) {
+          if(this.elements[dim.aesElemId[j]].attrs[i].forceCat) {
+            dim.discret = true;
+            break;
+          }
+          
+          var newData = this.dataset[dim.aes[j].datasetName].newData;
+          if(typeof dim.aes[j].func(newData[0], 0) != 'number') {
+            dim.discret = true;
+            break;
+          }
+        }
+      }
+      var domain = dim.domain;
       
       // Discret domain
-      if(this.dim[i].discret) {
-        domain = [];
-        var dim = this.dim[i];
+      if(dim.discret) {
+        if(isUndefined(dim.domain)) {
+          domain = [];
+        }
         for(var j = 0 ; j < dim.aes.length ; j++) {
-          var it =  (this.dim[i].reseted)
-                    ? new HierarchyIterator(this.nestedData[dim.aesElemId[j]])
-                    : new HierarchyIterator(nestedData.newData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute discret domain
-            if(isUndefined(dim.aes[j].discretDomain)) {
-              dim.aes[j].discretDomain = [];
-            }
-            updateDomain(dim.aes[j], dataSubset, 'discret');
-            var dom = dim.aes[j].discretDomain;
-            for(var k = 0 ; k < dom.length ; k++) {
-              domain.push(dom[k]);
-            }
+          // Compute discret domain
+          updateDomain(dim.aes[j], nestedData.oldData[dim.aesElemId[j]], nestedData.newData[dim.aesElemId[j]], 'discret');
+          var dom = dim.aes[j].discretDomain;
+          for(var k = 0 ; k < dom.length ; k++) {
+            domain.push(dom[k]);
           }
         }
         RemoveDupArray(domain);
       }
       // Continue domain
       else {
-        domain = [Infinity, -Infinity];
-        var dim = this.dim[i];
+        if(isUndefined(dim.domain)) {
+          domain = [Infinity, -Infinity];
+        }
         for(var j = 0 ; j < dim.aes.length ; j++) {
-          var it =  (this.dim[i].reseted)
-                    ? new HierarchyIterator(this.nestedData[dim.aesElemId[j]])
-                    : new HierarchyIterator(nestedData.newData[dim.aesElemId[j]]);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            // Compute continue domain
-            updateDomain(dim.aes[j], dataSubset, 'continue');
-            var dom = dim.aes[j].continuousDomain;
-            
-            if(dom[0] < domain[0])
-              domain[0] = dom[0];
-            if(dom[1] > domain[1])
-              domain[1] = dom[1];
-          }
+          // Compute continue domain
+          updateDomain(dim.aes[j], nestedData.oldData[dim.aesElemId[j]], nestedData.newData[dim.aesElemId[j]], 'continue');
+          var dom = dim.aes[j].continuousDomain;
+          if(dom[0] < domain[0])
+            domain[0] = dom[0];
+          if(dom[1] > domain[1])
+            domain[1] = dom[1];
         }
         if(domain[0] == domain[1]) {
           domain = addPadding(domain);
         }
       }
-      
-      this.dim[i].domain = domain;
+      dim.domain = domain;
     }
     TIMER_END('Updating dimension domain 2/2', this.display_timers);
     
@@ -2616,6 +2294,9 @@
     
     // For other attributes
     for(var i = 0 ; i < this.elements.length ; i++) {
+      var oldData = nestedData.oldData[i];
+      var newData = nestedData.newData[i];
+      
       for(var attr in this.elements[i].attrs) {
         // Skip dimension attributes
         if(this.elements[i].attrs[attr].type === 'dimension') {
@@ -2630,7 +2311,7 @@
           case 'color':
             if(forceCategorical) {
               // Compute discret domain
-              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
+              updateDomain(attr_aes, oldData, newData, 'discret');
               // Scaling
               var scale = d3.scale.category10().domain(attr_aes.discretDomain);
               this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
@@ -2641,7 +2322,7 @@
             }
             else {
               // Compute continuous domain
-              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'continuous');
+              updateDomain(attr_aes, oldData, newData, 'continuous');
               // Scaling
               var scale = continuousColorScale(attr_aes.continuousDomain, ['blue', 'cyan', 'yellow', 'red']);
               this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
@@ -2655,13 +2336,11 @@
             }
             else {
               // Compute discret domain
-              updateDomain(attr_aes, this.dataset[attr_aes.datasetName], 'discret');
-              
+              updateDomain(attr_aes, oldData, newData, 'discret');
               // Scaling
               var scale = d3.scale.ordinal()
                                   .domain(attr_aes.discretDomain)
                                   .range(d3.svg.symbolTypes);
-              
               this.elements[i].attrs[attr].func = scale.compose(attr_aes.func);
             }
             break;
@@ -3818,7 +3497,7 @@
         data = data.oldData.concat(data.newData);
         
         for(var i in group_by) {
-          computeDomain(groupByAes[i], data, 'discret');
+          updateDomain(groupByAes[i], [], data, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
@@ -3848,11 +3527,7 @@
         var oldData = data.oldProcessedData;
         
         for(var i in group_by) {
-          computeDomain(groupByAes[i], newData, 'discret');
-          for(var j = 0 ; j < oldData.length ; j++) {
-            groupByAes[i].discretDomain.push(oldData[j][i]);
-          }
-          RemoveDupArray(groupByAes[i].discretDomain);
+          updateDomain(groupByAes[i], oldData, newData, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
@@ -3951,7 +3626,7 @@
         var data = d3.merge(groupedData);
         var splitSizes = [];
         for(var i in aggreg_on) {
-          computeDomain(aggregOnAes[i], data, 'discret');
+          updateDomain(aggregOnAes[i], [], data, 'discret');
           splitSizes.push(aggregOnAes[i].discretDomain.length);
         }
         
@@ -4856,7 +4531,37 @@
                 isSpacial:false};
     }
     
-    for(i in axisProperty) {
+    var all; 
+    if(isDefined(axisProperty.all)) {
+      all = axisProperty.all;
+      delete axisProperty.all;
+    }
+    else {
+      all = {};
+    }
+    
+    if(isUndefined(all.displayAxis)) {
+      all.displayAxis = true;
+    }
+    if(isUndefined(all.displayTicks)) {
+      all.displayTicks = true;
+    }
+    if(isUndefined(all.ticks)) {
+      all.ticks = null;
+    }
+    if(isUndefined(all.min)) {
+      all.min = null;
+    }
+    if(isUndefined(all.max)) {
+      all.max = null;
+    }
+    
+    for(var i in dim) {
+      for(var j in all) {
+        dim[i][j] = all[j];
+      }
+    }
+    for(var i in axisProperty) {
       if(isUndefined(dim[i])) {
         WARNING('In function Graphic.axis: axis '+i+' not defined. All parameters ignored.');
       }
@@ -5002,73 +4707,28 @@
   };
   
   // Compute domains of an aestetic
-  var computeDomain = function(aes, dataset, type) {
+  var updateDomain = function(aes, oldData, newData, type) {
     // Discret domain
     if(type == 'discret') {
-      if(isUndefined(aes.discretDomain)) {
-        if(isDefined(aes.constant)) {
-          aes.discretDomain = [aes.constant];
-        }
-        else {
-          var f = aes.func;
-          aes.discretDomain = [];
-          
-          var it = new HierarchyIterator(dataset);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            for(var i = 0 ; i < dataSubset.length ; i++) {
-              aes.discretDomain.push(f(dataSubset[i], i));
-            }
-          }
-          RemoveDupArray(aes.discretDomain);
-        }
+      if(isDefined(aes.constant)) {
+        aes.discretDomain = [aes.constant];
+        return [aes.constant];
       }
-    }
-    // Continue domain
-    else {
-      if(isUndefined(aes.continuousDomain)) {
-        if(isDefined(aes.constant)) {
-          aes.continuousDomain = [aes.constant, aes.constant];
-        }
-        // Compute continuous domain from discret one
-        else if(isDefined(aes.discretDomain)) {
-          aes.continuousDomain = d3.extent(aes.discretDomain);
-        }
-        else {
-          aes.continuousDomain = [Infinity, -Infinity];
-          
-          var it = new HierarchyIterator(dataset);
-          while(it.hasNext()) {
-            var dataSubset = it.next();
-            var dom = d3.extent(dataSubset, aes.func);
-            if(aes.continuousDomain[0] > dom[0]) {
-              aes.continuousDomain[0] = dom[0];
-            }
-            if(aes.continuousDomain[1] < dom[1]) {
-              aes.continuousDomain[1] = dom[1];
-            }
-          }
-        }
-      }
-    }
-  };
-  
-  // Compute domains of an aestetic
-  var updateDomain = function(aes, newData, type) {
-    // Discret domain
-    if(type == 'discret') {
+      
       var f = aes.func;
-      if(isUndefined(aes.discretDomain)) {
+      if(isUndefined(aes.discretDomain)) { // TODO: remove
         aes.discretDomain = [];
       }
       
       var oldLength = aes.discretDomain.length;
       
-      var it = new HierarchyIterator(newData);
-      while(it.hasNext()) {
-        var dataSubset = it.next();
-        for(var i = 0 ; i < dataSubset.length ; i++) {
-          aes.discretDomain.push(f(dataSubset[i], i));
+      var itOld = new HierarchyIterator(oldData);
+      var itNew = new HierarchyIterator(newData);
+      while(itOld.hasNext()) {
+        var oldDataSubset = itOld.next();
+        var newDataSubset = itNew.next();
+        for(var i = 0 ; i < newDataSubset.length ; i++) {
+          aes.discretDomain.push(f(newDataSubset[i], oldDataSubset.length + i));
         }
       }
       RemoveDupArray(aes.discretDomain);
@@ -5081,14 +4741,26 @@
     }
     // Continue domain
     else {
-      if(isUndefined(aes.continuousDomain)) {
+      if(isDefined(aes.constant)) {
+        aes.continuousDomain = [aes.constant, aes.constant];
+        return;
+      }
+      
+      if(isUndefined(aes.continuousDomain)) {// TODO: remove
         aes.continuousDomain = [Infinity, -Infinity];
       }
       
-      var it = new HierarchyIterator(newData);
-      while(it.hasNext()) {
-        var dataSubset = it.next();
-        var dom = d3.extent(dataSubset, aes.func);
+      var itOld = new HierarchyIterator(oldData);
+      var itNew = new HierarchyIterator(newData);
+      while(itOld.hasNext()) {
+        var oldDataSubset = itOld.next();
+        var newDataSubset = itNew.next();
+        var f = function(d, i) {
+          return aes.func(d, oldDataSubset.length + i);
+        }
+        
+        var dom = d3.extent(newDataSubset, f);
+        
         if(aes.continuousDomain[0] > dom[0]) {
           aes.continuousDomain[0] = dom[0]
         }

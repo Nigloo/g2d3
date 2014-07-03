@@ -213,7 +213,7 @@
             .bar({  dim1:'data:cat',
                     dim2:g2d3.interval.stack('data:y'),
                     group:'data:cat',
-                    color:g2d3.cat(function(d,i){return i;}),
+                    color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
             .plot({selector:"#graph6-3", width:600, height:600, margin:30});

@@ -3359,6 +3359,7 @@
     return dl;
   };
   
+  // Load from chunks
   main_object.loadByChunk = function(param) {
     var funcName = lib_name+'.loadByChunk';
     var connexion_id = checkParam(funcName, param, 'id');

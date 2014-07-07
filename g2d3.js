@@ -363,6 +363,9 @@
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
       this.dataLoader.g = this;
+      if(this.svg != null) {
+        this.dataLoader.sendXhrRequest();
+      }
     }
     else {
       ERROR(errorParamMessage('Graphic.data', 'data', 'null',
@@ -1678,6 +1681,13 @@
     return this;
   };
   
+  // Reset graphic data
+  var reset = function() {
+    for(dataset_name in this.dataset) {
+      this.dataset[dataset_name] = {oldData:[],
+                                    newData:[]};
+    }
+  }
   
   ///////////////////////////
   // Render step functions //
@@ -1731,19 +1741,6 @@
       }
     }
     TIMER_END('Generation of data views', this.display_timers);
-  }
-  
-  /*
-   * Merge old and new data
-   * GoG pipeline step: None
-   */
-  var mergeOldAndNewData = function() {
-    TIMER_BEGIN('Merge old and new data', this.display_timers);
-    
-    for(var name in this.dataset) {
-      this.dataset[name] = this.dataset[name].oldData.concat(this.dataset[name].newData);
-    }
-    TIMER_END('Merge old and new data', this.display_timers);
   }
   
   /*
@@ -2369,6 +2366,19 @@
     }
     TIMER_END('Updating scales themselves', this.display_timers);
     TIMER_GROUP_END('Updating scales', this.display_timers);
+  }
+  
+  /*
+   * Merge old and new data
+   * GoG pipeline step: None
+   */
+  var mergeOldAndNewData = function() {
+    TIMER_BEGIN('Merge old and new data', this.display_timers);
+    
+    for(var name in this.dataset) {
+      this.dataset[name] = this.dataset[name].oldData.concat(this.dataset[name].newData);
+    }
+    TIMER_END('Merge old and new data', this.display_timers);
   }
   
   /*
@@ -3333,7 +3343,7 @@
       parse = function(text) {
         return JSON.parse(text, function (key, value) {
           var num = +value;
-          return isNan(num) ? value : num;
+          return isNaN(num) ? value : num;
         });
       }
     }
@@ -3394,34 +3404,110 @@
   };
   
   // Load from chunks
-  main_object.loadByChunk = function(param) {
-    var funcName = lib_name+'.loadByChunk';
-    var connexion_id = checkParam(funcName, param, 'id');
-    var path =         checkParam(funcName, param, 'id');
+  main_object.bind = function(param) {
+    var funcName = lib_name+'.bind';
+    var connexion_id =  checkParam(funcName, param, 'id');
+    var path =          checkParam(funcName, param, 'dir',      './');
+    var refresh =       checkParam(funcName, param, 'refresh_interval',  500);
     checkUnusedParam(funcName, param);
-    var first_unique_id = 0;
     
     var dl = new DataLoader();
-    dl.path = window.location.origin+'/'+path;
-    dl.id = id;
-    dl.next_chunk_nb = 0;
-    dl.refresh_time = 500;
+    dl.server_adress = window.location.origin;
+    dl.path = path[path.length-1] == '/' ? path : path+'/';
+    dl.connexion_id = connexion_id;
+    dl.next_chunk = 0;
+    dl.refresh_time = refresh;
+    dl.loaded_files = [];
     
-    dl.list_files = function () {
-      var xhr = 
+    dl.listFiles = function() {
+      d3.xhr(dl.server_adress+'/list_files', 'application/json')
+      .header('Content-Type', 'application/json')
+      .response(function(request) {
+        return JSON.parse(request.responseText, function (key, value) {
+          var num = +value;
+          return isNaN(num) ? value : num;
+        });
+      })
+      .post(JSON.stringify({path:dl.path, ext:'json'}), dl.loadChunk);
+    }
+    
+    dl.loadChunk = function(error, file_list) {
+      if(error != null) {
+        ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
+      }
+      
+      var file_info = [];
+      for(var i = 0 ; i < file_list.length ; i++) {
+        var file_name = file_list[i];
+        if(dl.loaded_files.indexOf(file_name) >= 0) {
+          continue;
+        }
+        
+        // file name format expected
+        // <doc id>_c<X>_t<Y>.json
+        var ind_ext = file_name.lastIndexOf('.');
+        var ind_stamp = file_name.lastIndexOf('_t');
+        var ind_chunk = file_name.lastIndexOf('_c');
+        
+        if(ind_ext < 0 ||
+           ind_stamp < 0 ||
+           ind_chunk < 0 ||
+           ind_ext < ind_stamp ||
+           ind_stamp < ind_chunk) {
+          continue;
+        }
+        
+        var chunk = parseInt(file_name.slice(ind_chunk+2, ind_stamp));
+        var stamp = parseInt(file_name.slice(ind_stamp+2, ind_ext));
+        if(isNaN(chunk) ||
+           isNaN(stamp)) {
+          continue;
+        }
+        
+        var info = {};
+        info.file_name = file_name;
+        info.id = file_name.slice(0, ind_chunk);
+        info.chunk = chunk;
+        info.stamp = stamp;
+        file_info.push(info);
+      }
+      file_info.sort(function(a,b){return a.stamp - b.stamp});
+      
+      
+      for(var i = 0 ; i < file_info.length ; i++) {
+        var info = file_info[i];
+        var file_name = info.file_name;
+        if(info.id != dl.connexion_id ||
+           (info.chunk != dl.next_chunk && info.chunk != 0)) {
+          continue;
+        }
+        
+        dl.next_chunk = info.chunk + 1;
+        dl.loaded_files.push(file_name);
+        d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
+        .header('Content-Type', 'application/json')
+        .response(function(request) {
+          return JSON.parse(request.responseText, function(key, value) {
+            var num = +value;
+            return isNaN(num) ? value : num;
+          });
+        })
+        .get(function(error, data) {
+          if(error != null) {
+            throw error;
+            ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
+          }
+          
+          setTimeout(dl.listFiles, dl.refresh_time);
+          dl.load(null, data);
+        });
+        return;
+      }
+      setTimeout(dl.listFiles, dl.refresh_time);
     }
     
     dl.sendXhrRequest = function() {
-      var xhr = d3.text(filename)
-                .response(function(request) {
-                  TIMER_END('Loading CSV file', dl.g.display_timers);
-                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
-                  var data = d3.csv.parse(request.responseText, processRow);
-                  TIMER_END('Parsing CSV', dl.g.display_timers);
-                  return data;
-                });
-      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
-      xhr.get(dl.load);
+      dl.listFiles();
     }
     
     return dl;

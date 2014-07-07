@@ -28,11 +28,6 @@
             
             var G = [];
             
-            console.log('document.URL',document.URL);
-            console.log('window.location.pathname',window.location.pathname)
-            console.log('window.location',window.location)
-            
-            
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -476,6 +471,26 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
+            G['13'] = g2d3.graphic()
+            .coord(g2d3.rect({subSys: g2d3.polar()}))
+            .axis({axis:'theta', display:false})
+            .element({  t:'data:col5',
+                        x:'data:col1',
+                        y: 'data:col2',
+                        theta:g2d3.cat('data:col3'),
+                        radius:'data:col4'})
+            .line({     color:'red',
+                        stroke_width:2,
+                        interpolation:'cardinal'})
+            .symbol({   color:'data:col3',
+                        shape:'data:col4',
+                        label:'data:col3'})
+            .plot({selector:"#graph13", width:1000, height:1000, margin_left:50, margin_bottom:40});
+            
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            
             function prev(i) {
                 G[i].previousStep('t');
             }
@@ -524,5 +539,10 @@
         <input type="button" id="dataPushButton2" value="Push data" onclick="pushData()"/>
         
         <div id="graph12"></div>
+        
+        <div id="graph13"></div>
+        <input type="button" id="dataPushButton3" value="Start loading chunks"
+               onclick="d3.select('#dataPushButton3').attr('disabled',true);
+                        G['13'].data({data:g2d3.bind({id:'test', dir:'chunks', refresh_interval:1000})})"/>
     </body>
 </html>   

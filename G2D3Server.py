@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 import sys
 import io
@@ -73,7 +74,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     """
     action = self.path[1:]
-    if action == 'list_file':
+    if action == 'list_files':
       path = self.post_var.get('path', './')
       extensions = self.post_var.get('ext')
       if extensions != None and not isinstance(extensions, list):

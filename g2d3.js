@@ -3359,36 +3359,6 @@
     return dl;
   };
   
-  // Load from chunks
-  main_object.loadByChunk = function(param) {
-    var funcName = lib_name+'.loadByChunk';
-    var connexion_id = checkParam(funcName, param, 'id');
-    checkUnusedParam(funcName, param);
-    var first_unique_id = 0;
-    
-    var dl = new DataLoader();
-    dl.id = id;
-    dl.next_chunk_nb = 0;
-    dl.next_unique_id = 0;
-    
-    var xhr = d3.text(filename)
-                .on('progress', getProgressListener(dl))
-                .response(function(request) {
-                  TIMER_END('Loading CSV file', dl.g.display_timers);
-                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
-                  var data = d3.csv.parse(request.responseText, processRow);
-                  TIMER_END('Parsing CSV', dl.g.display_timers);
-                  return data;
-                });
-    
-    dl.sendXhrRequest = function() {
-      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
-      xhr.get(dl.load);
-    }
-    
-    return dl;
-  }
-  
   // Load data from a database
   main_object.loadFromDatabase = function(param) {
     var funcName = lib_name+'.loadFromDatabase';
@@ -3422,6 +3392,40 @@
     
     return dl;
   };
+  
+  // Load from chunks
+  main_object.loadByChunk = function(param) {
+    var funcName = lib_name+'.loadByChunk';
+    var connexion_id = checkParam(funcName, param, 'id');
+    var path =         checkParam(funcName, param, 'id');
+    checkUnusedParam(funcName, param);
+    var first_unique_id = 0;
+    
+    var dl = new DataLoader();
+    dl.path = window.location.origin+'/'+path;
+    dl.id = id;
+    dl.next_chunk_nb = 0;
+    dl.refresh_time = 500;
+    
+    dl.list_files = function () {
+      var xhr = 
+    }
+    
+    dl.sendXhrRequest = function() {
+      var xhr = d3.text(filename)
+                .response(function(request) {
+                  TIMER_END('Loading CSV file', dl.g.display_timers);
+                  TIMER_BEGIN('Parsing CSV', dl.g.display_timers);
+                  var data = d3.csv.parse(request.responseText, processRow);
+                  TIMER_END('Parsing CSV', dl.g.display_timers);
+                  return data;
+                });
+      TIMER_BEGIN('Loading CSV file', dl.g.display_timers);
+      xhr.get(dl.load);
+    }
+    
+    return dl;
+  }
   
   
   ///////////////////////////////

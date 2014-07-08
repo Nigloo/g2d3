@@ -363,13 +363,13 @@
     else if(data instanceof DataLoader) {
       this.dataLoader = data;
       this.dataLoader.g = this;
-      if(this.svg != null) {
+      if(this.selector != null) {
         this.dataLoader.sendXhrRequest();
       }
     }
     else {
       ERROR(errorParamMessage('Graphic.data', 'data', 'null',
-        'Array  or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
+        'Array or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
     }
     
     return this;
@@ -384,9 +384,6 @@
     if(this.dataset[main_dataset_name] == null) {
       this.dataset[main_dataset_name] = { oldData:[],
                                           newData:data};
-      if(this.selector != null) {
-        render.call(this);
-      }
     }
     else {
       for(var datasetName in this.dataset) {
@@ -394,15 +391,10 @@
                                      newData:[]};
       }
       this.dataset[main_dataset_name].newData = data;
-      
-      updateDataViews.call(this);
-      
-      updateScales.call(this);
-      
-      mergeOldAndNewData.call(this);
-      
-      updateSVG.call(this);
     }
+    
+    updateGraphic.call(this);
+    
     return this;
   };
   
@@ -603,8 +595,15 @@
   /* Automatically attaches itself to the window.onLoad  */
   /* From: http://stackoverflow.com/questions/6348494/addeventlistener-vs-onclick */
   Graphic.prototype.plot = function(param) {
-    var theGraphic = this;
-    window.addEventListener("load", function() { render.call(theGraphic, param); }, true);
+    var g = this;
+    
+    window.addEventListener("load",
+      function() {
+        initGraphic.call(g, param)
+        if(loadData.call(g)) {
+          updateGraphic.call(g);
+        }
+      }, true);
     
     return this;
   };
@@ -612,48 +611,39 @@
   
   /* In the following functions, 'this' reference the graphic */
   
-  // Render the graphic in svg
-  var render = function(param) {
-    if(this.selector == null) {
-      // Check parameters
-      var funcName = 'Graphic.render';
-      this.selector = checkParam(funcName, param, 'selector', 'body');
-      this.width =    checkParam(funcName, param, 'width',    640);
-      this.height =   checkParam(funcName, param, 'height',   360);
-      this.margin = { left:   checkParam(funcName, param, 'margin', 30),
-                      top:    checkParam(funcName, param, 'margin', 10),
-                      right:  checkParam(funcName, param, 'margin', 10),
-                      bottom: checkParam(funcName, param, 'margin', 20)};
-      this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
-      this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
-      this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
-      this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
-      checkUnusedParam(funcName, param);
-      
-      if(this.elements.length == 0) {
-        ERROR('no element in the graphic');
-      }
-      
-      // Reserve some space for the graphic while loading
-      // Add Canvas
-      
-      this.svg = d3.select(this.selector)
-                   .append("svg")
-                   .attr("width", this.width)
-                   .attr("height", this.height);
-                   
-      if(this.svg.empty()) {
-        ERROR('can\'t find '+this.selector);
-      }
+  // Initialise the graphic
+  var initGraphic = function(param) {
+    // Check parameters
+    var funcName = 'Graphic.plot';
+    this.selector = checkParam(funcName, param, 'selector', 'body');
+    this.width =    checkParam(funcName, param, 'width',    640);
+    this.height =   checkParam(funcName, param, 'height',   360);
+    this.margin = { left:   checkParam(funcName, param, 'margin', 30),
+                    top:    checkParam(funcName, param, 'margin', 10),
+                    right:  checkParam(funcName, param, 'margin', 10),
+                    bottom: checkParam(funcName, param, 'margin', 20)};
+    this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
+    this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
+    this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
+    this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
+    checkUnusedParam(funcName, param);
+    
+    if(this.elements.length == 0) {
+      ERROR('no element in the graphic');
     }
     
-    /*           *\
-     * Load data *
-    \*           */
-    if(!loadData.call(this)) {
-      return this;
-    }
+    // Reserve some space for the graphic while loading
+    // Add Canvas
     
+    this.svg = d3.select(this.selector)
+                 .append("svg")
+                 .attr("width", this.width)
+                 .attr("height", this.height);
+                 
+    if(this.svg.empty()) {
+      ERROR('can\'t find '+this.selector);
+    }
+  
     LOG("Ready to plot: selector={0}, width={1}, height={2}".format(
           this.selector,
           this.width,
@@ -663,7 +653,7 @@
           this.margin.right,
           this.margin.top,
           this.margin.bottom));
-    
+  
     this.width -=  (this.margin.left + this.margin.right);
     this.height -= (this.margin.top + this.margin.bottom);
     
@@ -704,7 +694,6 @@
       }
     }
     
-    
     // Information on each dimension
     if(this.axisProperty == null) {
       this.axis();
@@ -714,7 +703,6 @@
                                   this.axisProperty);
     
     // Reserve some space for sliders
-    
     var nbSlider = 0;
     for(var i in this.dim) {
       if(!this.dim[i].isSpacial) {
@@ -722,7 +710,13 @@
       }
     }
     this.height -= sliderHeight * nbSlider;
-    
+  }
+  
+  // Update the graphic
+  var updateGraphic = function() {
+    if(this.selector == null) {
+      return;
+    }
     
     /*                                                *\
      * Generation of data views (per element dataset) *
@@ -748,8 +742,6 @@
      * Generating svg *
     \*                */
     updateSVG.call(this);
-    
-    return this;
   };
   
   // (Re)draw elements of the graphics
@@ -1683,9 +1675,29 @@
   
   // Reset graphic data
   var reset = function() {
-    for(dataset_name in this.dataset) {
-      this.dataset[dataset_name] = {oldData:[],
-                                    newData:[]};
+    var reset_domains = this.dataset[main_dataset_name] != null;
+    this.dataset[main_dataset_name] = null;
+    
+    if(reset_domains) {
+      for(var i in this.dim) {
+        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+          var aes = this.dim[i].aes[j];
+          aes.discretDomain = [];
+          aes.continuousDomain = [Infinity, -Infinity];
+          
+          delete this.dim[i].domain;
+        }
+      }
+      for(var i = 0 ; i < this.elements.length ; i++) {
+        for(var attr in this.elements[i].attrs) {
+          var attr_val = this.elements[i].attrs[attr].value;
+          if(this.elements[i].attrs[attr].type != 'dimension') {
+            var aes = this.elements[i].attrs[attr].aes;
+            aes.discretDomain = [];
+            aes.continuousDomain = [Infinity, -Infinity];
+          }
+        }
+      }
     }
   }
   
@@ -3480,6 +3492,10 @@
         if(info.id != dl.connexion_id ||
            (info.chunk != dl.next_chunk && info.chunk != 0)) {
           continue;
+        }
+        
+        if(info.chunk == 0) {
+          reset.call(dl.g);
         }
         
         dl.next_chunk = info.chunk + 1;

@@ -1760,6 +1760,10 @@
    * GoG pipeline step: None
    */
   var elementsStandardization = function() {
+    if(this.elementsStandardizationInitialised) {
+      return;
+    }
+    this.elementsStandardizationInitialised = true;
     /*                                                *\
      * Detection of attributes which are dimensions   *
      * Store if the value is categorical in a boolean *
@@ -3480,26 +3484,20 @@
       file_info.sort(function(a,b){return a.stamp - b.stamp});
       
       // Compute list of files we really need to load (those which data won't be remove) 
-      var stop = false;
-      while(!stop) {
-        stop = true;
+      for(var i = 0 ; i < file_info.length ; i++) {
+        var info = file_info[i];
+        var file_name = info.file_name;
         
-        for(var i = 0 ; i < file_info.length ; i++) {
-          var info = file_info[i];
-          var file_name = info.file_name;
-          
-          if(info.chunk == dl.next_chunk || info.chunk == 0) {
-            stop = false;
-            if(info.chunk == 0) {
-              dl.file_to_load = [];
-              reset.call(dl.g);
-            }
-            dl.file_to_load.push(file_name);
-            dl.loaded_files.push(file_name);
-            dl.next_chunk = info.chunk + 1;
-            file_info.splice(i, 1);
-            break;
+        if(info.chunk == dl.next_chunk || info.chunk == 0) {
+          if(info.chunk == 0) {
+            dl.file_to_load = [];
+            reset.call(dl.g);
           }
+          dl.file_to_load.push(file_name);
+          dl.loaded_files.push(file_name);
+          dl.next_chunk = info.chunk + 1;
+          file_info.splice(i, 1);
+          i = 0;
         }
       }
       
@@ -3535,9 +3533,7 @@
       }
     }
     
-    dl.sendXhrRequest = function() {
-      dl.listFiles();
-    }
+    dl.sendXhrRequest = dl.listFiles;
     
     return dl;
   }

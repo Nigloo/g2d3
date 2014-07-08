@@ -3326,9 +3326,7 @@
     var self = this;
     
     this.load = function(error, dataset) {
-      if(error != null) {
-        ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
-      }
+      handleXhrError(error);
       
       self.g.pushData({data:dataset});
     };
@@ -3352,12 +3350,7 @@
       parse = d3.tsv.parse;
     }
     else if (extension == 'JSON') {
-      parse = function(text) {
-        return JSON.parse(text, function (key, value) {
-          var num = +value;
-          return isNaN(num) ? value : num;
-        });
-      }
+      parse = parseJSON;
     }
     else {
       ERROR('In function '+funcName+': file format unsupported');
@@ -3430,24 +3423,22 @@
     dl.next_chunk = 0;
     dl.refresh_time = refresh;
     dl.loaded_files = [];
+    dl.file_to_load = [];
+    dl.data = [];
     
+    // List files
     dl.listFiles = function() {
       d3.xhr(dl.server_adress+'/list_files', 'application/json')
       .header('Content-Type', 'application/json')
-      .response(function(request) {
-        return JSON.parse(request.responseText, function (key, value) {
-          var num = +value;
-          return isNaN(num) ? value : num;
-        });
-      })
-      .post(JSON.stringify({path:dl.path, ext:'json'}), dl.loadChunk);
+      .response(function(request) {return parseJSON(request.responseText);})
+      .post(JSON.stringify({path:dl.path, ext:'json'}), dl.filterFiles);
     }
     
-    dl.loadChunk = function(error, file_list) {
-      if(error != null) {
-        ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
-      }
+    // Filter files to keep only those to load
+    dl.filterFiles = function(error, file_list) {
+      handleXhrError(error);
       
+      // Store informations about file to load
       var file_info = [];
       for(var i = 0 ; i < file_list.length ; i++) {
         var file_name = file_list[i];
@@ -3469,57 +3460,79 @@
           continue;
         }
         
+        var id = file_name.slice(0, ind_chunk);
         var chunk = parseInt(file_name.slice(ind_chunk+2, ind_stamp));
         var stamp = parseInt(file_name.slice(ind_stamp+2, ind_ext));
-        if(isNaN(chunk) ||
+        if(id != dl.connexion_id ||
+           isNaN(chunk) ||
            isNaN(stamp)) {
           continue;
         }
         
         var info = {};
         info.file_name = file_name;
-        info.id = file_name.slice(0, ind_chunk);
+        info.id = id;
         info.chunk = chunk;
         info.stamp = stamp;
         file_info.push(info);
       }
+      // Sort files by timestamp
       file_info.sort(function(a,b){return a.stamp - b.stamp});
       
-      
-      for(var i = 0 ; i < file_info.length ; i++) {
-        var info = file_info[i];
-        var file_name = info.file_name;
-        if(info.id != dl.connexion_id ||
-           (info.chunk != dl.next_chunk && info.chunk != 0)) {
-          continue;
-        }
+      // Compute list of files we really need to load (those which data won't be remove) 
+      var stop = false;
+      while(!stop) {
+        stop = true;
         
-        if(info.chunk == 0) {
-          reset.call(dl.g);
-        }
-        
-        dl.next_chunk = info.chunk + 1;
-        dl.loaded_files.push(file_name);
-        d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
-        .header('Content-Type', 'application/json')
-        .response(function(request) {
-          return JSON.parse(request.responseText, function(key, value) {
-            var num = +value;
-            return isNaN(num) ? value : num;
-          });
-        })
-        .get(function(error, data) {
-          if(error != null) {
-            throw error;
-            ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
-          }
+        for(var i = 0 ; i < file_info.length ; i++) {
+          var info = file_info[i];
+          var file_name = info.file_name;
           
-          setTimeout(dl.listFiles, dl.refresh_time);
-          dl.load(null, data);
-        });
-        return;
+          if(info.chunk == dl.next_chunk || info.chunk == 0) {
+            stop = false;
+            if(info.chunk == 0) {
+              dl.file_to_load = [];
+              reset.call(dl.g);
+            }
+            dl.file_to_load.push(file_name);
+            dl.loaded_files.push(file_name);
+            dl.next_chunk = info.chunk + 1;
+            file_info.splice(i, 1);
+            break;
+          }
+        }
       }
-      setTimeout(dl.listFiles, dl.refresh_time);
+      
+      if(dl.file_to_load.length == 0) {
+        setTimeout(dl.listFiles, dl.refresh_time);
+      }
+      else {
+        var file_name = dl.file_to_load.shift();
+        
+        d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
+        .response(function(request) {return parseJSON(request.responseText);})
+        .get(dl.loadChunk);
+      }
+    }
+    
+    // Load file
+    dl.loadChunk = function(error, data) {
+      handleXhrError(error);
+      
+      dl.data.push(data);
+      
+      if(dl.file_to_load.length == 0) {
+        dl.g.pushData({data:d3.merge(dl.data)});
+        dl.data = [];
+        setTimeout(dl.listFiles, dl.refresh_time);
+      }
+      else {
+        var file_name = dl.file_to_load.shift();
+        
+        d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
+        .response(function(request) {return parseJSON(request.responseText);})
+        .get(dl.loadChunk);
+      }
     }
     
     dl.sendXhrRequest = function() {
@@ -4892,16 +4905,35 @@
     }
   };
   
-  // Convert numerical string value into pure numerical value
+  // Safely parse a JSON object
+  var parseJSON = function(text) {
+    return JSON.parse(text, processValue);
+  }
+  
   var processRow = function(d) {
     for(var key in d) {
-      var value = +d[key];
-      if(!isNaN(value)) {
-        d[key] = value;
-      }
+      d[key] = processValue(key, d[key]);
     }
     return d;
   };
+  
+  // Convert numerical string value into pure numerical value
+  var processValue = function(key, value) {
+    var num = +value;
+    return isNaN(num) ? value : num;
+  }
+  
+  // Handle xhr error (which are either http error or javascript exception)
+  var handleXhrError = function(error) {
+    if(error != null) {
+      if(error instanceof XMLHttpRequest) {
+        ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
+      }
+      else {
+        throw error;
+      }
+    }
+  }
   
   // Check if a parameter is defined or not and return its value or default value if any
   // This function consume the parameter

@@ -17,18 +17,11 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     self.post_var = {}
     super().__init__(*args, **kwargs)
   
+  
   def do_POST(self):
     """Serve a POST request."""
-    
-    # Look for data length
-    content_length = self.headers.get('Content-Length')
-    if content_length == None:
-      self.send_error(411, 'Length Required')
-      return None
-    try:
-      content_length = int(content_length)
-    except ValueError:
-      self.send_error(417, 'Bad Length\nExpected a number, got: '+content_length)
+    content_length = self.getContentLength()
+    if(content_length == None):
       return None
     
     # Look for data type
@@ -61,6 +54,38 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     self.do_GET()
     self.post_var = {}
   
+  
+  def do_PUT(self):
+    """Serve a PUT request."""
+    content_length = self.getContentLength()
+    if(content_length == None):
+      return None
+    
+    data = self.rfile.read(content_length)
+    path = self.translate_path(self.path);
+    exist = os.path.exists(path)
+    
+    try:
+      f = open(path, 'wb')
+    except OSError:
+      if exist:
+        self.send_error(403, 'No Permission to Access')
+      else:
+        self.send_error(404, 'File Directory not Found')
+      return None
+    try:
+      if exist:
+        self.send_response(200, 'File Updated')
+      else:
+        self.send_response(201, 'File Created')
+      self.end_headers()
+      
+      f.write(data)
+      f.close()
+      return None
+    except:
+      f.close()
+      raise
   
   def send_head(self):
     """Common code for GET, HEAD and POST commands.
@@ -115,6 +140,19 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     self.send_header('Content-Length', str(len(encoded)))
     self.end_headers()
     return f
+  
+  def getContentLength(self):
+    # Look for data length
+    content_length = self.headers.get('Content-Length')
+    if content_length == None:
+      self.send_error(411, 'Length Required')
+      return None
+    try:
+      content_length = int(content_length)
+    except ValueError:
+      self.send_error(417, 'Bad Length\nExpected a number, got: '+content_length)
+      return None
+    return content_length
 
 
 def main():

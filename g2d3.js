@@ -3432,10 +3432,10 @@
     
     // List files
     dl.listFiles = function() {
-      d3.xhr(dl.server_adress+'/list_files', 'application/json')
+      d3.xhr(dl.server_adress+'/'+dl.path, 'application/json')
       .header('Content-Type', 'application/json')
       .response(function(request) {return parseJSON(request.responseText);})
-      .post(JSON.stringify({path:dl.path, ext:'json'}), dl.filterFiles);
+      .post(JSON.stringify({ext:'json'}), dl.filterFiles);
     }
     
     // Filter files to keep only those to load
@@ -4140,7 +4140,7 @@
   
   
   ///////////////////////////////
-  // Special attributes setter //
+  // Special attribute setters //
   ///////////////////////////////
   
   function SpecialAttributeBase() {

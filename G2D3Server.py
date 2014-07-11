@@ -8,6 +8,7 @@ import json
 import urllib
 import http.server
 
+in_memory_file = {}
 
 class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
   """Custom server for G2D3
@@ -62,30 +63,25 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
       return None
     
     data = self.rfile.read(content_length)
-    path = self.translate_path(self.path);
-    exist = os.path.exists(path)
+    ind = self.path.rfind('/') + 1
+    path = self.path[0:ind]
+    filename = self.path[ind:]
     
-    try:
-      f = open(path, 'wb')
-    except OSError:
-      if exist:
-        self.send_error(403, 'No Permission to Access')
-      else:
-        self.send_error(404, 'File Directory not Found')
-      return None
-    try:
-      if exist:
-        self.send_response(200, 'File Updated')
-      else:
-        self.send_response(201, 'File Created')
-      self.end_headers()
-      
-      f.write(data)
-      f.close()
-      return None
-    except:
-      f.close()
-      raise
+    exist = True
+    if path not in in_memory_file:
+      exist = False
+      in_memory_file[path] = {}
+    exist = filename in in_memory_file[path]
+    in_memory_file[path][filename] = io.BytesIO(data)
+    in_memory_file[path][filename].size = len(data)
+    
+    if exist:
+      self.send_response(200, 'File Updated')
+    else:
+      self.send_response(201, 'File Created')
+    self.end_headers()
+    return None
+  
   
   def send_head(self):
     """Common code for GET, HEAD and POST commands.
@@ -98,37 +94,80 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     None, in which case the caller has nothing further to do.
 
     """
-    action = self.path[1:]
-    if action == 'list_files':
-      path = self.post_var.get('path', './')
-      extensions = self.post_var.get('ext')
-      if extensions != None and not isinstance(extensions, list):
-        extensions = [extensions]
+    full_path = self.translate_path(self.path)
+    f = None
+    if os.path.isdir(full_path):
+      if not self.path.endswith('/'):
+        # redirect browser - doing basically what apache does
+        self.send_response(301)
+        self.send_header("Location", self.path + "/")
+        self.end_headers()
+        return None
+      else:
+        path = self.post_var.get('path', './')
+        extensions = self.post_var.get('ext')
+        if extensions != None and not isinstance(extensions, list):
+          extensions = [extensions]
+        return self.list_directory(extensions)
+    
+    ctype = self.guess_type(full_path)
+    ind = self.path.rfind('/') + 1
+    path = self.path[0:ind]
+    filename = self.path[ind:]
+    
+    f = None
+    if path in in_memory_file and filename in in_memory_file[path]:
+      f = in_memory_file[path][filename]
+      content_length = f.size
+    else:
+      try:
+        f = open(full_path, 'rb')
+        content_length = os.fstat(f.fileno())[6]
+      except OSError:
+        self.send_error(404, "File not found")
+        return None
+      except:
+        f.close()
+        raise
+    
+    self.send_response(200)
+    self.send_header("Content-type", ctype)
+    self.send_header("Content-Length", str(content_length))
+    self.end_headers()
+    return f
       
-      return self.list_files(path, extensions)
-    
-    return super().send_head()
     
     
-  def list_files(self, path, extensions=None):
-    """Produce a list of file with given extensions
-
+  def list_directory(self, extensions=None):
+    """Helper to produce a directory listing (absent index.html).
+    
     Return value is either a file object, or None (indicating an
     error).  In either case, the headers are sent, making the
     interface the same as for send_head().
-
+    
     """
+    r = []
+    directory_found = True
+    
     try:
-        list = os.listdir(self.translate_path('/')+'/'+path)
+      list = os.listdir(self.translate_path(self.path))
     except OSError:
-        self.send_error(404, 'No permission to list directory')
-        return None
+      list = []
+      directory_found = False
+    
+    if self.path in in_memory_file:
+      for name in in_memory_file[self.path]:
+        if name not in list:
+          list.append(name)
+    elif not directory_found:
+      self.send_error(404, 'Directory Not Found')
+      return None
     
     if extensions != None:
       list = [name for name in list for ext in extensions if name.lower().endswith('.'+ext)]
-    r = []
     for name in list:
-      r.append('"'+name+'"')
+      if name not in r:
+        r.append('"'+name+'"')
     
     enc = sys.getfilesystemencoding()
     encoded = ('['+(','.join(r))+']').encode(enc)
@@ -140,6 +179,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     self.send_header('Content-Length', str(len(encoded)))
     self.end_headers()
     return f
+  
   
   def getContentLength(self):
     # Look for data length

@@ -3354,7 +3354,7 @@
       parse = d3.tsv.parse;
     }
     else if (extension == 'JSON') {
-      parse = parseJSON;
+      parse = parseRJSON;
     }
     else {
       ERROR('In function '+funcName+': file format unsupported');
@@ -3508,7 +3508,7 @@
         var file_name = dl.file_to_load.shift();
         
         d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
-        .response(function(request) {return parseJSON(request.responseText);})
+        .response(function(request) {return parseRJSON(request.responseText);})
         .get(dl.loadChunk);
       }
     }
@@ -3528,7 +3528,7 @@
         var file_name = dl.file_to_load.shift();
         
         d3.xhr(dl.server_adress+'/'+dl.path+file_name, 'application/json')
-        .response(function(request) {return parseJSON(request.responseText);})
+        .response(function(request) {return parseRJSON(request.responseText);})
         .get(dl.loadChunk);
       }
     }
@@ -4904,6 +4904,34 @@
   // Safely parse a JSON object
   var parseJSON = function(text) {
     return JSON.parse(text, processValue);
+  }
+  
+  var parseRJSON = function(text) {
+    var data = parseJSON(text);
+    console.log('parseRJSON');
+    if(data instanceof Array) {
+      return data;
+    }
+    console.log('parseRJSON : R');
+    // Data from R
+    var nb_entries = null;
+    for(var i in data) {
+      nb_entries = data[i].length;
+      break;
+    }
+    
+    var new_data = new Array(nb_entries);
+    for(var i = 0 ; i < nb_entries ; i++) {
+      new_data[i] = {};
+    }
+    for(var field in data) {
+      for(var i = 0 ; i < nb_entries ; i++) {
+        new_data[i][field] = data[field][i];
+      }
+    }
+    console.log('before',data);
+    console.log('after',new_data);
+    return new_data;
   }
   
   var processRow = function(d) {

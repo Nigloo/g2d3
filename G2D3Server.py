@@ -171,9 +171,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     enc = sys.getfilesystemencoding()
     encoded = ('['+(','.join(r))+']').encode(enc)
-    f = io.BytesIO()
-    f.write(encoded)
-    f.seek(0)
+    f = io.BytesIO(encoded)
     self.send_response(200)
     self.send_header('Content-Type', 'application/json; charset=%s' % enc)
     self.send_header('Content-Length', str(len(encoded)))

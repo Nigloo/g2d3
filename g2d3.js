@@ -5238,8 +5238,6 @@
     ASSERT(param["col"], "Please specify parameter col to jitter");
     ASSERT(param["val"], "Please specify parameter cval to jitter");
     
-    ASSERT(CHECK_PARAMS(param, ["col", "val", "index"]), "Bad parameters to function jitter !")
-
     var res = undefined;
 
     if(param.index) {

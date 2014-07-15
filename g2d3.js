@@ -448,7 +448,7 @@
       this.spacialDimName = [];
       
       var generateName = function(nameBase) {
-        if(this.spacialDimName.indexOf(nameBase) == -1) {
+        if(this.spacialDimName.indexOf(nameBase) === -1) {
           return nameBase;
         }
         else {
@@ -628,7 +628,7 @@
     this.margin.bottom =  checkParam(funcName, param, 'margin_bottom',  this.margin.bottom);
     checkUnusedParam(funcName, param);
     
-    if(this.elements.length == 0) {
+    if(this.elements.length === 0) {
       ERROR('no element in the graphic');
     }
     
@@ -1557,7 +1557,7 @@
         var goNextCoordSys = true;
         var subsetId = subset.length-2;
         var coordSysId = currentPos.length-1;
-        if(currentPos.length == 0) {
+        if(currentPos.length === 0) {
           goNextCoordSys = false;
           stop = true;
         }
@@ -1739,7 +1739,7 @@
       
       var param = { oldData:          this.dataset[main_dataset_name].oldData,
                     newData:          this.dataset[main_dataset_name].newData,
-                    oldProcessedData: (this.dataset[main_dataset_name].oldData.length == 0)
+                    oldProcessedData: (this.dataset[main_dataset_name].oldData.length === 0)
                                       ? []
                                       : this.dataset[name].oldData};
       
@@ -1829,7 +1829,7 @@
     }
     var deepestCoordSysDimNames = '';
     for(var i = 0 ; i < deepestCoordSysDim.length ; i++) {
-      deepestCoordSysDimNames += i ? (i == deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
+      deepestCoordSysDimNames += i ? (i === deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
       deepestCoordSysDimNames += deepestCoordSysDim[i];
     }
     
@@ -1855,12 +1855,12 @@
         var originFunc = this.elements[i].attrs[attr].originFunc;
         
         
-        if(attr_type == 'dimension' && isUndefined(this.dim[attr].aes)) {
+        if(attr_type === 'dimension' && isUndefined(this.dim[attr].aes)) {
           this.dim[attr].aes = [];
           this.dim[attr].aesElemId = [];
         }
         
-        if(attr_val instanceof Interval && attr_type == 'dimension') {
+        if(attr_val instanceof Interval && attr_type === 'dimension') {
           if(!(this.elements[i] instanceof Bar)) {
             ERROR(getTypeName(this.elements[i])+' can\'t have an interval as position ('+attr+')');
           }
@@ -1916,7 +1916,7 @@
             this.dim[attr].aesElemId.push(i);
           }
         }
-        else if(attr_val instanceof BoxPlotBoxStat && attr_type == 'dimension') {
+        else if(attr_val instanceof BoxPlotBoxStat && attr_type === 'dimension') {
           originFunc = lib_name+'.boxplotStat';
           
           if(!(this.elements[i] instanceof BoxPlot)) {
@@ -1963,7 +1963,7 @@
           checkAesType(attr_type, aes[aesId], aes_ret_val, attr, originFunc);
           
           
-          if(attr_type == 'dimension') {
+          if(attr_type === 'dimension') {
             this.dim[attr].aes.push(aes[aesId]);
             this.dim[attr].aesElemId.push(i);
           }
@@ -2015,7 +2015,7 @@
       for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
         var aes = this.dim[i].aes[j];
         var oldData = this.dataset[aes.datasetName].oldData;
-        if(oldData.length == 0) {
+        if(oldData.length === 0) {
           aes.discretDomain = [];
           aes.continuousDomain = [Infinity, -Infinity];
           
@@ -2030,7 +2030,7 @@
         var attr_val = this.elements[i].attrs[attr].value;
         if(this.elements[i].attrs[attr].type != 'dimension') {
           var aes = this.elements[i].attrs[attr].aes;
-          if(oldData.length == 0) {
+          if(oldData.length === 0) {
             aes.discretDomain = [];
             aes.continuousDomain = [Infinity, -Infinity];
           }
@@ -2129,7 +2129,7 @@
       for(var i = 0 ; i < this.elements.length ; i++) {
         var dataset = this.dataset[this.elements[i].datasetName][dataCat];
         
-        var indexOffset = (dataCat == 'newData') ? this.dataset[this.elements[i].datasetName].oldData.length : 0;
+        var indexOffset = (dataCat === 'newData') ? this.dataset[this.elements[i].datasetName].oldData.length : 0;
         
         // Splitting data according to group
         var groupAes = this.elements[i].attrs.group.aes;
@@ -2287,7 +2287,7 @@
           if(dom[1] > domain[1])
             domain[1] = dom[1];
         }
-        if(domain[0] == domain[1]) {
+        if(domain[0] === domain[1]) {
           domain = addPadding(domain);
         }
       }
@@ -4715,9 +4715,7 @@
       {
         // We convert it into a fonction
         var toFunction = function (c) {
-          return function (d) {
-            return d[c];
-          }
+          return new Function('d', 'return d['+JSON.stringify(c)+']');
         };
         
         aes.push({func:toFunction(column),
@@ -4908,26 +4906,26 @@
   
   var parseRJSON = function(text) {
     var data = parseJSON(text);
-    console.log('parseRJSON');
     if(data instanceof Array) {
       return data;
     }
-    console.log('parseRJSON : R');
+    
     // Data from R
     var nb_entries = null;
+    var fields = [];
     for(var i in data) {
       nb_entries = data[i].length;
-      break;
+      fields.push(i);
     }
+    
+    var convert = new Function(['d', 'i'], 'return {'+fields.map(function(field) {
+      var str_field = JSON.stringify(field);
+      return str_field+': d['+str_field+'][i]';
+    }).join(',')+'}');
     
     var new_data = new Array(nb_entries);
     for(var i = 0 ; i < nb_entries ; i++) {
-      new_data[i] = {};
-    }
-    for(var field in data) {
-      for(var i = 0 ; i < nb_entries ; i++) {
-        new_data[i][field] = data[field][i];
-      }
+      new_data[i] = convert(data, i);
     }
     console.log('before',data);
     console.log('after',new_data);
@@ -4995,9 +4993,9 @@
     if(unusedParam.length > 0) {
       var msg = 'In function '+funcName+': parameter'+(unusedParam.length>1?'s':'')+' ';
       for(var i = 0 ; i < unusedParam.length ; i++) {
-        msg +=  i == 0                    ? unusedParam[i] :
-                i == unusedParam.length-1 ? ' and '+unusedParam[i] :
-                                            ', '+unusedParam[i];
+        msg +=  i === 0                    ?  unusedParam[i] :
+                i === unusedParam.length-1 ?  ' and '+unusedParam[i] :
+                                              ', '+unusedParam[i];
       }
       msg += ' ignored';
       WARNING(msg);
@@ -5071,7 +5069,7 @@
     }
     
     // Compute next state
-    if(this.currentState.length == 0) {
+    if(this.currentState.length === 0) {
       this.currentState = null;
     }
     else {

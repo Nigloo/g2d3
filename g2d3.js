@@ -3416,8 +3416,8 @@
   main_object.bind = function(param) {
     var funcName = lib_name+'.bind';
     var connexion_id =  checkParam(funcName, param, 'id');
-    var path =          checkParam(funcName, param, 'dir',      './');
-    var refresh =       checkParam(funcName, param, 'refresh_interval',  500);
+    var path =          checkParam(funcName, param, 'dir',              './');
+    var refresh =       checkParam(funcName, param, 'refresh_interval', 500);
     checkUnusedParam(funcName, param);
     
     var dl = new DataLoader();
@@ -4005,21 +4005,32 @@
         }
       }
       
+      var melt;
+      
       // We only melt new data (old ones already are melted)
       for(var i = 0 ; i < newData.length ; i++) {
-        for(var j = 0 ; j < measures.length ; j++) {
-          var datum = {};
-          for(var k = 0 ; k < ids.length ; k++) {
-            datum[ids[k]] = newData[i][ids[k]];
-          }
-          datum[variable_name] = measures[j];
-          datum[value_name] = newData[i][measures[j]];
-          // Cast into number if possible
-          var value = +datum[variable_name];
-          if(!isNaN(value)) {
-            datum[variable_name] = value;
-          }
-          melted_data.push(datum);
+        if(!melt) {
+          var isNum = !isNaN(+measures[0]);
+          var idsCode = ids.map(function(id){
+                          var strId = JSON.stringify(id);
+                          return strId+':d['+strId+'],';
+                        });
+          variable_name = JSON.stringify(variable_name);
+          value_name = JSON.stringify(value_name);
+          
+          var melt = new Function(['d'], 'return ['+measures.map(function(measure) {
+            return '{'+
+              idsCode+
+              variable_name+':'+(isNum?measure:JSON.stringify(measure))+','+
+              value_name+':d['+JSON.stringify(measure)+']'+
+            '}';
+          }).join(',')+']');
+        }
+        
+        var d = melt(newData[i]);
+        
+        for(var j = 0 ; j < d.length ; j++) {
+          melted_data.push(d[j]);
         }
       }
       

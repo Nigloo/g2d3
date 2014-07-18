@@ -2673,8 +2673,8 @@
     for(var i in this.dimAlias) {
       var type = typeof param[i];
       if(type != 'undefined') {
-        if(type != 'number' && type != 'string' && param[i] != null) {
-          ERROR(errorParamMessage(funcName, i, type, '\'number\' or \'string\''));
+        if(type != 'string' && param[i] != null) {
+          ERROR(errorParamMessage(funcName, i, type, '\'string\''));
         }
         else {
           this.dimAlias[i] = param[i];
@@ -3466,7 +3466,7 @@
         
         var id = file_name.slice(0, ind_chunk);
         var chunk = parseInt(file_name.slice(ind_chunk+2, ind_stamp));
-        var stamp = parseInt(file_name.slice(ind_stamp+2, ind_ext));
+        var stamp = parseInt(file_name.slice(ind_stamp+2, ind_ext), 16);
         if(id != dl.connexion_id ||
            isNaN(chunk) ||
            isNaN(stamp)) {
@@ -4161,7 +4161,7 @@
   // Interval
   
   main_object.interval = function(val1, val2) {
-    return new Interval(val1, val2, false);
+    return new Interval(val1, isUndefined(val2) ? 0 : val2, false);
   };
   main_object.interval.stack = function(val, origin) {
     return new Interval(val, isUndefined(origin) ? 0 : origin, true);

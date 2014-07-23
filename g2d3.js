@@ -3571,7 +3571,7 @@
   // Aggregate data
   main_object.groupBy = function(param) {
     var funcName = lib_name+'.groupBy';
-    var group_by = checkParam(funcName, param, 'col');
+    var group_by = checkParam(funcName, param, 'col', []);
     checkUnusedParam(funcName, param);
     
     if(!(group_by instanceof Array)) {

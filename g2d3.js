@@ -503,9 +503,11 @@
     var funcName = 'Graphic.axis';
     var prop = {};
     var  dimAlias =     checkParam(funcName, param, 'axis',           'all');
+    prop.label =        checkParam(funcName, param, 'label',          null);
     prop.display =      checkParam(funcName, param, 'display',        null);
     prop.displayAxis =  checkParam(funcName, param, 'display_axis',   null);
     prop.displayTicks = checkParam(funcName, param, 'display_ticks',  null);
+    prop.displayLabel = checkParam(funcName, param, 'display_label',  null);
     prop.ticks =        checkParam(funcName, param, 'ticks',          null);
     prop.min =          checkParam(funcName, param, 'min',            null);
     prop.max =          checkParam(funcName, param, 'max',            null);
@@ -2960,7 +2962,7 @@
       subCoordSysNode.exit().remove();
       
       var subSys = this.subSys;
-      subCoordSysNode.each(function(d) {
+      subCoordSysNode.each(function() {
         subSys.updateSVG(d3.select(this), dim, subWidth, subHeight, depth+1);
       });
     }
@@ -3319,11 +3321,12 @@
     }
   }
   
+  
   ///////////////////////
   // Loading functions //
   ///////////////////////
   
-    // Data loader
+  // Data loader
   function DataLoader() {
     this.g = null;
     this.sendXhrRequest = null;
@@ -3568,39 +3571,45 @@
   // Aggregate data
   main_object.groupBy = function(param) {
     var funcName = lib_name+'.groupBy';
-    var group_by = param;
-    var groupByAes = {};
+    var group_by = checkParam(funcName, param, 'col');
+    checkUnusedParam(funcName, param);
+    
+    if(!(group_by instanceof Array)) {
+      group_by = [group_by];
+    }
+    var groupByAes = [];
+    
+    var aes = [];
+    var dataCol2Aes = {};
+    var func2Aes = {};
+    var const2Aes = {};
+    
+    for(var i = 0 ; i < group_by.length ; i++) {
+      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, data_binding_prefix+group_by[i], main_dataset_name, 'col['+i+']', funcName);
+      groupByAes.push(aes[aesId]);
+    }
     
     // True:  aggregate from the whole data (old + new)
     // False: aggregate only from new data
     var recomputeWholeGroup = false;
+    var getDatum = new Function(['d'], 'return {'+group_by.map(function(col) {
+      var strCol = JSON.stringify(col);
+      return strCol+':d['+strCol+']';
+    }).join(',')+'}');
     var getNewData = function(groupedData) {
       var new_data = [];
+      
       for(var i = 0 ; i < groupedData.length ; i++) {
-        if(groupedData[i].length > 0) {
-          var datum = {};
-          for(var j in group_by) {
-            datum[j] = groupByAes[j].func(groupedData[i][0], 0);
-          }
-          new_data.push(datum);
+        if(groupedData[i].oldData.length > 0) {
+          new_data.push(groupedData[i].oldData[0]);
+        }
+        else {
+          new_data.push(getDatum(groupedData[i].newData[0]));
         }
       }
       return new_data;
     };
     
-    // Aesthetics
-    var aes = [];
-    // Map data column name -> aesthetic id
-    var dataCol2Aes = {};
-    // Map function -> aesthetic id
-    var func2Aes = {};
-    // Map const value -> aesthetic id
-    var const2Aes = {};
-    
-    for(var i in group_by) {
-      var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, group_by[i], main_dataset_name, 'group_by:'+i, funcName);
-      groupByAes[i] = aes[aesId];
-    }
     
     // GroupBy
     // data = {oldData, newData, oldProcessedData}
@@ -3612,7 +3621,7 @@
         // We recompute the whole thing
         data = data.oldData.concat(data.newData);
         
-        for(var i in group_by) {
+        for(var i = 0 ; i < group_by.length ; i++) {
           updateDomain(groupByAes[i], [], data, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
@@ -3621,7 +3630,7 @@
         for(var i = 0 ; i < data.length ; i++) {
           var dataSubset = nestedata;
           
-          for(var j in group_by) {
+          for(var j = 0 ; j < group_by.length ; j++) {
             var value = groupByAes[j].func(data[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3642,7 +3651,7 @@
         var newData = data.newData;
         var oldData = data.oldProcessedData;
         
-        for(var i in group_by) {
+        for(var i = 0 ; i < group_by.length ; i++) {
           updateDomain(groupByAes[i], oldData, newData, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
@@ -3651,7 +3660,7 @@
         for(var i = 0 ; i < newData.length ; i++) {
           var dataSubset = nesteNewData;
           
-          for(var j in group_by) {
+          for(var j = 0 ; j < group_by.length ; j++) {
             var value = groupByAes[j].func(newData[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3664,7 +3673,7 @@
         for(var i = 0 ; i < oldData.length ; i++) {
           var dataSubset = nesteOldData;
           
-          for(var j in group_by) {
+          for(var j = 0 ; j < group_by.length ; j++) {
             var value = groupByAes[j].func(oldData[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3689,23 +3698,31 @@
     };
     
     // Count
-    groupByFunction.count = function() {
+    groupByFunction.count = function(param) {
+      funcName += '().count';
+      var variable_name = checkParam(funcName, param, 'variable_name', 'count');
+      checkUnusedParam(funcName, param);
+      
+      getDatum = new Function(['d', 'value'], 'return {'+group_by.map(function(col) {
+        var strCol = JSON.stringify(col);
+        return strCol+':d['+strCol+'],';
+      }).join('')+variable_name+':value}');
+      
       recomputeWholeGroup = false;
       getNewData = function(groupedData) {
         var new_data = [];
+        
         for(var i = 0 ; i < groupedData.length ; i++) {
-          var oldCount = 0;
+          var datum;
+          
           if(groupedData[i].oldData.length > 0) {
-            oldCount = groupedData[i].oldData[0][sum_attr_name];
             datum = groupedData[i].oldData[0];
+            datum[variable_name] += groupedData[i].newData.length;
           }
           else {
-            for(var j in group_by) {
-              datum[j] = groupByAes[j].func(groupedData[i].newData[0], 0);
-            }
+            datum = getDatum(groupedData[i].newData[0], groupedData[i].newData.length);
           }
           
-          datum.count = oldCount + groupedData[i].newData.length;
           new_data.push(datum);
         }
         return new_data;
@@ -3717,19 +3734,29 @@
     // Proportion
     groupByFunction.proportion = function(param) {
       funcName += '().proportion';
-      var weight =    checkParam(funcName, param, 'weight', 1);
-      var aggreg_on = {};
+      var variable_name = checkParam(funcName, param, 'variable_name', 'proportion');
+      var aggreg_on =     checkParam(funcName, param, 'col');
+      var weight =        checkParam(funcName, param, 'weight', 1);
+      checkUnusedParam(funcName, param);
       
-      for(var i in param) {
-        if(i != 'weight') {
-          aggreg_on[i] = param[i];
-        }
+      if(!(aggreg_on instanceof Array)) {
+        aggreg_on = [aggreg_on];
       }
       
-      var aggregOnAes = {};
-      for(var i in aggreg_on) {
-        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, aggreg_on[i], main_dataset_name, i, funcName);
-        aggregOnAes[i] = aes[aesId];
+      getDatum = new Function(['d', 'value'], 'return {'+group_by.map(function(col) {
+        var strCol = JSON.stringify(col);
+        return strCol+':d['+strCol+'],';
+      }).join('')+
+      aggreg_on.map(function(col) {
+        var strCol = JSON.stringify(col);
+        return strCol+':d['+strCol+'],';
+      }).join('')+
+      variable_name+':value}');
+      
+      var aggregOnAes = [];
+      for(var i = 0 ; i < aggreg_on.length ; i++) {
+        var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, data_binding_prefix+aggreg_on[i], main_dataset_name, 'col['+i+']', funcName);
+        aggregOnAes.push(aes[aesId]);
       }
       
       var weightAes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName)];
@@ -3741,7 +3768,7 @@
         checkAesType('number', weightAes, weightFunc(groupedData[0][0], 0), 'weight', funcName);
         var data = d3.merge(groupedData);
         var splitSizes = [];
-        for(var i in aggreg_on) {
+        for(var i = 0 ; i < aggreg_on.length ; i++) {
           updateDomain(aggregOnAes[i], [], data, 'discret');
           splitSizes.push(aggregOnAes[i].discretDomain.length);
         }
@@ -3752,7 +3779,7 @@
           for(var j = 0 ; j < groupedData[i].length ; j++) {
             var dataSubset = nestedata;
             
-            for(var k in aggreg_on) {
+            for(var k = 0 ; k < aggreg_on.length ; k++) {
               var value = aggregOnAes[k].func(groupedData[i][j], j);
               var id = aggregOnAes[k].discretDomain.indexOf(value);
               dataSubset = dataSubset[id];
@@ -3760,6 +3787,7 @@
             
             dataSubset.push(groupedData[i][j]);
           }
+          
           
           var total = 0;
           var counts = [];
@@ -3776,6 +3804,7 @@
               total += counts[j];
               j++;
             }
+            
           }
           
           it = new HierarchyIterator(nestedata);
@@ -3783,17 +3812,7 @@
           while(it.hasNext()) {
             dataSubset = it.next();
             if(dataSubset.length > 0) {
-              var datum = {};
-              
-              for(var k in group_by) {
-                datum[k] = groupByAes[k].func(dataSubset[0], 0);
-              }
-              for(var k in aggreg_on) {
-                datum[k] = aggregOnAes[k].func(dataSubset[0], 0);
-              }
-              
-              datum.proportion = counts[j] / total;
-              new_data.push(datum);
+              new_data.push(getDatum(dataSubset[0], counts[j] / total));
               j++;
             }
           }
@@ -3808,25 +3827,17 @@
     //Sum
     groupByFunction.sum = function(param) {
       funcName += '().sum';
-      var sum_attr_name = null;
-      var sum_aes = null;
-      var sum_attr_func = null;
+      var variable_name = checkParam(funcName, param, 'variable_name', 'sum');
+      var weight =        checkParam(funcName, param, 'weight', 1);
+      checkUnusedParam(funcName, param);
       
-      for(var i in param) {
-        if(sum_attr_name == null) {
-          sum_attr_name = i;
-          var sum_aes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, param[i], main_dataset_name, i, funcName)];
-          sum_attr_func = sum_aes.func;
-        }
-        else {
-          WARNING('More than 1 parameter passed to '+funcName+': '+i+' ignored');
-        }
-      }
+      var weightAes = aes[getAesId(aes, dataCol2Aes, func2Aes, const2Aes, weight, main_dataset_name, 'weight', funcName)];
+      var weightFunc = weightAes.func;
       
-      if(sum_attr_name == null) {
-        sum_attr_name = 'sum';
-        sum_attr_func = function(){return 1;};
-      }
+      getDatum = new Function(['d', 'value'], 'return {'+group_by.map(function(col) {
+        var strCol = JSON.stringify(col);
+        return strCol+':d['+strCol+'],';
+      }).join('')+variable_name+':value}');
       
       recomputeWholeGroup = false;
       getNewData = function(groupedData) {
@@ -3834,30 +3845,32 @@
         while(groupedData[0].newData.length == 0) {
           i++;
         }
-        checkAesType('number', sum_aes, sum_attr_func(groupedData[i].newData[0], 0), sum_attr_name, funcName);
+        checkAesType('number', weightAes, weightFunc(groupedData[i].newData[0], 0), 'weight', funcName);
         
         var new_data = [];
         
         for(var i = 0 ; i < groupedData.length ; i++) {
           var sum = 0;
-          var datum = {};
+          var datum = null;
           if(groupedData[i].oldData.length > 0) {
-            sum = groupedData[i].oldData[0][sum_attr_name];
+            sum = groupedData[i].oldData[0][variable_name];
             datum = groupedData[i].oldData[0];
-          }
-          else {
-            for(var j in group_by) {
-              datum[j] = groupByAes[j].func(groupedData[i].newData[0], 0);
-            }
           }
           
           for(var j = 0 ; j < groupedData[i].newData.length ; j++) {
-            sum += sum_attr_func(groupedData[i].newData[j], j);
+            sum += weightFunc(groupedData[i].newData[j], j);
           }
           
-          datum[sum_attr_name] = sum;
+          if(datum === null) {
+            datum = getDatum(groupedData[i].newData[0], sum);
+          }
+          else {
+            datum[variable_name] = sum;
+          }
+          
           new_data.push(datum);
         }
+        
         return new_data;
       };
       
@@ -3876,8 +3889,8 @@
       for(var i = 0 ; i < newData.length ; i++) {
         var d = newData[i]
         for(var col in param) {
-          d[col] = param[col](d)
-          if(!d[col]) WARNING("In addColumns: the function associated with column {0} has returned undefined. Maybe you have forgotten a return statement...".format(col))
+          d[col] = param[col](d, i);
+          if(isUndefined(d[col])) WARNING("In setColumns: the function associated with column {0} has returned undefined. Maybe you have forgotten a return statement...".format(col))
         }
         theData.push(d)
       }
@@ -3979,7 +3992,7 @@
     var value_name =    checkParam(funcName, param, 'value_name',     'value');
     checkUnusedParam(funcName, param);
     
-    if(ids == null && measures == null) {
+    if(ids === null && measures === null) {
       ERROR('In function '+funcName+', both parameters ids and measures are missing. You need to set at leat one of them');
     }
     
@@ -3988,7 +4001,7 @@
       var newData = data.newData;
       var melted_data = [];
       
-      if(ids == null) {
+      if(ids === null) {
         ids = [];
         for(var field in newData[0]) {
           if(measures.indexOf(field) < 0) {
@@ -3996,7 +4009,7 @@
           }
         }
       }
-      else if(measures == null) {
+      else if(measures === null) {
         measures = [];
         for(var field in newData[0]) {
           if(ids.indexOf(field) < 0) {
@@ -4014,14 +4027,14 @@
           var idsCode = ids.map(function(id){
                           var strId = JSON.stringify(id);
                           return strId+':d['+strId+'],';
-                        });
+                        }).join('');
           variable_name = JSON.stringify(variable_name);
           value_name = JSON.stringify(value_name);
           
           var melt = new Function(['d'], 'return ['+measures.map(function(measure) {
             return '{'+
               idsCode+
-              variable_name+':'+(isNum?measure:JSON.stringify(measure))+','+
+              variable_name+':'+(isNum ? measure : JSON.stringify(measure))+','+
               value_name+':d['+JSON.stringify(measure)+']'+
             '}';
           }).join(',')+']');
@@ -4037,6 +4050,7 @@
       return {oldData:data.oldProcessedData, newData:melted_data};
     }
   }
+  
   
   /////////////////////
   // Popup functions //
@@ -4159,7 +4173,6 @@
   }
   
   // Interval
-  
   main_object.interval = function(val1, val2) {
     return new Interval(val1, isUndefined(val2) ? 0 : val2, false);
   };
@@ -4174,8 +4187,6 @@
     this.stacked = stacked;
   }
  
-  
-  
   // BoxPlot parameter
   main_object.boxplotBoxStat = function(param) {
     var funcName = lib_name+'.boxplotBoxStat';
@@ -4207,9 +4218,7 @@
     this.attrs.value = v;
   };
   
-  
   // Consider an aesthetic values as categorical values
-  
   main_object.cat = function(value) {
     return new CategoricalValue(value);
   };
@@ -4673,6 +4682,9 @@
     if(isUndefined(all.displayTicks)) {
       all.displayTicks = true;
     }
+    if(isUndefined(all.displayLabel)) {
+      all.displayLabel = null;
+    }
     if(isUndefined(all.ticks)) {
       all.ticks = null;
     }
@@ -4682,12 +4694,13 @@
     if(isUndefined(all.max)) {
       all.max = null;
     }
-    
     for(var i in dim) {
       for(var j in all) {
         dim[i][j] = all[j];
       }
+      dim[i].label = i;
     }
+    
     for(var i in axisProperty) {
       if(isUndefined(dim[i])) {
         WARNING('In function Graphic.axis: axis '+i+' not defined. All parameters ignored.');
@@ -4938,8 +4951,7 @@
     for(var i = 0 ; i < nb_entries ; i++) {
       new_data[i] = convert(data, i);
     }
-    console.log('before',data);
-    console.log('after',new_data);
+    
     return new_data;
   }
   

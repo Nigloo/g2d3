@@ -37,6 +37,48 @@
             
             "use strict";
             
+            function createNamedFunction(name, f) {
+                return (new Function('f', "return function "+name+"(){return f.apply(this, arguments)}"))(f);
+            }
+            
+            
+            function extend(parent, name, init) {
+                var child = createNamedFunction(name, init);
+                
+                /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
+                var Surrogate = function() {};
+                Surrogate.prototype = parent.prototype;
+                child.prototype = new Surrogate;
+                
+                Object.defineProperty(child.prototype, 'constructor', {
+                    value: child,
+                    writable: true
+                });
+                // Read only
+                Object.defineProperty(child.prototype, 'super', {
+                    value:parent,
+                    writable: false
+                });
+                
+                return child;
+            }
+            
+            function A(a) {
+                this.a = a;
+            }
+            
+            var B = extend(A, 'B', function(b) {
+                this.super(1337);
+                this.b = b;
+            })
+            
+            var b = new B(42);
+            console.log('b :',b);
+            console.log('b.constructor.name :', b.constructor.name);
+            console.log('b instanceof B :', b instanceof B);
+            console.log('b instanceof A :', b instanceof A);
+            
+            //throw 'stop';
             
             var gender_string = ['', 'Male', 'Female'];
             function genderName(d) {

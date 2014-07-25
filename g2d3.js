@@ -614,7 +614,7 @@
   /* In the following functions, 'this' reference the graphic */
   
   // Initialise the graphic
-  var initGraphic = function(param) {
+  function initGraphic(param) {
     // Check parameters
     var funcName = 'Graphic.plot';
     this.selector = checkParam(funcName, param, 'selector', 'body');
@@ -715,7 +715,7 @@
   }
   
   // Update the graphic
-  var updateGraphic = function() {
+  function updateGraphic() {
     if(this.selector == null) {
       return;
     }
@@ -747,7 +747,7 @@
   };
   
   // (Re)draw elements of the graphics
-  var updateElements = function() {
+  function updateElements() {
     /*                   *\
      * Utility functions *
     \*                   */
@@ -1621,7 +1621,7 @@
   };
   
   // Update position of time sliders' cursor
-  var updateSliders = function() {
+  function updateSliders() {
     var sliderSize = this.width;
     
     for(var i in this.timeSlider) {
@@ -1676,7 +1676,7 @@
   };
   
   // Reset graphic data
-  var reset = function() {
+  function reset() {
     var reset_domains = this.dataset[main_dataset_name] != null;
     this.dataset[main_dataset_name] = null;
     
@@ -1711,7 +1711,7 @@
    * Load data
    * GoG pipeline step: Variables
    */
-  var loadData = function() {
+  function loadData() {
     if(this.dataset[main_dataset_name] == null) {
       if(this.dataLoader != null) {
         //TIMER_GROUP_BEGIN('Loading', this.display_timers);
@@ -1727,7 +1727,7 @@
    * Update data views (datasets computed from the main dataset)
    * GoG pipeline step: Algebra, Statistics
    */
-  var updateDataViews = function() {
+  function updateDataViews() {
     TIMER_BEGIN('Generation of data views', this.display_timers);
     
     for(var i = 0 ; i < this.data_view_generator.length ; i++) {
@@ -1761,7 +1761,7 @@
    * Cleaning and standardization of elements' attributes
    * GoG pipeline step: None
    */
-  var elementsStandardization = function() {
+  function elementsStandardization() {
     if(this.elementsStandardizationInitialised) {
       return;
     }
@@ -2005,7 +2005,7 @@
    * scales themselves)
    * GoG pipeline step: "Scale", Geometry, Coordinates, Aesthetics
    */
-  var updateScales = function() {
+  function updateScales() {
     /*                                                         *\
      * Update dimensions' domains                              *
      * EXCEPT the deepest spacial coordinate system dimensions *
@@ -2390,7 +2390,7 @@
    * Merge old and new data
    * GoG pipeline step: None
    */
-  var mergeOldAndNewData = function() {
+  function mergeOldAndNewData() {
     TIMER_BEGIN('Merge old and new data', this.display_timers);
     
     for(var name in this.dataset) {
@@ -2403,7 +2403,7 @@
    * Generate the svg code
    * GoG pipeline step: Geometry, Coordinates, Aesthetics
    */
-  var updateSVG = function() {
+  function updateSVG() {
     TIMER_GROUP_BEGIN('Generating SVG', this.display_timers);
     
     // Remove loading bar
@@ -2608,39 +2608,39 @@
     
     this.listeners = {};
     this.datasetName = main_dataset_name;
-  };
+  }
   
-  function Symbol() {
-    ElementBase.apply(this, arguments);
+  var Symbol = extend(ElementBase, 'Symbol', function() {
+    this.super();
     
     this.attrs.shape =  { type:'symbol',
                           value:'circle'};
     this.attrs.size =   { type:'number',
                           value:null};
-  };
+  });
   
-  function Line() {
-    ElementBase.apply(this, arguments);
+  var Line = extend(ElementBase, 'Line', function() {
+    this.super();
     this.attrs.fill.value = 'none';
     
     this.attrs.interpolation =  { type:'string',
                                   value:'linear'};
     this.attrs.stroke_linecap = { type:'string',
                                   value:null};
-  };
+  });
   
-  function Bar() {
-    ElementBase.apply(this, arguments);
+  var Bar = extend(ElementBase, 'Bar', function() {
+    this.super();
     
     // No specific attributes
-  };
+  });
   
-  function BoxPlot() {
-    ElementBase.apply(this, arguments);
+  var BoxPlot = extend(ElementBase, 'BoxPlot', function() {
+    this.super();
     this.attrs.fill.value = 'none';
     
     // No specific attributes
-  };
+  });
   
   ////////////////////////
   // Coordinate Systems //
@@ -2648,14 +2648,18 @@
   
   main_object.rect = function(param) {
     return new Rect(param);
-  };
+  }
   
   main_object.polar = function(param) {
     return new Polar(param);
-  };
+  }
   
   // General construtor
   function CoordSys(param, funcName) {
+    if(isUndefined(this.dimName)) {
+      ERROR(getTypeName(this)+'.prototype do not has property dimName.');
+    }
+    
     this.g = null;
     this.dimAlias = {};
     this.scale = {};
@@ -2684,7 +2688,7 @@
       }
     }
     
-    if(isDefined(param.subSys) && !(param.subSys instanceof Rect) && !(param.subSys instanceof Polar)) {
+    if(isDefined(param.subSys) && !(param.subSys instanceof CoordSys)) {
       ERROR(errorParamMessage(funcName, 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
     }
     else {
@@ -2693,9 +2697,9 @@
   }
   
   /////// CARTESIAN ///////
-  function Rect(param) {
-    CoordSys.call(this, param, lib_name+'.rect');
-  };
+  var Rect = extend(CoordSys, 'Rect', function(param) {
+    this.super(param, lib_name+'.rect');
+  });
   
   Rect.prototype.dimName = ['x', 'y'];
     
@@ -2756,7 +2760,7 @@
     if(this.subSys != null) {
       this.subSys.computeScale(dim, subSize['x'], subSize['y']);
     }
-  };
+  }
     
   Rect.prototype.getX = function(pos, d, i) {
     if(this.dimAlias['x'] == null ||
@@ -2766,7 +2770,7 @@
     else {
       return this.scale['x'](pos[this.dimAlias['x']](d, i));
     }
-  };
+  }
   
   Rect.prototype.getY = function(pos, d, i) {
     var Y = null;
@@ -2777,15 +2781,15 @@
     else {
       return this.scale['y'](pos[this.dimAlias['y']](d, i));
     }
-  };
+  }
   
   Rect.prototype.getXOrigin = function(pos, d, i) {
     return 0;
-  };
+  }
   
   Rect.prototype.getYOrigin = function(pos, d, i) {
     return 0;
-  };
+  }
   
   Rect.prototype.updateSVG = function(svg, dim, width, height, depth) {
     /*                 *\
@@ -2966,16 +2970,16 @@
         subSys.updateSVG(d3.select(this), dim, subWidth, subHeight, depth+1);
       });
     }
-  };
+  }
   
   
   /////// POLAR ///////
-  function Polar(param) {
-    CoordSys.call(this, param, lib_name+'.polar');
+  var Polar = extend(CoordSys, 'Polar', function(param) {
+    this.super(param, lib_name+'.polar');
     
     this.centerX = null;
     this.centerY = null;
-  };
+  });
   
   Polar.prototype.dimName = ['theta', 'radius'];
   
@@ -3037,7 +3041,7 @@
                       .nice();
       dim[this.dimAlias['radius']].band = this.boundary['radius'].max / (this.scale['radius'].domain()[1] - this.scale['radius'].domain()[0]);
     }
-  };
+  }
   
   Polar.prototype.getX = function(pos, d, i) {
     var theta = null;
@@ -3068,7 +3072,7 @@
     }
     
     return this.centerX + Math.cos(theta) * radius;
-  };
+  }
   
   Polar.prototype.getY = function(pos, d, i) {
     var theta = null;
@@ -3098,7 +3102,7 @@
     }
     
     return this.centerY - Math.sin(theta) * radius;
-  };
+  }
   
   Polar.prototype.getXOrigin = function(pos, d, i) {
     return this.centerX;
@@ -3379,7 +3383,7 @@
     }
     
     return dl;
-  };
+  }
   
   // Load data from a database
   main_object.loadFromDatabase = function(param) {
@@ -3413,7 +3417,7 @@
     }
     
     return dl;
-  };
+  }
   
   // Load from chunks
   main_object.bind = function(param) {
@@ -3879,7 +3883,7 @@
     
     
     return groupByFunction;
-  };
+  }
   
   // Adds a new column
   main_object.setColumns = function(param) {
@@ -3948,7 +3952,7 @@
       
       return {oldData:[], newData:sorted_data};
     }
-  };
+  }
   main_object.compare = function(a, b) {
     if(typeof a === 'number') {
       if(typeof b === 'number') {
@@ -3970,7 +3974,7 @@
         return a.charAt(i) > b.charAt(i) ? 1 : -1;
       }
     }
-  };
+  }
   
   main_object.sortBy = function(param) {
     for(var col in param) {
@@ -4106,7 +4110,7 @@
     // Show the popup
     bgNode.interrupt().transition().duration(duration).attr('opacity', '0.7');
     textNode.interrupt().transition().duration(duration).attr('opacity', '1');
-  };
+  }
   
   // Hide a pop-up
   main_object.hidePopup = function(param) {
@@ -4129,7 +4133,7 @@
       .each('end', function() {
           popup.remove();
         });
-  };
+  }
   
   // Return if a pop-up exist with a  given id exist or not
   main_object.popupExist = function(param) {
@@ -4145,7 +4149,7 @@
       selector += '.'+id[i];
     }
     return !g.svg.select(selector).empty();
-  };
+  }
   
   
   ////////////////////
@@ -4155,13 +4159,13 @@
   // Return the current event if any, null otherwise
   main_object.event = function() {
     return d3.event;
-  };
+  }
   
   // Return the position of the mouse in the graphic
   // [0, 0] being the position of the top left corner
   main_object.mouse = function(g) {
     return d3.mouse(g.svg.node());
-  };
+  }
   
   
   ///////////////////////////////
@@ -4175,10 +4179,10 @@
   // Interval
   main_object.interval = function(val1, val2) {
     return new Interval(val1, isUndefined(val2) ? 0 : val2, false);
-  };
+  }
   main_object.interval.stack = function(val, origin) {
     return new Interval(val, isUndefined(origin) ? 0 : origin, true);
-  };
+  }
   
   function Interval(val1, val2, stacked) {
     SpecialAttributeBase.call(this);
@@ -4198,7 +4202,7 @@
     checkUnusedParam(funcName, param);
     
     return new BoxPlotBoxStat(q1, q2, q3, w1, w2);
-  };
+  }
   
   function BoxPlotBoxStat(q1, q2, q3, w1, w2) {
     SpecialAttributeBase.call(this);
@@ -4207,26 +4211,26 @@
     this.attrs.quartile3 = {value:q3};
     this.attrs.whisker1 = {value:w1};
     this.attrs.whisker2 = {value:w2};
-  };
+  }
   
   main_object.boxplotStat = function(v) {
     return new BoxPlotStat(v);
-  };
+  }
   
   function BoxPlotStat(v) {
     SpecialAttributeBase.call(this);
     this.attrs.value = v;
-  };
+  }
   
   // Consider an aesthetic values as categorical values
   main_object.cat = function(value) {
     return new CategoricalValue(value);
-  };
+  }
   
   function CategoricalValue(value) {
     SpecialAttributeBase.call(this);
     this.attrs.value = value;
-  };
+  }
   
   
   ///////////////////////
@@ -4234,7 +4238,7 @@
   ///////////////////////
   
   // Add an element to the graphic
-  var addElement = function(g, Type, param, originFunc) {
+  function addElement(g, Type, param, originFunc) {
     var elt = new Type;
     
     // copying attributes' values from the fallback element
@@ -4266,41 +4270,41 @@
     
     g.elements.push(elt);
     g.lastElementAdded = elt;
-  };
+  }
   
   // Set an svg attribute (each element have its value)
-  var svgSetAttributePerElem = function(node, svgAttr, elt, attr) {
+  function svgSetAttributePerElem(node, svgAttr, elt, attr) {
     if(isDefined(elt.attrs[attr])) {
       node.style(svgAttr, elt.attrs[attr].func);
     }
-  };
+  }
   
   // Set common svg attribute (each element have its value)
-  var svgSetCommonAttributesPerElem = function(node, elt) {
+  function svgSetCommonAttributesPerElem(node, elt) {
     svgSetAttributePerElem(node, 'stroke-width',     elt, 'stroke_width');
     svgSetAttributePerElem(node, 'stroke',           elt, 'stroke');
     svgSetAttributePerElem(node, 'stroke-dasharray', elt, 'stroke_dasharray');
     svgSetAttributePerElem(node, 'stroke-opacity',   elt, 'stroke_opacity');
     svgSetAttributePerElem(node, 'fill',             elt, 'fill');
     svgSetAttributePerElem(node, 'fill-opacity',     elt, 'fill_opacity');
-  };
+  }
   
   // Set an svg attribute (element of the same group have the same value)
-  var svgSetAttributePerGroup = function(node, svgAttr, elt, attr, datum, i) {
+  function svgSetAttributePerGroup(node, svgAttr, elt, attr, datum, i) {
     if(isDefined(elt.attrs[attr])) {
       node.style(svgAttr, elt.attrs[attr].func(datum, i));
     }
-  };
+  }
   
   // Set common svg attribute (element of the same group have the same value)
-  var svgSetCommonAttributesPerGroup = function(node, elt, datum, i) {
+  function svgSetCommonAttributesPerGroup(node, elt, datum, i) {
     svgSetAttributePerGroup(node, 'stroke-width',     elt, 'stroke_width',     datum, i);
     svgSetAttributePerGroup(node, 'stroke',           elt, 'stroke',           datum, i);
     svgSetAttributePerGroup(node, 'stroke-dasharray', elt, 'stroke_dasharray', datum, i);
     svgSetAttributePerGroup(node, 'stroke-opacity',   elt, 'stroke_opacity',   datum, i);
     svgSetAttributePerGroup(node, 'fill',             elt, 'fill',             datum, i);
     svgSetAttributePerGroup(node, 'fill-opacity',     elt, 'fill_opacity',     datum, i);
-  };
+  }
   
   // Draw a 'box' (Rectangle or Arc depending on the coordinate system)
   /*           |  Rect  |    Arcus    |
@@ -4310,7 +4314,7 @@
    * limBound1 | width  | endAngle    |
    * limBound2 | height | outerRadius |
    */
-  var drawBox = function(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  function drawBox(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     
     if(deepestCoordSys instanceof Rect) {
       // On enter
@@ -4423,7 +4427,7 @@
   }
   
   // Draw a 'Segment' (Line or Arc)
-  var drawSegment = function(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
+  function drawSegment(node, deepestCoordSys, transition_duration, eltClass, getX, getY, bound1, bound2, limBound1, limBound2) {
     var onEnter = null;
     var onUpdate = null;
     var onExit = null;
@@ -4558,7 +4562,7 @@
   }
   
   // Remove ticks out of the domain and return them is a new Array
-  var getCustomTicks = function(dim) {
+  function getCustomTicks(dim) {
     if(dim.ticks == null) {
       return null;
     }
@@ -4593,7 +4597,7 @@
   
   // Return a continuous color scale
   /* Inspired from: https://groups.google.com/forum/#!topic/d3-js/B31N2zSVEiE */
-  var continuousColorScale = function(domain, range, baseScale) {
+  function continuousColorScale(domain, range, baseScale) {
     if(isUndefined(baseScale)) {
       baseScale = d3.scale.linear;
     }
@@ -4612,7 +4616,7 @@
   }
   
   // Add padding to a continue interval
-  var addPadding = function(interval, padding) {
+  function addPadding(interval, padding) {
     if(interval[0] != interval[1]) {
       return [interval[0] - (interval[1] - interval[0]) * padding,
               interval[1] + (interval[1] - interval[0]) * padding];
@@ -4626,10 +4630,10 @@
     else {
       return [-1, 1];
     }
-  };
+  }
   
   // Sort and remove duplicate values of an Array
-  var RemoveDupArray = function(a){
+  function RemoveDupArray(a){
     var alreadyIn = {};
     
     var j = 0;
@@ -4643,10 +4647,10 @@
       }
     }
     a.splice(j);
-  };
+  }
   
   // Determinate on which dimension we have to force to ordinal scale
-  var getDimensionsInfo = function(coordSystem, temporalDim, axisProperty) {
+  function getDimensionsInfo(coordSystem, temporalDim, axisProperty) {
     var dim = {};
     var cs = coordSystem;
     
@@ -4713,10 +4717,10 @@
     }
     
     return dim;
-  };
+  }
   
   // Get aesthetic id from an attribute
-  var getAesId = function(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, datasetName, attr_name, originFunc) {
+  function getAesId(aes, dataCol2Aes, func2Aes, const2Aes, attr_val, datasetName, attr_name, originFunc) {
     var id;
     
     // If the attribute is bind to an aestetic
@@ -4805,10 +4809,10 @@
     }
       
     return id;
-  };
+  }
   
   // Check aesthetic type
-  var checkAesType = function(attr_type, aes, aes_ret_val, attr, originFunc) {
+  function checkAesType(attr_type, aes, aes_ret_val, attr, originFunc) {
     var aes_ret_type = typeof aes_ret_val;
     
     if(isDefined(aes.column) && aes_ret_type === 'undefined') {
@@ -4842,10 +4846,10 @@
         }
         break;
     }
-  };
+  }
   
   // Compute domains of an aestetic
-  var updateDomain = function(aes, oldData, newData, type) {
+  function updateDomain(aes, oldData, newData, type) {
     // Discret domain
     if(type == 'discret') {
       if(isDefined(aes.constant)) {
@@ -4907,10 +4911,10 @@
         }
       }
     }
-  };
+  }
   
   // Allocate split data array
-  var allocateSplitDataArray = function(splitSizes, id) {
+  function allocateSplitDataArray(splitSizes, id) {
     if(id == splitSizes.length) {
       return [];
     }
@@ -4921,14 +4925,14 @@
       }
       return array;
     }
-  };
+  }
   
   // Safely parse a JSON object
-  var parseJSON = function(text) {
+  function parseJSON(text) {
     return JSON.parse(text, processValue);
   }
   
-  var parseRJSON = function(text) {
+  function parseRJSON(text) {
     var data = parseJSON(text);
     if(data instanceof Array) {
       return data;
@@ -4955,21 +4959,21 @@
     return new_data;
   }
   
-  var processRow = function(d) {
+  function processRow(d) {
     for(var key in d) {
       d[key] = processValue(key, d[key]);
     }
     return d;
-  };
+  }
   
   // Convert numerical string value into pure numerical value
-  var processValue = function(key, value) {
+  function processValue(key, value) {
     var num = +value;
     return isNaN(num) ? value : num;
   }
   
   // Handle xhr error (which are either http error or javascript exception)
-  var handleXhrError = function(error) {
+  function handleXhrError(error) {
     if(error != null) {
       if(error instanceof XMLHttpRequest) {
         ERROR(''+error.status+': '+error.statusText+'\n'+error.responseText);
@@ -4982,7 +4986,7 @@
   
   // Check if a parameter is defined or not and return its value or default value if any
   // This function consume the parameter
-  var checkParam = function(funcName, param, paramName, defaultValue) {
+  function checkParam(funcName, param, paramName, defaultValue) {
     // Parameter value not set
     if(isUndefined(param) || isUndefined(param[paramName])) {
       // Not default value
@@ -5004,10 +5008,10 @@
       delete param[paramName];
       return tmp;
     }
-  };
+  }
   
   // Check if there are unused parameters left
-  var checkUnusedParam = function(funcName, param) {
+  function checkUnusedParam(funcName, param) {
     var unusedParam = [];
     for(var i in param) {
       unusedParam.push(i);
@@ -5026,7 +5030,7 @@
   }
   
   // Get a listener that update a loading bar
-  var getProgressListener = function(dl) {
+  function getProgressListener(dl) {
     return function() {
       if(d3.event && d3.event.lengthComputable) {
         var svg = dl.g.svg;
@@ -5057,15 +5061,15 @@
         bar.attr('width', (barWidth - margin * 2) * (d3.event.loaded / d3.event.total));
       }
     };
-  };
+  }
   
   // Convert an angle from trigonometric to clock angle (but still in radians)
-  var convertAngle = function(angle) {
+  function convertAngle(angle) {
     return (Math.PI/2 - angle);
-  };
+  }
   
   // Iterator that go through an Array hierarchy
-  var HierarchyIterator = function(h) {
+  function HierarchyIterator(h) {
     this.h = h;
     this.currentState = [];
     
@@ -5119,36 +5123,36 @@
   };
   
   // Get a unique string for a given current time
-  var getTimeId = function(currentTime) {
+  function getTimeId(currentTime) {
     var id  = 'time';
     for(var i in currentTime) {
       id += '-'+currentTime[i];
     }
     return id;
-  };
+  }
   
   // Remove all automatically shown pop-up
-  var removePopups = function(g) {
+  function removePopups(g) {
     g.svg.selectAll('.pop-up.bound-to-time').remove();
   }
   
   // Generate an error message for aesthetic type error.
-  var errorAesMessage = function(funcName, attribute, type, expected) {
+  function errorAesMessage(funcName, attribute, type, expected) {
     return 'In function '+funcName+': '+attribute+' can\'t be bound by values of type \''+type+
            '\'\nExpected: '+expected;
-  };
+  }
   
   // Generate an error message for parameter type error.
-  var errorParamMessage = function(funcName, paramName, type, expected) {
+  function errorParamMessage(funcName, paramName, type, expected) {
     return 'In function '+funcName+': '+paramName+' of type \''+type+
            '\'\nExpected: '+expected;
-  };
+  }
   
-  var ABORT = function() {
+  function ABORT() {
     throw 'Abort';
-  };
+  }
   
-  var ERROR = function(msg) {
+  function ERROR(msg) {
     if(console.error) {
       console.error('Error: '+msg);
       ABORT();
@@ -5156,15 +5160,15 @@
     else {
       throw msg;
     }
-  };
+  }
   
-  var WARNING = function(msg) {
+  function WARNING(msg) {
     if(console.warn) {
       console.warn(msg);
     }
-  };
+  }
   
-  var ASSERT = function(condition, msg) {
+  function ASSERT(condition, msg) {
     if(console.assert) {
       console.assert(condition, msg);
       if(!condition) {
@@ -5174,27 +5178,27 @@
     else if(!condition) {
       throw 'Assertion failed: '+msg;
     }
-  };
+  }
   
-  var LOG = function(msg) {
+  function LOG(msg) {
     if(console.log) {return;
       console.log(msg)
     }
-  };
+  }
   
-  var TIMER_BEGIN = function(name, display) {
+  function TIMER_BEGIN(name, display) {
     if(display && console.time) {
       console.time(name)
     }
-  };
+  }
   
-  var TIMER_END = function(name, display) {
+  function TIMER_END(name, display) {
     if(display && console.timeEnd) {
       console.timeEnd(name)
     }
-  };
+  }
   
-  var TIMER_GROUP_BEGIN = function(name, display) {
+  function TIMER_GROUP_BEGIN(name, display) {
     if(display) {
       if(console.time) {
         console.time(name);
@@ -5203,9 +5207,9 @@
         console.groupCollapsed(name+' (detail)');
       }
     }
-  };
+  }
   
-  var TIMER_GROUP_END = function(name, display) {
+  function TIMER_GROUP_END(name, display) {
     if(display) {
       if(console.groupCollapsed) {
         console.groupEnd();
@@ -5214,24 +5218,49 @@
         console.timeEnd(name);
       }
     }
-  };
+  }
   
-  var isUndefined = function(a) {
+  function isUndefined(a) {
     return typeof a === 'undefined';
-  };
+  }
   
-  var isDefined = function(a) {
-    return !isUndefined(a);
-  };
+  function isDefined(a) {
+    return typeof a !== 'undefined';
+  }
   
-  var getTypeName = function(a) {
+  function getTypeName(a) {
     return a.constructor.name;
-  };
+  }
+  
+  function createNamedFunction(name, f) {
+      return (new Function('f', "return function "+name+"(){return f.apply(this, arguments)}"))(f);
+  }
+  
+  function extend(parent, name, init) {
+    var child = createNamedFunction(name, init);
+    
+    /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
+    var Surrogate = function() {};
+    Surrogate.prototype = parent.prototype;
+    child.prototype = new Surrogate;
+    
+    Object.defineProperty(child.prototype, 'constructor', {
+      value: child,
+      writable: true
+    });
+    // Read only
+    Object.defineProperty(child.prototype, 'super', {
+      value:parent,
+      writable: false
+    });
+    
+    return child;
+  }
   
   /* From: http://strd6.com/2010/08/useful-javascript-game-extensions-clamp/ */
   Number.prototype.clamp = function(min, max) {
     return Math.min(Math.max(this, min), max);
-  };
+  }
   
   /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
   Function.prototype.compose = function(g) {
@@ -5239,7 +5268,7 @@
     return function() {
       return fn.call(this, g.apply(this, arguments));
     };
-  };
+  }
   
   /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
   String.prototype.format = function() {
@@ -5249,13 +5278,13 @@
       formatted = formatted.replace(regexp, arguments[i]);
     }
     return formatted;
-  };
+  }
   
   ///////////////////
   // The function to add some jitter to coordinates.
   // The parameter "index" can be used to make sure one value is generated for a given index value
   ///////////////////
-  // From Antoine Trouvé (Sébastien: please put that at the right place in the file)
+  // TODO: From Antoine Trouvé (Sébastien: please put that at the right place in the file)
   ///////////////////
   main_object.jitter = function(param) {
     ASSERT(param["col"], "Please specify parameter col to jitter");

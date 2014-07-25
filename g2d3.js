@@ -14,8 +14,45 @@
   var sliderHeight = 50;
   var handleSize = 18;
   
-  //
-  var drawElements
+  // Functions updating elements
+  var updateElementsFunc = {};
+  
+  
+  function Class(){}
+  Class.extend = function(name, init) {
+    if(isUndefined(init)) {
+      init = function(){};
+    }
+    var child = createNamedFunction(name, init);
+    
+    /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
+    var Surrogate = function() {};
+    Surrogate.prototype = this.prototype;
+    child.prototype = new Surrogate;
+    
+    Object.defineProperty(child.prototype, 'constructor', {
+      value: child,
+      writable: true
+    });
+    // Read only
+    Object.defineProperty(child.prototype, 'super', {
+      value:this
+    });
+    Object.defineProperty(child, 'extend', {
+      value:this.extend
+    });
+    Object.defineProperty(child, 'inherit', {
+      value:this.inherit
+    });
+    
+    return child;
+  }
+  Class.inherit = function(Other) {
+    return Other.prototype.isPrototypeOf(this.prototype)
+  }
+  Object.defineProperty(Class.prototype, 'super', { value:function(){} });
+  Object.defineProperty(Class, 'extend', { enumerable: false });
+  Object.defineProperty(Class, 'inherit', { enumerable: false });
   
   
   ///////////////////////
@@ -886,6 +923,7 @@
           else if(this.elements[i] instanceof BoxPlot) {
             updateBoxPlot(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
           }
+          
           else {
             ERROR('Type of element '+i+' is not an element but an '+getTypeName(this.elements[i]));
           }
@@ -2581,7 +2619,7 @@
   // Elements definition //
   /////////////////////////
   
-  function ElementBase() {
+  var ElementBase = Class.extend('ElementBase', function(param, funcName) {
     this.attrs = {
         group:            { type:'string',
                             value:'1'},
@@ -2605,9 +2643,9 @@
     
     this.listeners = {};
     this.datasetName = main_dataset_name;
-  }
+  });
   
-  var Symbol = extend(ElementBase, 'Symbol', function() {
+  var Symbol = ElementBase.extend('Symbol', function() {
     this.super();
     
     this.attrs.shape =  { type:'symbol',
@@ -2616,7 +2654,7 @@
                           value:null};
   });
   
-  var Line = extend(ElementBase, 'Line', function() {
+  var Line = ElementBase.extend('Line', function() {
     this.super();
     this.attrs.fill.value = 'none';
     
@@ -2626,13 +2664,13 @@
                                   value:null};
   });
   
-  var Bar = extend(ElementBase, 'Bar', function() {
+  var Bar = ElementBase.extend('Bar', function() {
     this.super();
     
     // No specific attributes
   });
   
-  var BoxPlot = extend(ElementBase, 'BoxPlot', function() {
+  var BoxPlot = ElementBase.extend('BoxPlot', function() {
     this.super();
     this.attrs.fill.value = 'none';
     
@@ -2652,7 +2690,7 @@
   }
   
   // General coordinate system
-  function CoordSys(param, funcName) {
+  var CoordSys = Class.extend('CoordSys', function(param, funcName) {
     if(isUndefined(this.dimName)) {
       ERROR(getTypeName(this)+'.prototype do not has property dimName.');
     }
@@ -2691,7 +2729,7 @@
     else {
       this.subSys = param.subSys;
     }
-  }
+  });
   
   CoordSys.prototype.computeScale = function(dim, width, height) {
     ERROR(getTypeName(this)+'.prototype.computeScale(dim, w, h) not implemented');
@@ -2719,7 +2757,7 @@
   
   
   /////// CARTESIAN ///////
-  var Rect = extend(CoordSys, 'Rect', function(param) {
+  var Rect = CoordSys.extend('Rect', function(param) {
     this.super(param, lib_name+'.rect');
   });
   
@@ -2996,7 +3034,7 @@
   
   
   /////// POLAR ///////
-  var Polar = extend(CoordSys, 'Polar', function(param) {
+  var Polar = CoordSys.extend('Polar', function(param) {
     // TODO check subsys
     this.super(param, lib_name+'.polar');
     
@@ -5253,25 +5291,11 @@
       return (new Function('f', 'return function '+name+'(){return f.apply(this, arguments)}'))(f);
   }
   
-  function extend(parent, name, init) {
-    var child = createNamedFunction(name, init);
-    
-    /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
-    var Surrogate = function() {};
-    Surrogate.prototype = parent.prototype;
-    child.prototype = new Surrogate;
-    
-    Object.defineProperty(child.prototype, 'constructor', {
-      value: child,
-      writable: true
-    });
-    // Read only
-    Object.defineProperty(child.prototype, 'super', {
-      value:parent,
-      writable: false
-    });
-    
-    return child;
+  function addDrawingFunction(CS, ELT, func) {
+    if(isUndefined(updateElementsFunc[CS])) {
+      updateElementsFunc[CS] = {};
+    }
+    updateElementsFunc[CS][ELT] = func;
   }
   
   // Get default events

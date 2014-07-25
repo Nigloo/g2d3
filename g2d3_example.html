@@ -72,6 +72,13 @@
                 this.b = b;
             })
             
+            var C = extend(B, 'C', function(c) {
+                this.super('yolo');
+                this.c = c;
+            })
+            
+            console.log('A.prototype.isPrototypeOf(C.prototype) :',A.prototype.isPrototypeOf(C.prototype));
+            
             var b = new B(42);
             console.log('b :',b);
             console.log('b.constructor.name :', b.constructor.name);

@@ -2,17 +2,28 @@
 'use strict';
   
   var lib_name = 'g2d3';
+  var plugin_name = lib_name+'.plugin';
+  var util_name = lib_name+'.util';
   
   var main_object = {
     version: '0.5'
   };
+  var plugin_object = {};
+  var util_object = {};
+  
   window[lib_name] = main_object;
+  main_object.plugin = plugin_object;
+  main_object.util = util_object;
+  
   
   // Some constants
   var data_binding_prefix = 'data:';
   var main_dataset_name = 'default_data';
   var sliderHeight = 50;
   var handleSize = 18;
+  
+  // Globals
+  var plugin_display_warning = true;
   
   // Functions updating elements
   var updateElementsFunc = {};
@@ -30,11 +41,10 @@
     Surrogate.prototype = this.prototype;
     child.prototype = new Surrogate;
     
+    // Read-only and non-enumerable properties
     Object.defineProperty(child.prototype, 'constructor', {
-      value: child,
-      writable: true
+      value: child
     });
-    // Read only
     Object.defineProperty(child.prototype, 'super', {
       value:this
     });
@@ -60,12 +70,12 @@
   ///////////////////////
 
   // Create a new graphic
-  main_object.graphic = function(args) {
-    return new Graphic(args);
+  main_object.graphic = function() {
+    return new Graphic();
   };
   
   // Graphic definition
-  function Graphic() {
+  var Graphic = Class.extend('Graphic', function() {
     this.spacialCoord = null;
     this.spacialDimName = null;
     this.coord();
@@ -112,7 +122,7 @@
     this.dim = null;
     this.timeSlider = null;
     this.nbCalcultedValues = null;
-  };
+  });
   
   // TODO: remove
   Graphic.prototype.hack = function(param) {
@@ -405,12 +415,12 @@
       this.dataLoader = data;
       this.dataLoader.g = this;
       if(this.selector != null) {
-        this.dataLoader.sendXhrRequest();
+        this.dataLoader.startLoading();
       }
     }
     else {
-      ERROR(errorParamMessage('Graphic.data', 'data', 'null',
-        'Array or value returned by '+lib_name+'.loadFromFile or '+lib_name+'.loadFromDatabase'));
+      ERROR(errorParamMessage('Graphic.data', 'data', getTypeName(data),
+        'Array or value returned by a loading function'));
     }
     
     return this;
@@ -820,6 +830,8 @@
                                 originalName:i});
     }
     
+    // List of unimplemented element drawing function (for error message)
+    var unimplementedElt = {};
     
     // Draw elements
     for(var i = 0 ; i < this.elements.length ; i++) {
@@ -903,29 +915,21 @@
           var eltClass = 'etl-'+i+'-'+uniqueId;
           uniqueId++;
           
-          // Set attributes for each kind of elements
-          // Symbol
-          if(this.elements[i] instanceof Symbol) {
-            updateSymbols(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
+          var undef = false;
+          var draw = updateElementsFunc[this.elements[i].constructor];
+          if(isUndefined(draw)) {
+            undef = true;
           }
-          
-          // Lines
-          else if(this.elements[i] instanceof Line) {
-            updateLines(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
-          }
-          
-          // Bars
-          else if(this.elements[i] instanceof Bar) {
-            updateBars(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
-          }
-        
-          // BoxPlot
-          else if(this.elements[i] instanceof BoxPlot) {
-            updateBoxPlot(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
-          }
-          
           else {
-            ERROR('Type of element '+i+' is not an element but an '+getTypeName(this.elements[i]));
+            draw = draw[deepestCoordSys.constructor];
+            undef = isUndefined(draw);
+          }
+          
+          if(undef) {
+            unimplementedElt[this.elements[i].constructor.name] = true;
+          }
+          else {
+            draw(this.elements[i], deepestCoordSys, eltClass, svg, this, dataSubset, pos);
           }
         }
         
@@ -989,6 +993,10 @@
           }
         }
       }
+    }
+    
+    for(var elt in unimplementedElt) {
+      WARNING('Function displaying '+elt+' with '+deepestCoordSys.constructor.name+' coordinate system not implemented');
     }
     
     return this;
@@ -1750,7 +1758,7 @@
     if(this.dataset[main_dataset_name] == null) {
       if(this.dataLoader != null) {
         //TIMER_GROUP_BEGIN('Loading', this.display_timers);
-        this.dataLoader.sendXhrRequest();
+        this.dataLoader.startLoading();
       }
       return false;
     }
@@ -1829,7 +1837,7 @@
         // Useless attribute
         if(this.elements[i].attrs[attr].type === 'unknown' ||
            this.elements[i].attrs[attr].value == null) {
-          if(attr != 'data' && this.elements[i].attrs[attr].type === 'unknown') {
+          if(attr !== 'data' && this.elements[i].attrs[attr].type === 'unknown') {
             unusedParam[attr] = true;
             unusedParamOriginFunc.push(this.elements[i].attrs[attr].originFunc);
           }  
@@ -2492,7 +2500,7 @@
 
           if (d3.event.sourceEvent) { // not a programmatic event
             posX = d3.mouse(this)[0];
-            posX.clamp(0, sliderSize);
+            posX = Math.min(Math.max(posX, 0), sliderSize)
             
             posX = slider.valueToMouse(slider.mouseToValue(posX));
             
@@ -3386,15 +3394,27 @@
     }
   }
   
+  //////////////////////////////
+  // Adding drawing functions //
+  //////////////////////////////
+  addDrawingFunction(Symbol,  Rect,   updateSymbols);
+  addDrawingFunction(Symbol,  Polar,  updateSymbols);
+  addDrawingFunction(Line,    Rect,   updateLines);
+  addDrawingFunction(Line,    Polar,  updateLines);
+  addDrawingFunction(Bar,     Rect,   updateBars);
+  addDrawingFunction(Bar,     Polar,  updateBars);
+  addDrawingFunction(BoxPlot, Rect,   updateBoxPlot);
+  addDrawingFunction(BoxPlot, Polar,  updateBoxPlot);
+  
   
   ///////////////////////
   // Loading functions //
   ///////////////////////
   
   // Data loader
-  function DataLoader() {
+  var DataLoader = Class.extend('DataLoader', function() {
     this.g = null;
-    this.sendXhrRequest = null;
+    this.startLoading = null;
     var self = this;
     
     this.load = function(error, dataset) {
@@ -3402,7 +3422,7 @@
       
       self.g.pushData({data:dataset});
     };
-  }
+  });
 
   // Load data from a csv file
   main_object.loadFromFile = function(param) {
@@ -3438,7 +3458,7 @@
                   return data;
                 });
     
-    dl.sendXhrRequest = function() {
+    dl.startLoading = function() {
       TIMER_BEGIN('Loading '+extension+' file', dl.g.display_timers);
       xhr.get(dl.load);
     }
@@ -3472,7 +3492,7 @@
                   return data;
                 });
     
-    dl.sendXhrRequest = function() {
+    dl.startLoading = function() {
       TIMER_BEGIN('Loading CSV from database', dl.g.display_timers);
       xhr.post(httpRequestParam, dl.load);
     }
@@ -3601,7 +3621,7 @@
       }
     }
     
-    dl.sendXhrRequest = dl.listFiles;
+    dl.startLoading = dl.listFiles;
     
     return dl;
   }
@@ -4291,6 +4311,44 @@
   function CategoricalValue(value) {
     SpecialAttributeBase.call(this);
     this.attrs.value = value;
+  }
+  
+  ///////////////////
+  // The function to add some jitter to coordinates.
+  // The parameter "index" can be used to make sure one value is generated for a given index value
+  ///////////////////
+  main_object.jitter = function(param) {
+    ASSERT(param["col"], "Please specify parameter col to jitter");
+    ASSERT(param["val"], "Please specify parameter cval to jitter");
+    
+    var res = undefined;
+
+    if(param.index) {
+      res = function(d) {
+        // Makes sure the data contains the data column
+        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
+        // Looks up for the index
+        var indexValue = d[param.index];
+        // Try to get the jitter value at the index
+        var jitterAtIndex = res.jitterArray[indexValue];
+        // Calculates the jitter or the given index if it does not exist yet
+        if(!jitterAtIndex) {
+          jitterAtIndex = d[param.col] + Math.random()*param.val;
+          res.jitterArray[indexValue] = jitterAtIndex
+        }
+        // Returns the jitter
+        return jitterAtIndex;
+      }
+      res.jitterArray = {}
+    } else {
+      res = function(d) {
+        // Makes sure the data contains the data column
+        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
+        return d[param.col] + Math.random()*param.val 
+      }
+    }
+    
+    return res;
   }
   
   
@@ -5027,7 +5085,7 @@
     return isNaN(num) ? value : num;
   }
   
-  // Handle xhr error (which are either http error or javascript exception)
+  // Handle xhr errors (which are either http errors or javascript exceptions)
   function handleXhrError(error) {
     if(error != null) {
       if(error instanceof XMLHttpRequest) {
@@ -5291,11 +5349,26 @@
       return (new Function('f', 'return function '+name+'(){return f.apply(this, arguments)}'))(f);
   }
   
-  function addDrawingFunction(CS, ELT, func) {
-    if(isUndefined(updateElementsFunc[CS])) {
-      updateElementsFunc[CS] = {};
+  function addDrawingFunction(ELT, CS, func) {
+    var funcName = plugin_name+'.addDrawingFunction';
+    if(isUndefined(ELT.inherit) || !ELT.inherit(ElementBase)) {
+      ERROR('In function '+funcName+': first parameter is not a constructor inheriting from ElementBase');
     }
-    updateElementsFunc[CS][ELT] = func;
+    if(isUndefined(CS.inherit) || !CS.inherit(CoordSys)) {
+      ERROR('In function '+funcName+': second parameter is not a constructor inheriting from CoordSys');
+    }
+    if(typeof func !== 'function') {
+       ERROR('In function '+funcName+': third parameter is not a function');
+    }
+    
+    if(isUndefined(updateElementsFunc[ELT])) {
+      updateElementsFunc[ELT] = {};
+    }
+    if(plugin_display_warning && isDefined(updateElementsFunc[ELT][CS])) {
+      WARNING('Function drawing '+ELT.name+' with '+CS.name+' coordinate system was already defined and has been overwritten')
+    }
+    
+    updateElementsFunc[ELT][CS] = func;
   }
   
   // Get default events
@@ -5357,11 +5430,6 @@
     }
   }
   
-  /* From: http://strd6.com/2010/08/useful-javascript-game-extensions-clamp/ */
-  Number.prototype.clamp = function(min, max) {
-    return Math.min(Math.max(this, min), max);
-  }
-  
   /* From: http://scott.sauyet.com/Javascript/Talk/Compose/2013-05-22/#slide-15 */
   Function.prototype.compose = function(g) {
     var fn = this;
@@ -5380,44 +5448,38 @@
     return formatted;
   }
   
-  ///////////////////
-  // The function to add some jitter to coordinates.
-  // The parameter "index" can be used to make sure one value is generated for a given index value
-  ///////////////////
-  // TODO: From Antoine Trouvé (Sébastien: please put that at the right place in the file)
-  ///////////////////
-  main_object.jitter = function(param) {
-    ASSERT(param["col"], "Please specify parameter col to jitter");
-    ASSERT(param["val"], "Please specify parameter cval to jitter");
-    
-    var res = undefined;
-
-    if(param.index) {
-      res = function(d) {
-        // Makes sure the data contains the data column
-        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
-        // Looks up for the index
-        var indexValue = d[param.index];
-        // Try to get the jitter value at the index
-        var jitterAtIndex = res.jitterArray[indexValue];
-        // Calculates the jitter or the given index if it does not exist yet
-        if(!jitterAtIndex) {
-          jitterAtIndex = d[param.col] + Math.random()*param.val;
-          res.jitterArray[indexValue] = jitterAtIndex
-        }
-        // Returns the jitter
-        return jitterAtIndex;
-      }
-      res.jitterArray = {}
-    } else {
-      res = function(d) {
-        // Makes sure the data contains the data column
-        ASSERT(d[param.col], "Unable to find column in data line: {0}".format(param.col));
-        return d[param.col] + Math.random()*param.val 
-      }
-    }
-    
-    return res;
-  }
+  
+  ////////////
+  // Plugin //
+  ////////////
+  
+  // method
+  plugin_object.addDrawingFunction = addDrawingFunction;
+  plugin_object.getOnMouseOver = getOnMouseOver;
+  plugin_object.getOnMouseOut = getOnMouseOut;
+  plugin_object.getOnClick = getOnClick;
+  plugin_object.removePopups = removePopups;
+  // object
+  plugin_object.Class = Class;
+  plugin_object.Graphic = Graphic;
+  plugin_object.Symbol = Symbol;
+  plugin_object.Line = Line;
+  plugin_object.Bar = Bar;
+  plugin_object.BoxPlot = BoxPlot;
+  plugin_object.CoordSys = CoordSys;
+  plugin_object.Rect = Rect;
+  plugin_object.Polar = Polar;
+  plugin_object.DataLoader = DataLoader;
+  
+  
+  /////////////
+  // Utility //
+  /////////////
+  util_object.createNamedFunction = createNamedFunction;
+  util_object.handleXhrError = handleXhrError;
+  util_object.checkParam = checkParam;
+  util_object.checkUnusedParam = checkUnusedParam;
+  util_object.getTypeName = getTypeName;
+  
   
 }();

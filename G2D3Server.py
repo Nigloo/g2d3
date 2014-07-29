@@ -67,9 +67,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     path = self.path[0:ind]
     filename = self.path[ind:]
     
-    exist = True
     if path not in in_memory_file:
-      exist = False
       in_memory_file[path] = {}
     exist = filename in in_memory_file[path]
     in_memory_file[path][filename] = io.BytesIO(data)

@@ -16,13 +16,20 @@
   main_object.util = util_object;
   
   
-  // Some constants
+  ////////////////////
+  // Some constants //
+  ////////////////////
+  
   var data_binding_prefix = 'data:';
   var main_dataset_name = 'default_data';
   var sliderHeight = 50;
   var handleSize = 18;
   
-  // Globals
+  
+  /////////////
+  // Globals //
+  /////////////
+  
   var plugin_display_warning = true;
   
   // Functions updating elements
@@ -101,9 +108,8 @@
     this.display_timers = false;
     this.merge_null_axis = true;
     
-    this.ordinal_scale_padding = 1;
     this.linear_scale_padding = 0.1;
-    this.coordSysMargin = 0.15;
+    this.coordSysMargin = '7.5%';
     this.bar_padding = 1;
     
     
@@ -1662,7 +1668,6 @@
     nodeW2Mask.exit.remove();
   }
   
-  
   // Update position of time sliders' cursor
   function updateSliders() {
     var sliderSize = this.width;
@@ -1745,6 +1750,7 @@
       }
     }
   }
+  
   
   ///////////////////////////
   // Render step functions //
@@ -2046,7 +2052,7 @@
    * Also (re)compute interval.stack values because this the only place
    * where we can compute it (after nesting data and before computing
    * scales themselves)
-   * GoG pipeline step: "Scale", Geometry, Coordinates, Aesthetics
+   * GoG pipeline step: Scale
    */
   function updateScales() {
     /*                                                         *\
@@ -2682,6 +2688,7 @@
     // No specific attributes
   });
   
+  
   ////////////////////////
   // Coordinate Systems //
   ////////////////////////
@@ -2764,6 +2771,7 @@
   /////// CARTESIAN ///////
   var Rect = CoordSys.extend('Rect', function(param) {
     this.super(param, lib_name+'.rect');
+    this.merged = {};
   });
   
   Rect.prototype.dimName = ['x', 'y'];
@@ -2775,27 +2783,31 @@
     var ranges = {x:[0, width],
                   y:[height, 0]};
     
-    
     for(var i in this.dimAlias) {
+      this.merged[i] = false;
+      
       if(this.dimAlias[i] == null) {
-        if(this.g.merge_null_axis) {
+        if(this.g.merge_null_axis && (this.subSys instanceof Rect)) {
           subSize[i] = size[i];
+          this.merged[i] = true;
         }
         else {
-          subSize[i] = size[i] / (1+this.g.coordSysMargin);
+          subSize[i] = size[i] * (1 - 2*getPercentMargin(this.g, size[i], 1));
+          console.log(i,size[i],getPercentMargin(this.g, size[i], 1),subSize[i]);
         }
       }
       else if(this.subSys != null) {
+        var percentMargin = getPercentMargin(this.g, size[i], dim[this.dimAlias[i]].domain.length);
         this.scale[i] = d3.scale.ordinal()
                         .domain(dim[this.dimAlias[i]].domain)
-                        .rangeRoundBands(ranges[i], this.g.coordSysMargin);
+                        .rangeRoundBands(ranges[i], percentMargin*2, percentMargin);
         subSize[i] = this.scale[i].rangeBand();
       }
       else if(dim[this.dimAlias[i]].discret) {
         this.scale[i] = d3.scale.ordinal()
                         .domain(dim[this.dimAlias[i]].domain)
-                        .rangePoints(ranges[i], this.g.ordinal_scale_padding);
-        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / (dim[this.dimAlias[i]].domain.length - 1 + this.g.ordinal_scale_padding);
+                        .rangePoints(ranges[i], 1);
+        subSize[i] = Math.abs(ranges[i][0] - ranges[i][1]) / dim[this.dimAlias[i]].domain.length;
       }
       else {
         var dom = addPadding(dim[this.dimAlias[i]].domain, this.g.linear_scale_padding);
@@ -2990,20 +3002,20 @@
     if(this.subSys != null) {
       var infoSubCoordSys = [];
       var rangeX = (this.dimAlias['x'] != null) ? this.scale['x'].range() : 
-                    this.g.merge_null_axis      ? [0]
-                                                : [width * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+                    this.merged['x']            ? [0]
+                                                : [width * getPercentMargin(this.g, width, 1)];
       
       var rangeY = (this.dimAlias['y'] != null) ? this.scale['y'].range() :
-                    this.g.merge_null_axis      ? [0]
-                                                : [height * (1 - 1 / (1+this.g.coordSysMargin)) / 2];
+                    this.merged['y']            ? [0]
+                                                : [height * getPercentMargin(this.g, height, 1)];
       
       var subWidth = (this.dimAlias['x'] != null) ? this.scale['x'].rangeBand() :
-                      this.g.merge_null_axis      ? width
-                                                  : width / (1+this.g.coordSysMargin);
+                      this.merged['x']            ? width
+                                                  : width * (1 - 2 * getPercentMargin(this.g, width, 1));
       
       var subHeight = (this.dimAlias['y'] != null)  ? this.scale['y'].rangeBand() :
-                      this.g.merge_null_axis        ? height
-                                                    : height / (1+this.g.coordSysMargin);
+                      this.merged['y']              ? height
+                                                    : height * (1 - 2 * getPercentMargin(this.g, height, 1));
       
       for(var i = 0 ; i < rangeX.length ; i++) {
         for(var j = 0 ; j < rangeY.length ; j++) {
@@ -3390,6 +3402,7 @@
       }
     }
   }
+  
   
   //////////////////////////////
   // Adding drawing functions //
@@ -5182,6 +5195,22 @@
     return (Math.PI/2 - angle);
   }
   
+  function getPercentMargin(g, size, domCard) {
+    var pixelMargin;
+    
+    if(typeof g.coordSysMargin === 'number') {
+      pixelMargin = g.coordSysMargin;
+    }
+    else if(g.coordSysMargin.charAt(g.coordSysMargin.length-1) === '%') {
+      return parseInt(g.coordSysMargin.substr(0, g.coordSysMargin.length-1)) / 100;
+    }
+    else {
+      pixelMargin = parseInt(g.coordSysMargin.substring(0, g.coordSysMargin.length-2));
+    }
+    
+    return pixelMargin * domCard / size;
+  }
+  
   // Iterator that go through an Array hierarchy
   function HierarchyIterator(h) {
     this.h = h;
@@ -5477,11 +5506,13 @@
   /////////////
   // Utility //
   /////////////
+  
   util_object.createNamedFunction = createNamedFunction;
   util_object.handleXhrError = handleXhrError;
   util_object.checkParam = checkParam;
   util_object.checkUnusedParam = checkUnusedParam;
   util_object.getTypeName = getTypeName;
-  
+  util_object.drawBox = drawBox;
+  util_object.drawSegment = drawSegment;
   
 }();

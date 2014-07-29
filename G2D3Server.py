@@ -108,7 +108,13 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         extensions = self.post_var.get('ext')
         if extensions != None and not isinstance(extensions, list):
           extensions = [extensions]
-        return self.list_directory(extensions)
+        
+        accept = self.headers.get('Accept')
+        if accept != None and 'application/json' in accept:
+          return self.list_directory_json(extensions)
+        else:
+          return self.list_directory(full_path);
+        
     
     ctype = self.guess_type(full_path)
     ind = self.path.rfind('/') + 1
@@ -138,8 +144,8 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
       
     
     
-  def list_directory(self, extensions=None):
-    """Helper to produce a directory listing (absent index.html).
+  def list_directory_json(self, extensions=None):
+    """Helper to produce a directory listing.
     
     Return value is either a file object, or None (indicating an
     error).  In either case, the headers are sent, making the

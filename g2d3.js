@@ -482,47 +482,12 @@
     }
     else {
       this.spacialCoord = coordSys;
-      var coordSyss = [];
-      coordSys.supSys = null;
       
-      while(coordSys != null) {
-        coordSyss.push(coordSys);
+      for(; coordSys != null ; coordSys = coordSys.subSys) {
         coordSys.g = this;
-        // Double chaining between coordinate systems
-        if(coordSys.subSys != null) {
-          coordSys.subSys.supSys = coordSys;
-        }
-        
-        coordSys = coordSys.subSys;
       }
       
-      // Set default names
-      this.spacialDimName = [];
-      
-      var generateName = function(nameBase) {
-        if(this.spacialDimName.indexOf(nameBase) === -1) {
-          return nameBase;
-        }
-        else {
-          var i = 2;
-          while(this.spacialDimName.indexOf(nameBase+i) >= 0) {
-            i++;
-          }
-          
-          return nameBase+i;
-        }
-      }
-      
-      for(var i = coordSyss.length - 1 ; i >= 0 ; i--) {
-        for(var j in coordSyss[i].dimAlias) {
-          if(coordSyss[i].dimAlias[j] === '') {
-            coordSyss[i].dimAlias[j] = generateName.call(this, j);
-          }
-          if(coordSyss[i].dimAlias[j] != null) {
-            this.spacialDimName.push(coordSyss[i].dimAlias[j]);
-          }
-        }
-      }
+      this.spacialDimName = this.spacialCoord.listDimensionNames();
     }
     
     return this;
@@ -2715,7 +2680,7 @@
     }
     
     if(isUndefined(param)) {
-      return;
+      param = {};
     }
     
     for(var i in this.dimAlias) {
@@ -2730,13 +2695,54 @@
       }
     }
     
-    if(isDefined(param.subSys) && !(param.subSys instanceof CoordSys)) {
-      ERROR(errorParamMessage(funcName, 'subSys', typeof param.subSys, '\'Rect\' or \'Polar\''));
+    if(isDefined(param.subSys) && param.subSys != null && !(param.subSys instanceof CoordSys)) {
+      ERROR(errorParamMessage(funcName, 'subSys', typeof param.subSys, '"coordinate system"'));
     }
     else {
       this.subSys = param.subSys;
     }
+    
+    // Double chaining between coordinate systems
+    if(this.subSys != null) {
+      this.subSys.supSys = this;
+    }
+    
+    // Set default names
+    var dimList = this.subSys != null
+                  ? this.subSys.listDimensionNames()
+                  : [];
+    
+    var generateName = function(nameBase) {
+      if(dimList.indexOf(nameBase) === -1) {
+        return nameBase;
+      }
+      else {
+        var id = 2;
+        while(dimList.indexOf(nameBase+id) >= 0) {
+          id++;
+        }
+        
+        return nameBase+id;
+      }
+    }
+    
+    for(var i in this.dimAlias) {
+      if(this.dimAlias[i] === '') {
+        this.dimAlias[i] = generateName(i);
+      }
+    }
   });
+  
+  CoordSys.prototype.listDimensionNames = function() {
+    var dimList = this.subSys != null
+                  ? this.subSys.listDimensionNames()
+                  : [];
+    for(var i in this.dimAlias) {
+      dimList.push(this.dimAlias[i]);
+    }
+    
+    return dimList;
+  }
   
   CoordSys.prototype.computeScale = function(dim, width, height) {
     ERROR(getTypeName(this)+'.prototype.computeScale(dim, w, h) not implemented');
@@ -2788,7 +2794,6 @@
         }
         else {
           subSize[i] = size[i] * (1 - 2*getPercentMargin(this.g, size[i], 1));
-          console.log(i,size[i],getPercentMargin(this.g, size[i], 1),subSize[i]);
         }
       }
       else if(this.subSys != null) {

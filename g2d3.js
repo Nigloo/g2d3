@@ -2472,9 +2472,7 @@
           var posX = slider.brush.extent()[0];
 
           if (d3.event.sourceEvent) { // not a programmatic event
-            posX = d3.mouse(this)[0];
-            
-            posX = posX.clamp(0, sliderSize);
+            posX = Math.min(Math.max(d3.mouse(this)[0], 0), sliderSize)
             
             slider.brush.extent([posX, posX]);
           }
@@ -2499,8 +2497,7 @@
           var posX = slider.brush.extent()[0];
 
           if (d3.event.sourceEvent) { // not a programmatic event
-            posX = d3.mouse(this)[0];
-            posX = Math.min(Math.max(posX, 0), sliderSize)
+            posX = Math.min(Math.max(d3.mouse(this)[0], 0), sliderSize)
             
             posX = slider.valueToMouse(slider.mouseToValue(posX));
             
@@ -4357,8 +4354,12 @@
   ///////////////////////
   
   // Add an element to the graphic
-  function addElement(g, Type, param, originFunc) {
-    var elt = new Type;
+  function addElement(g, ELT, param, originFunc) {
+    if(isUndefined(ELT.inherit) || !ELT.inherit(ElementBase)) {
+      ERROR('In function '+originFunc+': second parameter is not a constructor inheriting from ElementBase');
+    }
+    
+    var elt = new ELT;
     
     // copying attributes' values from the fallback element
     for(var attr in g.fallback_element.attrs) {
@@ -5459,6 +5460,7 @@
   plugin_object.getOnMouseOut = getOnMouseOut;
   plugin_object.getOnClick = getOnClick;
   plugin_object.removePopups = removePopups;
+  plugin_object.addElement = addElement;
   // object
   plugin_object.Class = Class;
   plugin_object.Graphic = Graphic;

@@ -493,12 +493,7 @@
           coordSys.subSys.supSys = coordSys;
         }
         
-        if(coordSys instanceof Polar && coordSys.subSys != null) {
-          ERROR('Impossible to have a sub coordinate system in a Polar system');
-        }
-        else{
-          coordSys = coordSys.subSys;
-        }
+        coordSys = coordSys.subSys;
       }
       
       // Set default names
@@ -520,7 +515,7 @@
       
       for(var i = coordSyss.length - 1 ; i >= 0 ; i--) {
         for(var j in coordSyss[i].dimAlias) {
-          if(coordSyss[i].dimAlias[j] === undefined) {
+          if(coordSyss[i].dimAlias[j] === '') {
             coordSyss[i].dimAlias[j] = generateName.call(this, j);
           }
           if(coordSyss[i].dimAlias[j] != null) {
@@ -2711,13 +2706,13 @@
     this.dimAlias = {};
     this.scale = {};
     this.boundary = {};
-    for(var i = 0 ; i < this.dimName.length ; i++) {
-      this.dimAlias[this.dimName[i]] = undefined;
-      this.scale[this.dimName[i]] = null;
-    }
-    
     this.subSys = null;
     this.supSys = null;
+    
+    for(var i = 0 ; i < this.dimName.length ; i++) {
+      this.dimAlias[this.dimName[i]] = '';
+      this.scale[this.dimName[i]] = null;
+    }
     
     if(isUndefined(param)) {
       return;
@@ -3052,11 +3047,14 @@
   
   /////// POLAR ///////
   var Polar = CoordSys.extend('Polar', function(param) {
-    // TODO check subsys
     this.super(param, lib_name+'.polar');
     
     this.centerX = null;
     this.centerY = null;
+    
+    if(this.subSys != null) {
+      ERROR('Impossible to have a sub coordinate system in a Polar system');
+    }
   });
   
   Polar.prototype.dimName = ['theta', 'radius'];

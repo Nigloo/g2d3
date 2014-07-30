@@ -18,6 +18,10 @@
                 font-size: 11px;
             }
             
+            .axis .label {
+                font-size: 20px;
+            }
+            
             .whisker_limit {
                 visibility: hidden;
             }
@@ -101,9 +105,11 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
             g2d3.graphic()
-            .hack({ bar_padding:0, linear_scale_padding:0, drawBackground:false})
+            .hack({ bar_padding:0, linear_scale_padding:0, drawBackground:false, transition_duration:550})
             .coord(g2d3.rect({x:'x', subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
             .time({t:'data:year'})
+            .axis({axis:'x', label:'Age'})
+            .axis({axis:'y', label:'Population'})
             .bar({  x:'data:age',
                     sub_cat:g2d3.cat('data:sex'),
                     y:g2d3.interval(0, 'data:people'),
@@ -112,7 +118,7 @@
             .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:g2d3.groupBy({col:['year','age','sex']})
                                                         .sum({variable_name:'people', weight:'data:people'})})
-            .plot({selector:"#graph1", width:960, height:500, margin:20, margin_left:80});
+            .plot({selector:"#graph1", width:960, height:500, margin_left:110});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +128,8 @@
             .coord(g2d3.rect({x:'x', subSys:g2d3.rect({x:'sub_cat', y:'y'})}))
             .time({ year:'data:year',
                     age:'data:age'})
+            .axis({axis:'x', label:'Situation maritale'})
+            .axis({axis:'y', label:'Population'})
             .bar({  x:marriageStatus,
                     sub_cat:g2d3.cat('data:sex'),
                     y:g2d3.interval(0, 'data:people'),
@@ -129,7 +137,7 @@
                     label:'data:people'})
             .data({data:dataset['census_marriage']})
             .dataView({name:'default_data', func:g2d3.filter({criteria:function(d){return d.year >= 1880;}})})
-            .plot({selector:"#graph2", width:960, height:500, margin:20, margin_left:80});
+            .plot({selector:"#graph2", width:960, height:500, margin_left:110});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////// 
@@ -139,6 +147,7 @@
             .coord(g2d3.rect({subSys:g2d3.polar()}))
             .time({ year:'data:year'})
             .axis({axis:'theta', display:false})
+            .axis({axis:'x', display_label:false})
             .bar({  x:genderName,
                     theta:g2d3.interval.stack('data:proportion'),
                     group:'data:sex',
@@ -177,6 +186,8 @@
             
             g2d3.graphic()
             .hack({ drawBackground:false})
+            .axis({axis:'x', label:'Height (cm)'})
+            .axis({axis:'y', label:'Weight (kg)'})
             .symbol({   x:'data:height',
                         y:'data:weight',
                         stroke:getColor,
@@ -185,7 +196,7 @@
                         fill_opacity:0.3,
                         label:function(d){return d.height+' cm, '+d.weight+' kg';}})
             .data({data:dataset['HeightVersusWeight']})
-            .plot({selector:"#graph4", width:960, height:500, margin:20, margin_left:80})
+            .plot({selector:"#graph4", width:960, height:500})
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +223,8 @@
                                                     return a.height - b.height;
                                                 }})})
             .time({t:heightInterval})
-            .axis({axis:'x', display_axis:false})
+            .axis({axis:'x', display_axis:false, display_label:false})
+            .axis({axis:'y', label:'Weight (kg)'})
             .element({  stroke_opacity:0.6,
                         stroke_width:1.5})
             .boxplot({  x:genderName,
@@ -266,6 +278,8 @@
             
             g2d3.graphic()
             .hack({drawBackground:false,bar_padding:0})
+            .axis({axis:'x', label:'Operation'})
+            .axis({axis:'y', label:'Amount (€)'})
             .bar({  x:'data:operation',
                     y:g2d3.interval.stack(getAmount),
                     stroke:getColor,
@@ -322,8 +336,8 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-          
-          
+            
+            
         </script>
     </head>
     <body>

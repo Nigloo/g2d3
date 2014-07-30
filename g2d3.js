@@ -487,7 +487,7 @@
         coordSys.g = this;
       }
       
-      this.spacialDimName = this.spacialCoord.listDimensionNames();
+      this.spacialDimName = listDimensionNames(this.spacialCoord);
     }
     
     return this;
@@ -637,10 +637,10 @@
     this.selector = checkParam(funcName, param, 'selector', 'body');
     this.width =    checkParam(funcName, param, 'width',    640);
     this.height =   checkParam(funcName, param, 'height',   360);
-    this.margin = { left:   checkParam(funcName, param, 'margin', 30),
+    this.margin = { left:   checkParam(funcName, param, 'margin', 60),
                     top:    checkParam(funcName, param, 'margin', 10),
                     right:  checkParam(funcName, param, 'margin', 10),
-                    bottom: checkParam(funcName, param, 'margin', 20)};
+                    bottom: checkParam(funcName, param, 'margin', 50)};
     this.margin.left =    checkParam(funcName, param, 'margin_left',    this.margin.left);
     this.margin.top =     checkParam(funcName, param, 'margin_top',     this.margin.top);
     this.margin.right =   checkParam(funcName, param, 'margin_right',   this.margin.right);
@@ -2073,7 +2073,6 @@
       }
       RemoveDupArray(domain);
       
-      this.dim[i].domain = domain; // TODO: remove ?
       this.dim[i].discret = true;
     }
     TIMER_END('Updating dimension domain 1/2', this.display_timers);
@@ -2708,9 +2707,7 @@
     }
     
     // Set default names
-    var dimList = this.subSys != null
-                  ? this.subSys.listDimensionNames()
-                  : [];
+    var dimList = listDimensionNames(this.subSys);
     
     var generateName = function(nameBase) {
       if(dimList.indexOf(nameBase) === -1) {
@@ -2733,39 +2730,28 @@
     }
   });
   
-  CoordSys.prototype.listDimensionNames = function() {
-    var dimList = this.subSys != null
-                  ? this.subSys.listDimensionNames()
-                  : [];
-    for(var i in this.dimAlias) {
-      dimList.push(this.dimAlias[i]);
-    }
-    
-    return dimList;
-  }
-  
   CoordSys.prototype.computeScale = function(dim, width, height) {
-    ERROR(getTypeName(this)+'.prototype.computeScale(dim, w, h) not implemented');
+    ERROR(getTypeName(this)+'.prototype.computeScale() not implemented');
   }
     
   CoordSys.prototype.getX = function(pos, d, i) {
-    ERROR(getTypeName(this)+'.prototype.getX(pos, d, i) not implemented');
+    ERROR(getTypeName(this)+'.prototype.getX() not implemented');
   }
   
   CoordSys.prototype.getY = function(pos, d, i) {
-    ERROR(getTypeName(this)+'.prototype.getY(pos, d, i) not implemented');
+    ERROR(getTypeName(this)+'.prototype.getY() not implemented');
   }
   
   CoordSys.prototype.getXOrigin = function(pos, d, i) {
-    ERROR(getTypeName(this)+'.prototype.getXOrigin(pos, d, i) not implemented');
+    ERROR(getTypeName(this)+'.prototype.getXOrigin() not implemented');
   }
   
   CoordSys.prototype.getYOrigin = function(pos, d, i) {
-    ERROR(getTypeName(this)+'.prototype.getYOrigin(pos, d, i) not implemented');
+    ERROR(getTypeName(this)+'.prototype.getYOrigin() not implemented');
   }
   
   CoordSys.prototype.updateSVG = function(svg, dim, width, height, depth) {
-    ERROR(getTypeName(this)+'.prototype.updateSVG(svg, dim, w, h, depth) not implemented');
+    ERROR(getTypeName(this)+'.prototype.updateSVG() not implemented');
   }
   
   
@@ -2904,11 +2890,25 @@
     var dimInfo = [
                     { dimName:'x',
                       orient:'bottom',
-                      offsetY:height
+                      offsetY:height,
+                      rotation:0,
+                      labelOffsetX:function(axisBox, labelBox) {
+                          return (width - labelBox.width) / 2;
+                        },
+                      labelOffsetY:function(axisBox, labelBox) {
+                          return labelBox.height + 10 + labelBox.height*0.3;
+                        }
                     },
                     { dimName:'y',
                       orient:'left',
-                      offsetY:0
+                      offsetY:0,
+                      rotation:-90,
+                      labelOffsetX:function(axisBox, labelBox) {
+                          return -(height + labelBox.width) / 2;
+                        },
+                      labelOffsetY:function(axisBox, labelBox) {
+                          return -(axisBox.width + 10);
+                        }
                     }
                   ];
     
@@ -2968,7 +2968,7 @@
                       .classed(dimName, true)
                       .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')');
         
-          if(this.g.transition_duration > 0 && false) {
+          if(this.g.transition_duration > 0) {
             axisNode.attr('fill-opacity', 0)
                     .attr('stroke-opacity', 0)
                   .transition().duration(this.g.transition_duration)
@@ -2977,6 +2977,21 @@
           }
           
           axisNode.call(axis);
+          
+          if(dim[axisDim].displayLabel) {
+            var axisBox = axisNode.node().getBoundingClientRect();
+            axisNode.axisBox = axisBox;
+            
+            var label = axisNode.append('text')
+                                .attr('class', 'label')
+                                .text(dim[axisDim].label);
+            
+            var labelBox = label.node().getBoundingClientRect();
+            
+            label.attr('transform', 'rotate('+dimInfo[i].rotation+')'+
+                       'translate('+dimInfo[i].labelOffsetX(axisBox, labelBox)+','+
+                                    dimInfo[i].labelOffsetY(axisBox, labelBox)+')')
+          }
         }
         // On update
         else {
@@ -4184,8 +4199,8 @@
                                    .attr('rx', '5')
                                    .attr('ry', '5')
                                    .attr('fill', 'white')
-      textNode = popup.insert('text').attr('x', '10')
-                                     .attr('y', '20');
+      textNode = popup.insert('text').attr('dy', '.32em')
+                                     .style('text-anchor', 'middle');
     }
     else {
       bgNode = popup.select('rect');
@@ -4196,11 +4211,14 @@
     popup.attr('transform', 'translate('+position[0]+','+position[1]+')');
     textNode.attr('opacity', '0')
             .text(text);
-    var textDOM = textNode.node();
+    var textBoundingBox = textNode.node().getBoundingClientRect();
+    var width = textBoundingBox.width + 20;
+    var height = textBoundingBox.height + 15;
     bgNode.attr('opacity', '0')
-          .attr('width', textDOM.clientWidth + 20)
-          .attr('height', textDOM.clientHeight + 15);
-    
+          .attr('width', width)
+          .attr('height', height);
+    textNode.attr('x', width / 2)
+            .attr('y', height / 2);
     // Show the popup
     bgNode.interrupt().transition().duration(duration).attr('opacity', '0.7');
     textNode.interrupt().transition().duration(duration).attr('opacity', '1');
@@ -4785,6 +4803,19 @@
     a.splice(j);
   }
   
+  function listDimensionNames(cs) {
+    if(cs == null) {
+      return [];
+    }
+    else {
+      var dimList = listDimensionNames(cs.subSys);
+      for(var i in cs.dimAlias) {
+        dimList.push(cs.dimAlias[i]);
+      }
+      return dimList;
+    }
+  }
+  
   // Determinate on which dimension we have to force to ordinal scale
   function getDimensionsInfo(coordSystem, temporalDim, axisProperty) {
     var dim = {};
@@ -4823,7 +4854,7 @@
       all.displayTicks = true;
     }
     if(isUndefined(all.displayLabel)) {
-      all.displayLabel = null;
+      all.displayLabel = true;
     }
     if(isUndefined(all.ticks)) {
       all.ticks = null;
@@ -5198,6 +5229,7 @@
     return (Math.PI/2 - angle);
   }
   
+  // Get margin for sub coordinate system in percent
   function getPercentMargin(g, size, domCard) {
     var pixelMargin;
     
@@ -5205,10 +5237,10 @@
       pixelMargin = g.coordSysMargin;
     }
     else if(g.coordSysMargin.charAt(g.coordSysMargin.length-1) === '%') {
-      return parseInt(g.coordSysMargin.substr(0, g.coordSysMargin.length-1)) / 100;
+      return +g.coordSysMargin.substr(0, g.coordSysMargin.length-1) / 100;
     }
     else {
-      pixelMargin = parseInt(g.coordSysMargin.substring(0, g.coordSysMargin.length-2));
+      pixelMargin = +g.coordSysMargin.substring(0, g.coordSysMargin.length-2);
     }
     
     return pixelMargin * domCard / size;

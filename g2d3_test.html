@@ -16,6 +16,10 @@
                 font-size: 11px;
             }
             
+            .axis .label {
+                font-size: 20px;
+            }
+            
             #graph8 .whisker_limit {
                 visibility: hidden;
             }
@@ -99,6 +103,7 @@
             
             G['2'] = g2d3.graphic()
             .coord(g2d3.rect({subSys: g2d3.rect()}))
+            .axis({axis:['x', 'y'], display_label:false})
             .element({  x2:'data:col1',
                         y2:'data:col2',
                         x:'data:col3',
@@ -115,7 +120,7 @@
                         shape:function(d){return group(d)==1 ? 'triangle-up' : 'triangle-down';}})
             .data({data:dataset})
             .dataView({name:'default_data', func:g2d3.filter({criteria:function(d){return d.col1!='B' || d.col2!=20;}})})
-            .plot({selector:"#graph2", width:800, height:600, margin:30});
+            .plot({selector:"#graph2", width:800, height:600});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +138,7 @@
                         stroke:'data:col1',
                         stroke_width:2})
             .data({data:g2d3.loadFromFile({file:'data/test.csv'})})
-            .plot({selector:"#graph3", width:1024, height:768, margin:50});
+            .plot({selector:"#graph3", width:1024, height:768});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +176,7 @@
                                                 user:'user_test',
                                                 pwd:'123456',
                                                 request:'SELECT * FROM data_test'})})
-            .plot({selector:"#graph4", width:1000, height:1000, margin_left:50, margin_bottom:40});
+            .plot({selector:"#graph4", width:1000, height:1000});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +198,7 @@
                     color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
-            .plot({selector:"#graph6-1", width:600, height:600, margin:30});
+            .plot({selector:"#graph6-1", width:600, height:600});
             
             G['6-2'] = g2d3.graphic()
             .coord(g2d3.polar({theta:'dim2', radius:'dim1'}))
@@ -205,7 +210,7 @@
                     color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
-            .plot({selector:"#graph6-2", width:600, height:600, margin:30});
+            .plot({selector:"#graph6-2", width:600, height:600});
             
             G['6-3'] = g2d3.graphic()
             .coord(g2d3.rect({x:'dim1', y:'dim2'}))
@@ -216,7 +221,7 @@
                     color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
-            .plot({selector:"#graph6-3", width:600, height:600, margin:30});
+            .plot({selector:"#graph6-3", width:600, height:600});
             
             G['6-4'] = g2d3.graphic()
             //.hack({merge_null_axis:false})
@@ -230,7 +235,7 @@
                     color:function(d,i){return i;},
                     label:'data:y'})
             .data({data:dataset})
-            .plot({selector:"#graph6-4", width:600, height:600, margin:30});
+            .plot({selector:"#graph6-4", width:600, height:600});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +258,7 @@
                         fill:'red',
                         stroke:'black'})
             .data({data:dataset})
-            .plot({selector:"#graph7", width:600, height:600, margin:50});
+            .plot({selector:"#graph7", width:600, height:600});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -291,7 +296,7 @@
                         color:'white',
                         label:'data:quartile2'})
             .data({data:dataset})
-            .plot({selector:"#graph8", width:1024, height:768, margin:50});
+            .plot({selector:"#graph8", width:1024, height:768});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
             G['9'] = g2d3.graphic()
@@ -300,7 +305,7 @@
             .boxplot({  dim1:'data:cat',
                         dim2:g2d3.boxplotStat('data:value')})
             .data({data:dataset})
-            .plot({selector:"#graph9", width:1024, height:768, margin:50});
+            .plot({selector:"#graph9", width:1024, height:768});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -357,7 +362,7 @@
             .symbol({   color:'data:col3',
                         shape:'data:col4',
                         label:'data:col3'})
-            .plot({selector:"#graph10", width:1000, height:1000, margin_left:50, margin_bottom:40});
+            .plot({selector:"#graph10", width:1000, height:1000});
             
             function startPushing() {
                 var datasetLoaded = 0;
@@ -420,7 +425,7 @@
                         a.t - b.t                   ? a.t - b.t : 
                                                       a.order - b.order);
                 }})})
-            .plot({selector:"#graph11", width:600, height:600, margin:30});
+            .plot({selector:"#graph11", width:600, height:600});
             
             var loaded = 0;
             window.addEventListener("load", function() {
@@ -466,7 +471,7 @@
             .data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
             .dataView({ name:'default_data',func:g2d3.melt({ids:['wid'], variable_name:'bv', value_name:'time'})})
             .dataView({ name:'default_data',func:processData})
-            .plot({selector:"#graph12", width:1024, height:768, margin:100});
+            .plot({selector:"#graph12", width:1024, height:768});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////

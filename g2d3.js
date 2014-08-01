@@ -267,7 +267,7 @@
         checkAesType('number', statOnAes, statOnAes.func(data[0], 0), 'stat_on', funcName);
         
         var nestedata = allocateSplitDataArray(splitSizes, 0);
-        for(var i = 0 ; i < data.length ; i++) {
+        for(var i = 0 ; i < data.length ; ++i) {
           var dataSubset = nestedata;
           
           for(var j in group_by) {
@@ -289,14 +289,14 @@
           }
           
           var valuesIndex = [];
-          for(var i = 0 ; i < dataSubset.length ; i++) {
+          for(var i = 0 ; i < dataSubset.length ; ++i) {
             valuesIndex.push({value:statOnAes.func(dataSubset[i], i), index:i});
           }
           valuesIndex.sort(function(a, b){return a.value-b.value});
           
           var values = [];
           var sortedDataSubset = [];
-          for(var i = 0 ; i < valuesIndex.length ; i++) {
+          for(var i = 0 ; i < valuesIndex.length ; ++i) {
             values[i] = valuesIndex[i].value;
             sortedDataSubset[i] = dataSubset[valuesIndex[i].index];
           }
@@ -339,7 +339,7 @@
       var whisker2 = Math.min(quartile3 + 1.5*IQR, max);
       
       // We can loop like this because values are sorted
-      for(var i = 0 ; values[i] < whisker1 ; i++) {
+      for(var i = 0 ; values[i] < whisker1 ; ++i) {
         new_data.push(dataSubset[i]);
       }
       for(var i = dataSubset.length -1 ; values[i] > whisker2 ; i--) {
@@ -368,7 +368,7 @@
       var i = 2;
       while((name+i+'.statistic') in this.dataset ||
             (name+i+'.outlier') in this.dataset) {
-        i++;
+        ++i;
       }
       name = name+i;
     }
@@ -543,7 +543,7 @@
     if(this.axisProperty == null) {
       this.axisProperty = {};
     }
-    for(var i = 0 ; i < dimAlias.length ; i++) {
+    for(var i = 0 ; i < dimAlias.length ; ++i) {
       if(isUndefined(this.axisProperty[dimAlias[i]])) {
         this.axisProperty[dimAlias[i]] = {};
       }
@@ -679,7 +679,7 @@
     // Remove unused dimensions
     var dimensions = {};
     for(var cs = this.spacialCoord ; cs != null ; cs = cs.subSys) {
-      for(var i = 0 ; i < cs.dimName.length ; i++) {
+      for(var i = 0 ; i < cs.dimName.length ; ++i) {
         var originalName = cs.dimName[i];
         if(cs.dimAlias[originalName] != null) {
           dimensions[cs.dimAlias[originalName]] = { used:false,
@@ -693,7 +693,7 @@
       dimensions[dimName] = { used:false,
                               spacial:false};
     }
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       for(var attr in this.elements[i].attrs) {
         if(attr in dimensions) {
           dimensions[attr].used = true;
@@ -774,7 +774,7 @@
       maxPos[i] = [];
       nonNullDim[i] = [];
       
-      for(var j = 0 ; j < deepestCoordSys.dimName.length ; j++) {
+      for(var j = 0 ; j < deepestCoordSys.dimName.length ; ++j) {
         var dimAlias = deepestCoordSys.dimAlias[deepestCoordSys.dimName[j]];
         if(dimAlias != null) {
           maxPos[i][j] = this.dim[dimAlias].domain.length;
@@ -786,7 +786,7 @@
         }
       }
       deepestCoordSys = deepestCoordSys.subSys;
-      i++;
+      ++i;
     }
     
     // Deepest coordinate system dimention
@@ -800,7 +800,7 @@
     var unimplementedElt = {};
     
     // Draw elements
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       /*                                     *\
        * Compute 'getX' and 'getY' functions *
       \*                                     */
@@ -853,10 +853,10 @@
       var subset = [dataToDisplay];
       var svgGroups = [this.svg.select('.depth0')];
       
-      for(var j = 0 ; j < maxPos.length ; j++) {
+      for(var j = 0 ; j < maxPos.length ; ++j) {
         currentPos[j] = [];
         var idGroup = '';
-        for(var k = 0 ; k < maxPos[j].length ; k++) {
+        for(var k = 0 ; k < maxPos[j].length ; ++k) {
           currentPos[j][k] = 0;
           if(nonNullDim[j][k]) {
             subset.push(subset[subset.length-1][0]);
@@ -926,20 +926,20 @@
             }
             else {
               subset[subsetId+1] = subset[subsetId][currentPos[coordSysId][dimId]];
-              for(var j = subsetId+2 ; j < subset.length ; j++) {
+              for(var j = subsetId+2 ; j < subset.length ; ++j) {
                 subset[j] = subset[j-1][0];
               }
               
               var idGroup = '';
-              for(var j = 0 ; j < maxPos[coordSysId].length ; j++) {
+              for(var j = 0 ; j < maxPos[coordSysId].length ; ++j) {
                 var id = currentPos[coordSysId][j];
                 idGroup += j ? '-'+id : '.sub-graphic-'+id;
               }
               svgGroups[coordSysId+1] = svgGroups[coordSysId].select(idGroup+'.depth'+(coordSysId+1));
               
-              for(var j = coordSysId+2 ; j < svgGroups.length ; j++) {
+              for(var j = coordSysId+2 ; j < svgGroups.length ; ++j) {
                 var idGroup = '';
-                for(var k = 0 ; k < maxPos[j-1].length ; k++) {
+                for(var k = 0 ; k < maxPos[j-1].length ; ++k) {
                   idGroup += k ? '-0' : '.sub-graphic-0';
                 }
                 svgGroups[j] = svgGroups[j-1].select(idGroup+'.depth'+j);
@@ -1089,7 +1089,7 @@
     var boundaryFunc = {};
     var padding = g.bar_padding;
     
-    for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+    for(var j = 0 ; j < deepestCoordSysDim.length ; ++j) {
       var dimAlias = deepestCoordSysDim[j].name;
       var originalDimName = deepestCoordSysDim[j].originalName;
       
@@ -1218,7 +1218,7 @@
     var posFunc = {};
     var boxplotStat = null;
     
-    for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+    for(var j = 0 ; j < deepestCoordSysDim.length ; ++j) {
       var dimAlias = deepestCoordSysDim[j].name;
       var originalDimName = deepestCoordSysDim[j].originalName;
       
@@ -1637,11 +1637,11 @@
       // Update scale if needed
       if(slider.mouseToValue.range() != this.dim[i].domain) {
         var values = new Array(this.dim[i].domain.length);
-        for(var j = 0 ; j < this.dim[i].domain.length ; j++) {
+        for(var j = 0 ; j < this.dim[i].domain.length ; ++j) {
           values[j] = this.dim[i].domain[j];
         }
         var dom = [];
-        for(var j = 0 ; j < values.length - 1 ; j++){
+        for(var j = 0 ; j < values.length - 1 ; ++j){
           dom.push((j+0.8) * sliderSize / (values.length - 1));
         }
         slider.mouseToValue
@@ -1690,7 +1690,7 @@
     
     if(reset_domains) {
       for(var i in this.dim) {
-        for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+        for(var j = 0 ; j < this.dim[i].aes.length ; ++j) {
           var aes = this.dim[i].aes[j];
           aes.discretDomain = [];
           aes.continuousDomain = [Infinity, -Infinity];
@@ -1698,7 +1698,7 @@
           delete this.dim[i].domain;
         }
       }
-      for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var i = 0 ; i < this.elements.length ; ++i) {
         for(var attr in this.elements[i].attrs) {
           var attr_val = this.elements[i].attrs[attr].value;
           if(this.elements[i].attrs[attr].type != 'dimension') {
@@ -1739,7 +1739,7 @@
   function updateDataViews() {
     TIMER_BEGIN('Generation of data views', this.display_timers);
     
-    for(var i = 0 ; i < this.data_view_generator.length ; i++) {
+    for(var i = 0 ; i < this.data_view_generator.length ; ++i) {
       var name = this.data_view_generator[i].name;
       var func = this.data_view_generator[i].func;
       
@@ -1758,7 +1758,7 @@
     }
     
     // Check if every element's dataset exists
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       if(!(this.elements[i].datasetName in this.dataset)) {
         ERROR('Data view '+this.elements[i].datasetName+' of element '+i+' ('+getTypeName(this.elements[i])+') is not defined');
       }
@@ -1781,7 +1781,7 @@
      * Deletion of useless attributes                 *
      * Add time dimensions as attribute               *
     \*                                                */
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var unusedParam = {};
       var unusedParamOriginFunc = [];
       for(var attr in this.elements[i].attrs) {
@@ -1839,7 +1839,7 @@
       }
     }
     var deepestCoordSysDimNames = '';
-    for(var i = 0 ; i < deepestCoordSysDim.length ; i++) {
+    for(var i = 0 ; i < deepestCoordSysDim.length ; ++i) {
       deepestCoordSysDimNames += i ? (i === deepestCoordSysDim.length-1 ? ' and ' : ', ') : '';
       deepestCoordSysDimNames += deepestCoordSysDim[i];
     }
@@ -1854,7 +1854,7 @@
     var const2Aes = {};
     this.nbCalcultedValues = {};
     
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var datasetName = this.elements[i].datasetName;
       var dataset = this.dataset[datasetName].newData;
       if(isUndefined(this.nbCalcultedValues[datasetName])) {
@@ -1986,7 +1986,7 @@
       
       if(this.elements[i] instanceof BoxPlot) {
         var nbBoxPlotStat = 0;
-        for(var j = 0 ; j < deepestCoordSysDim.length ; j++) {
+        for(var j = 0 ; j < deepestCoordSysDim.length ; ++j) {
           if(this.elements[i].attrs[deepestCoordSysDim[j]].value instanceof BoxPlotBoxStat) {
             nbBoxPlotStat++;
           }
@@ -2023,7 +2023,7 @@
     
     // (Re)init domain where no old data
     for(var i in this.dim) {
-      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+      for(var j = 0 ; j < this.dim[i].aes.length ; ++j) {
         var aes = this.dim[i].aes[j];
         var oldData = this.dataset[aes.datasetName].oldData;
         if(oldData.length === 0) {
@@ -2034,7 +2034,7 @@
         }
       }
     }
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var datasetName = this.elements[i].datasetName;
       var oldData = this.dataset[datasetName].oldData;
       for(var attr in this.elements[i].attrs) {
@@ -2061,13 +2061,13 @@
       }
       var domain = this.dim[i].domain;
       
-      for(var j = 0 ; j < this.dim[i].aes.length ; j++) {
+      for(var j = 0 ; j < this.dim[i].aes.length ; ++j) {
         // Compute discret domain
         var oldData = this.dataset[this.dim[i].aes[j].datasetName].oldData
         var newData = this.dataset[this.dim[i].aes[j].datasetName].newData;
         var newValues = updateDomain(this.dim[i].aes[j], oldData, newData, 'discret');
         
-        for(var k = 0 ; k < newValues.length ; k++) {
+        for(var k = 0 ; k < newValues.length ; ++k) {
           domain.push(newValues[k]);
         }
       }
@@ -2104,7 +2104,7 @@
       this.splitSpacialDimId = [];
       var coordSys = this.spacialCoord;
       while(coordSys.subSys != null) {
-        for(var i = 0 ; i < coordSys.dimName.length ; i++) {
+        for(var i = 0 ; i < coordSys.dimName.length ; ++i) {
           var dimAlias = coordSys.dimAlias[coordSys.dimName[i]];
           if(dimAlias != null) {
             this.splitSpacialDimId.push(dimAlias);
@@ -2116,15 +2116,15 @@
     
     // Sizes of each splits, sub-splits, etc
     var splitSizes = [];
-    for(var i = 0 ; i < this.splitTempDimId.length ; i++) {
+    for(var i = 0 ; i < this.splitTempDimId.length ; ++i) {
       splitSizes.push(this.dim[this.splitTempDimId[i]].domain.length);
     }
-    for(var i = 0 ; i < this.splitSpacialDimId.length ; i++) {
+    for(var i = 0 ; i < this.splitSpacialDimId.length ; ++i) {
       splitSizes.push(this.dim[this.splitSpacialDimId[i]].domain.length);
     }
     
     // Updating domain of group attribute
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var dataset = this.dataset[this.elements[i].datasetName];
       var groupAes = this.elements[i].attrs.group.aes;
       updateDomain(groupAes, dataset.oldData, dataset.newData, 'discret');
@@ -2136,7 +2136,7 @@
                       newData:[]};
     
     for(var dataCat in nestedData) {
-      for(var i = 0 ; i < this.elements.length ; i++) {
+      for(var i = 0 ; i < this.elements.length ; ++i) {
         var dataset = this.dataset[this.elements[i].datasetName][dataCat];
         
         var indexOffset = (dataCat === 'newData') ? this.dataset[this.elements[i].datasetName].oldData.length : 0;
@@ -2147,16 +2147,16 @@
         nestedData[dataCat][i] = allocateSplitDataArray(splitSizes, 0);
         splitSizes.pop();
         
-        for(var j = 0 ; j < dataset.length ; j++) {
+        for(var j = 0 ; j < dataset.length ; ++j) {
           var dataSubset = nestedData[dataCat][i];
           
-          for(var k = 0 ; k < this.splitTempDimId.length ; k++) {
+          for(var k = 0 ; k < this.splitTempDimId.length ; ++k) {
             var value = this.elements[i].attrs[this.splitTempDimId[k]].aes.func(dataset[j], indexOffset + j);
             var id = this.dim[this.splitTempDimId[k]].domain.indexOf(value);
             dataSubset = dataSubset[id];
           }
           
-          for(var k = 0 ; k < this.splitSpacialDimId.length ; k++) {
+          for(var k = 0 ; k < this.splitSpacialDimId.length ; ++k) {
             var value = this.elements[i].attrs[this.splitSpacialDimId[k]].aes.func(dataset[j], indexOffset + j);
             var id = this.dim[this.splitSpacialDimId[k]].domain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -2172,7 +2172,7 @@
       }
     }
     
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var groupAes = this.elements[i].attrs.group.aes;
       splitSizes.push(groupAes.discretDomain.length);
       this.nestedData.push(allocateSplitDataArray(splitSizes, 0));
@@ -2188,10 +2188,10 @@
       var oldData = itOld.next();
       var dataSubset = it.next();
       
-      for(var i = 0 ; i < oldData.length ; i++) {
+      for(var i = 0 ; i < oldData.length ; ++i) {
         dataSubset.push(oldData[i]);
       }
-      for(var i = 0 ; i < newData.length ; i++) {
+      for(var i = 0 ; i < newData.length ; ++i) {
         dataSubset.push(newData[i]);
       }
     }
@@ -2203,7 +2203,7 @@
      * Computing stacked interval functions *
     \*                                      */
     TIMER_BEGIN('Updating stacked intervals\'values', this.display_timers);
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       for(var attr in this.elements[i].attrs) {
         var attr_val = this.elements[i].attrs[attr].value;
         if(attr_val instanceof Interval && attr_val.stacked) {
@@ -2224,7 +2224,7 @@
               dataSubset[0]._calculated_values[Id] = originFunc(dataSubset[0], 0);
               dataSubset[0]._calculated_values[Id+1] = stepFunc(dataSubset[0], 0);
             }
-            for(var j = 1 ; j < dataSubset.length ; j++) {
+            for(var j = 1 ; j < dataSubset.length ; ++j) {
               if(isUndefined(dataSubset[j]._calculated_values)) {
                 dataSubset[j]._calculated_values = [];
               }
@@ -2253,7 +2253,7 @@
       if(isUndefined(dim.discret)) {
         // Don't force discret domain (i.e. continue if only number values)
         dim.discret = false;
-        for(var j = 0 ; j < dim.aes.length ; j++) {
+        for(var j = 0 ; j < dim.aes.length ; ++j) {
           if(this.elements[dim.aesElemId[j]].attrs[i].forceCat) {
             dim.discret = true;
             break;
@@ -2273,11 +2273,11 @@
         if(isUndefined(dim.domain)) {
           domain = [];
         }
-        for(var j = 0 ; j < dim.aes.length ; j++) {
+        for(var j = 0 ; j < dim.aes.length ; ++j) {
           // Compute discret domain
           updateDomain(dim.aes[j], nestedData.oldData[dim.aesElemId[j]], nestedData.newData[dim.aesElemId[j]], 'discret');
           var dom = dim.aes[j].discretDomain;
-          for(var k = 0 ; k < dom.length ; k++) {
+          for(var k = 0 ; k < dom.length ; ++k) {
             domain.push(dom[k]);
           }
         }
@@ -2288,7 +2288,7 @@
         if(isUndefined(dim.domain)) {
           domain = [Infinity, -Infinity];
         }
-        for(var j = 0 ; j < dim.aes.length ; j++) {
+        for(var j = 0 ; j < dim.aes.length ; ++j) {
           // Compute continue domain
           updateDomain(dim.aes[j], nestedData.oldData[dim.aesElemId[j]], nestedData.newData[dim.aesElemId[j]], 'continue');
           var dom = dim.aes[j].continuousDomain;
@@ -2316,7 +2316,7 @@
                                     this.height);
     
     // For other attributes
-    for(var i = 0 ; i < this.elements.length ; i++) {
+    for(var i = 0 ; i < this.elements.length ; ++i) {
       var oldData = nestedData.oldData[i];
       var newData = nestedData.newData[i];
       
@@ -2486,11 +2486,11 @@
         this.timeSlider[i] = {};
         
         var values = new Array(this.dim[i].domain.length);
-        for(var j = 0 ; j < this.dim[i].domain.length ; j++) {
+        for(var j = 0 ; j < this.dim[i].domain.length ; ++j) {
           values[j] = this.dim[i].domain[j];
         }
         var dom = [];
-        for(var j = 0 ; j < values.length - 1 ; j++){
+        for(var j = 0 ; j < values.length - 1 ; ++j){
           dom.push((j+0.8) * sliderSize / (values.length - 1));
         }
         var mouseToValue = d3.scale.threshold()
@@ -2673,7 +2673,7 @@
     this.subSys = null;
     this.supSys = null;
     
-    for(var i = 0 ; i < this.dimName.length ; i++) {
+    for(var i = 0 ; i < this.dimName.length ; ++i) {
       this.dimAlias[this.dimName[i]] = '';
       this.scale[this.dimName[i]] = null;
     }
@@ -2912,7 +2912,7 @@
                     }
                   ];
     
-    for(var i = 0 ; i < dimInfo.length ; i++) {
+    for(var i = 0 ; i < dimInfo.length ; ++i) {
       var dimName = dimInfo[i].dimName;
       var scale;
       var axisDim;
@@ -2980,7 +2980,7 @@
           
           if(dim[axisDim].displayLabel) {
             var axisBox = axisNode.node().getBoundingClientRect();
-            axisNode.axisBox = axisBox;
+            axisNode.node().axisBox = axisBox;
             
             var label = axisNode.append('text')
                                 .attr('class', 'label')
@@ -2989,17 +2989,29 @@
             var labelBox = label.node().getBoundingClientRect();
             
             label.attr('transform', 'rotate('+dimInfo[i].rotation+')'+
-                       'translate('+dimInfo[i].labelOffsetX(axisBox, labelBox)+','+
-                                    dimInfo[i].labelOffsetY(axisBox, labelBox)+')')
+                                    'translate('+dimInfo[i].labelOffsetX(axisBox, labelBox)+','+
+                                                 dimInfo[i].labelOffsetY(axisBox, labelBox)+')');
           }
         }
         // On update
         else {
+          var axisBox = axisNode.node().axisBox;
+          
           (this.g.transition_duration > 0
           ? axisNode.transition().duration(this.g.transition_duration)
           : axisNode)
           .attr('transform', 'translate(0,'+dimInfo[i].offsetY+')')
           .call(axis);
+          
+          var label = axisNode.select('.label');
+          var labelBox = label.node().getBoundingClientRect();
+          
+          (this.g.transition_duration > 0
+          ? label.transition().duration(this.g.transition_duration)
+          : label)
+          .attr('transform', 'rotate('+dimInfo[i].rotation+')'+
+                             'translate('+dimInfo[i].labelOffsetX(axisBox, labelBox)+','+
+                                          dimInfo[i].labelOffsetY(axisBox, labelBox)+')');
         }
         
         if(!dim[axisDim].displayAxis) {
@@ -3032,8 +3044,8 @@
                       this.merged['y']              ? height
                                                     : height * (1 - 2 * getPercentMargin(this.g, height, 1));
       
-      for(var i = 0 ; i < rangeX.length ; i++) {
-        for(var j = 0 ; j < rangeY.length ; j++) {
+      for(var i = 0 ; i < rangeX.length ; ++i) {
+        for(var j = 0 ; j < rangeY.length ; ++j) {
           infoSubCoordSys.push([i, j, rangeX[i], rangeY[j]]);
         }
       }
@@ -3286,7 +3298,7 @@
       
       
       var ticksInfo = [];
-      for(var i = 0 ; i < ticks.length ; i++) {
+      for(var i = 0 ; i < ticks.length ; ++i) {
         ticksInfo.push([ticks[i], this.scale['radius'](ticks[i])]);
       }
       
@@ -3367,7 +3379,7 @@
       }
       
       var ticksInfo = [];
-      for(var i = 0 ; i < ticks.length ; i++) {
+      for(var i = 0 ; i < ticks.length ; ++i) {
         ticksInfo.push([ticks[i], this.scale['theta'](ticks[i])]);
       }
       
@@ -3425,6 +3437,7 @@
   //////////////////////////////
   // Adding drawing functions //
   //////////////////////////////
+  
   addDrawingFunction(Symbol,  Rect,   updateSymbols);
   addDrawingFunction(Symbol,  Polar,  updateSymbols);
   addDrawingFunction(Line,    Rect,   updateLines);
@@ -3560,7 +3573,7 @@
       
       // Store informations about file to load
       var file_info = [];
-      for(var i = 0 ; i < file_list.length ; i++) {
+      for(var i = 0 ; i < file_list.length ; ++i) {
         var file_name = file_list[i];
         if(dl.loaded_files.indexOf(file_name) >= 0) {
           continue;
@@ -3600,7 +3613,7 @@
       file_info.sort(function(a,b){return a.stamp - b.stamp});
       
       // Compute list of files we really need to load (those which data won't be remove) 
-      for(var i = 0 ; i < file_info.length ; i++) {
+      for(var i = 0 ; i < file_info.length ; ++i) {
         var info = file_info[i];
         var file_name = info.file_name;
         
@@ -3671,7 +3684,7 @@
       var filtered_data = [];
       
       // We only filter new data (old ones already are filtered)
-      for(var i = 0 ; i < newData.length ; i++) {
+      for(var i = 0 ; i < newData.length ; ++i) {
         if(criteria(newData[i], i)) {
           filtered_data.push(newData[i]);
         }
@@ -3697,7 +3710,7 @@
     var func2Aes = {};
     var const2Aes = {};
     
-    for(var i = 0 ; i < group_by.length ; i++) {
+    for(var i = 0 ; i < group_by.length ; ++i) {
       var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, data_binding_prefix+group_by[i], main_dataset_name, 'col['+i+']', funcName);
       groupByAes.push(aes[aesId]);
     }
@@ -3712,7 +3725,7 @@
     var getNewData = function(groupedData) {
       var new_data = [];
       
-      for(var i = 0 ; i < groupedData.length ; i++) {
+      for(var i = 0 ; i < groupedData.length ; ++i) {
         if(groupedData[i].oldData.length > 0) {
           new_data.push(groupedData[i].oldData[0]);
         }
@@ -3734,16 +3747,16 @@
         // We recompute the whole thing
         data = data.oldData.concat(data.newData);
         
-        for(var i = 0 ; i < group_by.length ; i++) {
+        for(var i = 0 ; i < group_by.length ; ++i) {
           updateDomain(groupByAes[i], [], data, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
         var nestedata = allocateSplitDataArray(splitSizes, 0);
-        for(var i = 0 ; i < data.length ; i++) {
+        for(var i = 0 ; i < data.length ; ++i) {
           var dataSubset = nestedata;
           
-          for(var j = 0 ; j < group_by.length ; j++) {
+          for(var j = 0 ; j < group_by.length ; ++j) {
             var value = groupByAes[j].func(data[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3764,16 +3777,16 @@
         var newData = data.newData;
         var oldData = data.oldProcessedData;
         
-        for(var i = 0 ; i < group_by.length ; i++) {
+        for(var i = 0 ; i < group_by.length ; ++i) {
           updateDomain(groupByAes[i], oldData, newData, 'discret');
           splitSizes.push(groupByAes[i].discretDomain.length);
         }
         
         var nesteNewData = allocateSplitDataArray(splitSizes, 0);
-        for(var i = 0 ; i < newData.length ; i++) {
+        for(var i = 0 ; i < newData.length ; ++i) {
           var dataSubset = nesteNewData;
           
-          for(var j = 0 ; j < group_by.length ; j++) {
+          for(var j = 0 ; j < group_by.length ; ++j) {
             var value = groupByAes[j].func(newData[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3783,10 +3796,10 @@
         }
         
         var nesteOldData = allocateSplitDataArray(splitSizes, 0);
-        for(var i = 0 ; i < oldData.length ; i++) {
+        for(var i = 0 ; i < oldData.length ; ++i) {
           var dataSubset = nesteOldData;
           
-          for(var j = 0 ; j < group_by.length ; j++) {
+          for(var j = 0 ; j < group_by.length ; ++j) {
             var value = groupByAes[j].func(oldData[i], i);
             var id = groupByAes[j].discretDomain.indexOf(value);
             dataSubset = dataSubset[id];
@@ -3825,7 +3838,7 @@
       getNewData = function(groupedData) {
         var new_data = [];
         
-        for(var i = 0 ; i < groupedData.length ; i++) {
+        for(var i = 0 ; i < groupedData.length ; ++i) {
           var datum;
           
           if(groupedData[i].oldData.length > 0) {
@@ -3867,7 +3880,7 @@
       variable_name+':value}');
       
       var aggregOnAes = [];
-      for(var i = 0 ; i < aggreg_on.length ; i++) {
+      for(var i = 0 ; i < aggreg_on.length ; ++i) {
         var aesId = getAesId(aes, dataCol2Aes, func2Aes, const2Aes, data_binding_prefix+aggreg_on[i], main_dataset_name, 'col['+i+']', funcName);
         aggregOnAes.push(aes[aesId]);
       }
@@ -3881,18 +3894,18 @@
         checkAesType('number', weightAes, weightFunc(groupedData[0][0], 0), 'weight', funcName);
         var data = d3.merge(groupedData);
         var splitSizes = [];
-        for(var i = 0 ; i < aggreg_on.length ; i++) {
+        for(var i = 0 ; i < aggreg_on.length ; ++i) {
           updateDomain(aggregOnAes[i], [], data, 'discret');
           splitSizes.push(aggregOnAes[i].discretDomain.length);
         }
         
-        for(var i = 0 ; i < groupedData.length ; i++) {
+        for(var i = 0 ; i < groupedData.length ; ++i) {
           var nestedata = allocateSplitDataArray(splitSizes, 0);
           
-          for(var j = 0 ; j < groupedData[i].length ; j++) {
+          for(var j = 0 ; j < groupedData[i].length ; ++j) {
             var dataSubset = nestedata;
             
-            for(var k = 0 ; k < aggreg_on.length ; k++) {
+            for(var k = 0 ; k < aggreg_on.length ; ++k) {
               var value = aggregOnAes[k].func(groupedData[i][j], j);
               var id = aggregOnAes[k].discretDomain.indexOf(value);
               dataSubset = dataSubset[id];
@@ -3910,12 +3923,12 @@
             dataSubset = it.next();
             if(dataSubset.length > 0) {
               counts[j] = 0;
-              for(var k = 0 ; k < dataSubset.length ; k++) {
+              for(var k = 0 ; k < dataSubset.length ; ++k) {
                 counts[j] += weightFunc(dataSubset[k], k);
               }
               
               total += counts[j];
-              j++;
+              ++j;
             }
             
           }
@@ -3926,7 +3939,7 @@
             dataSubset = it.next();
             if(dataSubset.length > 0) {
               new_data.push(getDatum(dataSubset[0], counts[j] / total));
-              j++;
+              ++j;
             }
           }
         }
@@ -3956,13 +3969,13 @@
       getNewData = function(groupedData) {
         var i = 0;
         while(groupedData[0].newData.length == 0) {
-          i++;
+          ++i;
         }
         checkAesType('number', weightAes, weightFunc(groupedData[i].newData[0], 0), 'weight', funcName);
         
         var new_data = [];
         
-        for(var i = 0 ; i < groupedData.length ; i++) {
+        for(var i = 0 ; i < groupedData.length ; ++i) {
           var sum = 0;
           var datum = null;
           if(groupedData[i].oldData.length > 0) {
@@ -3970,7 +3983,7 @@
             datum = groupedData[i].oldData[0];
           }
           
-          for(var j = 0 ; j < groupedData[i].newData.length ; j++) {
+          for(var j = 0 ; j < groupedData[i].newData.length ; ++j) {
             sum += weightFunc(groupedData[i].newData[j], j);
           }
           
@@ -3999,7 +4012,7 @@
     return function(data) {
       var newData = data.newData;
       var theData = [];
-      for(var i = 0 ; i < newData.length ; i++) {
+      for(var i = 0 ; i < newData.length ; ++i) {
         var d = newData[i]
         for(var col in param) {
           d[col] = param[col](d, i);
@@ -4024,7 +4037,7 @@
       var oldData = data.oldProcessedData;
       var sorted_new_data = new Array(newData.length);
       
-      for(var i = 0 ; i < newData.length ; i++) {
+      for(var i = 0 ; i < newData.length ; ++i) {
         sorted_new_data[i] = newData[i];
       }
       
@@ -4039,24 +4052,24 @@
         // oldData[i] < newData[j]
         if(compare(oldData[i], sorted_new_data[j]) < 0) {
           sorted_data[k] = oldData[i];
-          i++;
+          ++i;
         }
         else {
           sorted_data[k] = sorted_new_data[j];
-          j++;
+          ++j;
         }
-        k++;
+        ++k;
       }
       
       while(i < oldData.length) {
         sorted_data[k] = oldData[i];
-        i++;
-        k++;
+        ++i;
+        ++k;
       }
       while(j < sorted_new_data.length) {
         sorted_data[k] = sorted_new_data[j];
-        j++;
-        k++;
+        ++j;
+        ++k;
       }
       
       return {oldData:[], newData:sorted_data};
@@ -4134,7 +4147,7 @@
       var melt;
       
       // We only melt new data (old ones already are melted)
-      for(var i = 0 ; i < newData.length ; i++) {
+      for(var i = 0 ; i < newData.length ; ++i) {
         if(!melt) {
           var isNum = !isNaN(+measures[0]);
           var idsCode = ids.map(function(id){
@@ -4155,7 +4168,7 @@
         
         var d = melt(newData[i]);
         
-        for(var j = 0 ; j < d.length ; j++) {
+        for(var j = 0 ; j < d.length ; ++j) {
           melted_data.push(d[j]);
         }
       }
@@ -4182,7 +4195,7 @@
     
     id.unshift('pop-up');
     var selector = '';
-    for(var i = 0 ; i < id.length ; i++) {
+    for(var i = 0 ; i < id.length ; ++i) {
       selector += '.'+id[i];
     }
     var popup = g.svg.select(selector);
@@ -4191,7 +4204,7 @@
     
     if(popup.empty()) {
       popup = g.svg.insert('g').style('pointer-events', 'none');
-      for(var i = 0 ; i < id.length ; i++) {
+      for(var i = 0 ; i < id.length ; ++i) {
         popup.classed(id[i].toString(), true);
       }
       bgNode = popup.insert('rect').attr('x', '0')
@@ -4235,7 +4248,7 @@
     
     id.unshift('pop-up');
     var selector = '';
-    for(var i = 0 ; i < id.length ; i++) {
+    for(var i = 0 ; i < id.length ; ++i) {
       selector += '.'+id[i];
     }
     var popup = g.svg.select(selector);
@@ -4257,7 +4270,7 @@
     
     id.unshift('pop-up');
     var selector = '';
-    for(var i = 0 ; i < id.length ; i++) {
+    for(var i = 0 ; i < id.length ; ++i) {
       selector += '.'+id[i];
     }
     return !g.svg.select(selector).empty();
@@ -4731,7 +4744,7 @@
             ticks.splice(i,1);
           }
           else {
-            i++;
+            ++i;
           }
         }
       }
@@ -4741,7 +4754,7 @@
             ticks.splice(i,1);
           }
           else {
-            i++;
+            ++i;
           }
         }
       }
@@ -4758,7 +4771,7 @@
     
     var thresholds = new Array(range.length);
     var step = 1 / (range.length - 1);
-    for(var i = 0 ; i < range.length ; i++) {
+    for(var i = 0 ; i < range.length ; ++i) {
       thresholds[i] = i*step;
     }
     
@@ -4791,13 +4804,13 @@
     var alreadyIn = {};
     
     var j = 0;
-    for (var i = 0 ; i < a.length; i++){
+    for (var i = 0 ; i < a.length; ++i){
       var val = a[i];
       
       if(!alreadyIn[val]) {
         alreadyIn[val] = true;
         a[j] = val;
-        j++;
+        ++j;
       }
     }
     a.splice(j);
@@ -4899,7 +4912,7 @@
       }
       
       id = -1;
-      for(var i = 0 ; i < dataCol2Aes[column].length ; i++) {
+      for(var i = 0 ; i < dataCol2Aes[column].length ; ++i) {
         if(aes[dataCol2Aes[column][i]].datasetName == datasetName) {
           id == dataCol2Aes[column][i];
           break;
@@ -4944,7 +4957,7 @@
       }
       
       id = -1;
-      for(var i = 0 ; i < func2Aes[attr_val].length ; i++) {
+      for(var i = 0 ; i < func2Aes[attr_val].length ; ++i) {
         if(aes[func2Aes[attr_val][i]].datasetName == datasetName) {
           id == func2Aes[attr_val][i];
           break;
@@ -5030,14 +5043,14 @@
       while(itOld.hasNext()) {
         var oldDataSubset = itOld.next();
         var newDataSubset = itNew.next();
-        for(var i = 0 ; i < newDataSubset.length ; i++) {
+        for(var i = 0 ; i < newDataSubset.length ; ++i) {
           aes.discretDomain.push(f(newDataSubset[i], oldDataSubset.length + i));
         }
       }
       RemoveDupArray(aes.discretDomain);
       
       var addedValues = [];
-      for(var i = oldLength ; i < aes.discretDomain.length ; i++) {
+      for(var i = oldLength ; i < aes.discretDomain.length ; ++i) {
         addedValues.push(aes.discretDomain[i]);
       }
       return addedValues;
@@ -5081,7 +5094,7 @@
     }
     else {
       var array = new Array(splitSizes[id]);
-      for(var i = 0 ; i < array.length ; i++) {
+      for(var i = 0 ; i < array.length ; ++i) {
         array[i] = allocateSplitDataArray(splitSizes, id+1);
       }
       return array;
@@ -5113,7 +5126,7 @@
     }).join(',')+'}');
     
     var new_data = new Array(nb_entries);
-    for(var i = 0 ; i < nb_entries ; i++) {
+    for(var i = 0 ; i < nb_entries ; ++i) {
       new_data[i] = convert(data, i);
     }
     
@@ -5180,7 +5193,7 @@
     
     if(unusedParam.length > 0) {
       var msg = 'In function '+funcName+': parameter'+(unusedParam.length>1?'s':'')+' ';
-      for(var i = 0 ; i < unusedParam.length ; i++) {
+      for(var i = 0 ; i < unusedParam.length ; ++i) {
         msg +=  i === 0                    ?  unusedParam[i] :
                 i === unusedParam.length-1 ?  ' and '+unusedParam[i] :
                                               ', '+unusedParam[i];
@@ -5268,7 +5281,7 @@
     var size = new Array(this.currentState.length);
     
     // Get the current value
-    for(var i = 0 ; i < this.currentState.length ; i++) {
+    for(var i = 0 ; i < this.currentState.length ; ++i) {
       size[i] = ret.length;
       ret = ret[this.currentState[i]];
     }
@@ -5506,7 +5519,7 @@
   /* From: http://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
   String.prototype.format = function() {
     var formatted = this;
-    for (var i = 0; i < arguments.length; i++) {
+    for (var i = 0; i < arguments.length; ++i) {
       var regexp = new RegExp('\\{'+i+'\\}', 'gi');
       formatted = formatted.replace(regexp, arguments[i]);
     }

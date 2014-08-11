@@ -43,7 +43,7 @@
     }
     var child = createNamedFunction(name, init);
     
-    /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
+    /* From: http://readystate4.com/2013/10/29/improving-prototypal-inheritance-in-javascript-with-a-surrogate-class/ */
     var Surrogate = function() {};
     Surrogate.prototype = this.prototype;
     child.prototype = new Surrogate;
@@ -68,8 +68,8 @@
     return Other.prototype.isPrototypeOf(this.prototype)
   }
   Object.defineProperty(Class.prototype, 'super', { value:function(){} });
-  Object.defineProperty(Class, 'extend', { enumerable: false });
-  Object.defineProperty(Class, 'inherit', { enumerable: false });
+  Object.defineProperty(Class, 'extend', { enumerable: false, writable: false });
+  Object.defineProperty(Class, 'inherit', { enumerable: false, writable: false  });
   
   
   ///////////////////////

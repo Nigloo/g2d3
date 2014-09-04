@@ -31,7 +31,7 @@
             "use strict";
             
             var G = [];
-            
+            /*
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -442,7 +442,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            //*/
             var processData = function(data) {
                 var newData = data.newData;
 
@@ -457,7 +457,7 @@
             
             G['12'] = g2d3.graphic()
             .hack({ drawBackground:false,
-                    transition_duration:0,
+                    //transition_duration:0,
                     display_timers:true})
             .coord(g2d3.polar())
             .axis({axis:'t', ticks:[10,20,30,40,50,60,70,80,90,100,101,5,4]})
@@ -466,13 +466,16 @@
                         theta:'data:wid',
                         radius:'data:time',
                         color:g2d3.cat('data:bv'),
-                        label:'data:wid'
+                        label:'data:wid',
+                        size:25
                         })
-            .data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
+            .data({data:g2d3.loadFromFile({file:'data/big2.csv'})})
+            //.data({data:g2d3.loadFromFile({file:'data/20131106_nothreshold_tc1500.icc.t5.d4.r1.float.f2600.csv'})})
             .dataView({ name:'default_data',func:g2d3.melt({ids:['wid'], variable_name:'bv', value_name:'time'})})
             .dataView({ name:'default_data',func:processData})
-            .plot({selector:"#graph12", width:1024, height:768});
-            
+            .setTimeValue('t',44)
+            .plot({selector:"#graph12", width:600, height:600, margin_bottom:0, margin_right:15});
+            /*
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
             
@@ -494,7 +497,7 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            //*/
             
             function prev(i) {
                 G[i].previousStep('t');

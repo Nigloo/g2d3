@@ -15,7 +15,7 @@
             
             .axis text {
                 font-family: sans-serif;
-                font-size: 11px;
+                font-size: 10px;
             }
             
             .axis .label {
@@ -263,7 +263,7 @@
                         size:25,
                         label:function(d){return d.Type+' for '+d.Function+': $'+d.Budget+'K'}})
             .data({data:dataset['AllocatedBudgetVersusActualSpending']})
-            .plot({selector:"#graph6", width:800, height:600});
+            .plot({selector:"#graph6", width:800, height:500});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -287,7 +287,7 @@
                     fill_opacity:0.6,
                     label:'data:amount'})
             .data({data:dataset['WaterfallChartData']})
-            .plot({selector:"#graph7", width:900, height:500, margin_left:60});
+            .plot({selector:"#graph7", width:800, height:400, margin_left:60});
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -336,7 +336,31 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            
+            /*
+            g2d3.graphic()
+            .hack({drawBackground:false, bar_padding:0})
+            .data({data:g2d3.loadFromFile({file:'ACLS_survey.csv'})})
+            .dataView({name:'default_data', func:g2d3.groupBy({col:'Gender'}).proportion({col:'Response'})})
+            .coord(g2d3.rect({subSys:g2d3.polar()}))
+            .axis({axis:'theta', display:false})
+            .axis({axis:'x', display_label:false, display_axis:false})
+            .bar({  x:g2d3.cat('data:Gender'),
+                    theta:g2d3.interval.stack('data:proportion'),
+                    color:g2d3.cat('data:Response'),
+                    label:'data:Response'})
+            .plot({selector:'#graph10', width:960, height:500, margin:20});
+            */
+            g2d3.graphic()
+            .hack({drawBackground:false, bar_padding:0})
+            .data({data:[{col1:1, col2:2, col3:8},
+                        {col1:11, col2:12, col3:13},
+                        {col1:21, col2:22, col3:18},
+                        {col1:31, col2:32, col3:23}]})
+            .axis({axis:'all', display_label:false, min:0})
+            .symbol({x:'data:col1',
+                     y:'data:col2',
+                     size:function(d){return d.col3*d.col3/3.1415}})
+            .plot({selector:'#graph10', width:400, height:400});
             
         </script>
     </head>
@@ -377,6 +401,9 @@
         
         <div id="graph9">
             <h2>Couches terrestres et atmospheriques</h2>
+        </div>
+        <div id="graph10">
+            <h2>Pies</h2>
         </div>
         
     </body>

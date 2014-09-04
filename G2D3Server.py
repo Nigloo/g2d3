@@ -58,12 +58,17 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
   
   def do_PUT(self):
     """Serve a PUT request."""
+    if self.path[-1] == '/':
+      self.send_error(400)
+      return None
+    
     content_length = self.getContentLength()
     if(content_length == None):
       return None
     
     data = self.rfile.read(content_length)
     ind = self.path.rfind('/') + 1
+    
     path = self.path[0:ind]
     filename = self.path[ind:]
     

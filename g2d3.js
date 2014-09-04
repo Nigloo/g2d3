@@ -92,6 +92,7 @@
     this.dataset = {};
     this.dataset[main_dataset_name] = null;
     this.dataLoader = null;
+    this.data_view_generator = [];
     this.elements = [];
     this.fallback_element = new ElementBase();
     this.lastElementAdded = this.fallback_element;
@@ -102,7 +103,7 @@
     this.boxplot_function_called = false;
     this.axis_function_called = false;
     
-    
+    // Value to change with hack function (for now)
     this.drawBackground = true;
     this.transition_duration = 250;
     this.display_timers = false;
@@ -112,8 +113,9 @@
     this.coordSysMargin = '7.5%';
     this.bar_padding = 1;
     
+    this.overplotting_filter = true;
+    this.overplotting_filter_sensibility = 3;
     
-    this.data_view_generator = [];
     
     // Attributes non null only after render
     this.selector = null;
@@ -455,7 +457,7 @@
     return this;
   };
   
-  // A new data set generated from the main dataset
+  // Add a new data set generated from the main dataset
   Graphic.prototype.dataView = function(param) {
     var funcName = 'Graphic.dataView';
     var name = checkParam(funcName, param, 'name');
@@ -534,11 +536,16 @@
       dimAlias = [dimAlias];
     }
     
-    if(prop.display != null) {
+    if(prop.displayAxis == null) {
       prop.displayAxis = prop.display;
-      prop.displayTicks = prop.display;
-      prop.display = null;
     }
+    if(prop.displayTicks == null) {
+      prop.displayTicks = prop.display;
+    }
+    if(prop.displayLabel == null) {
+      prop.displayLabel = prop.display;
+    }
+    prop.display = null;
     
     if(this.axisProperty == null) {
       this.axisProperty = {};
@@ -978,12 +985,13 @@
     };
     
     var symbol = d3.svg.symbol();
-            
-    if(isDefined(elt.attrs.shape))
-      symbol.type(elt.attrs.shape.func);
-      
-    if(isDefined(elt.attrs.size))
-      symbol.size(elt.attrs.size.func);
+    symbol.type(elt.attrs.shape.func);
+    symbol.size(elt.attrs.size.func);
+    
+    if(g.overplotting_filter) {
+      overplottingFilter(g.overplotting_filter_sensibility, dataSubset, cs.width, cs.height,
+                         getX, getY, elt.attrs.size.func, elt.attrs.shape.func);
+    }
     
     var node = svg.selectAll('.'+eltClass)
                   .data(dataSubset);
@@ -2621,7 +2629,7 @@
     this.attrs.shape =  { type:'symbol',
                           value:'circle'};
     this.attrs.size =   { type:'number',
-                          value:null};
+                          value:64};
   });
   
   var Line = ElementBase.extend('Line', function() {
@@ -2667,6 +2675,8 @@
     }
     
     this.g = null;
+    this.width = null;
+    this.height = null;
     this.dimAlias = {};
     this.scale = {};
     this.boundary = {};
@@ -2731,7 +2741,8 @@
   });
   
   CoordSys.prototype.computeScale = function(dim, width, height) {
-    ERROR(getTypeName(this)+'.prototype.computeScale() not implemented');
+    this.width = width;
+    this.height = height;
   }
     
   CoordSys.prototype.getX = function(pos, d, i) {
@@ -2764,6 +2775,7 @@
   Rect.prototype.dimName = ['x', 'y'];
     
   Rect.prototype.computeScale = function(dim, width, height) {
+    CoordSys.prototype.computeScale.call(this, dim, width, height);
     var size = {x:width,
                 y:height};
     var subSize = {};
@@ -3092,6 +3104,7 @@
   Polar.prototype.dimName = ['theta', 'radius'];
   
   Polar.prototype.computeScale = function(dim, width, height) {
+    CoordSys.prototype.computeScale.call(this, dim, width, height);
     this.centerX = width / 2;
     this.centerY = height / 2;
     
@@ -4471,6 +4484,116 @@
     svgSetAttributePerGroup(node, 'stroke-opacity',   elt, 'stroke_opacity',   datum, i);
     svgSetAttributePerGroup(node, 'fill',             elt, 'fill',             datum, i);
     svgSetAttributePerGroup(node, 'fill-opacity',     elt, 'fill_opacity',     datum, i);
+  }
+  
+  // Get a symbol bounding box
+  var π = Math.PI;
+  var radians = π / 180;
+  var sqrt_3 = Math.sqrt(3)
+  var tan_30 = Math.tan(30 * radians);
+  
+  var boundingBoxes = {
+    circle:function(size) {
+      var r = Math.sqrt(size / π);
+      return {top:-r, right:r, bottom:r, left:-r};
+    },
+    cross:function(size) {
+      var r = Math.sqrt(size / 5) / 2;
+      return {top:-3 * r, right:r, bottom:2 * r, left:-4 * r};
+    },
+    diamond:function(size) {
+      var ry = Math.sqrt(size / (2 * tan_30));
+      var rx = ry * tan_30;
+      return {top:-ry, right:rx, bottom:ry, left:-rx};
+    },
+    square:function(size) {
+      var r = Math.sqrt(size) / 2;
+      return {top:-r, right:r, bottom:r, left:-r};
+    },
+    'triangle-down':function(size) {
+      var rx = Math.sqrt(size / sqrt_3);
+      var ry = rx * sqrt_3 / 2;
+      return {top:-ry, right:rx, bottom:ry, left:-rx};
+    },
+    'triangle-up':function(size) {
+      var rx = Math.sqrt(size / sqrt_3);
+      var ry = rx * sqrt_3 / 2;
+      return {top:-ry, right:rx, bottom:ry, left:-rx};
+    }
+  };
+  
+  function getSymbolBoundingBox(shape, size) {
+    return boundingBoxes[shape](size);
+  }
+  
+  // Filter data in order to avoid overplotting
+  function overplottingFilter(sensibility, data, width, height, symX, symY, symSize, symShape) {
+    if(data.alreadyFiltered) {
+      return;
+    }
+    data.alreadyFiltered = true;
+    if(data.length == 0) {
+      return;
+    }
+    
+    var symXs = [];
+    var symYs = [];
+    var symSizes = [];
+    var symShapes = [];
+    for(var i = 0 ; i < data.length ; ++i) {
+      symXs.push(symX(data[i], i));
+      symYs.push(symY(data[i], i));
+      symSizes.push(symSize(data[i], i));
+      symShapes.push(symShape(data[i], i));
+    }
+    
+    var cellSize = Math.ceil(Math.sqrt(d3.min(symSizes)) / sensibility);
+    
+    var gridWidth = Math.ceil(width / cellSize);
+    var gridHeight = Math.ceil(height / cellSize);
+    
+    var maskGrid = new Array(gridWidth * gridHeight);
+    for(var i = 0 ; i < maskGrid.length ; ++i) {
+      maskGrid[i] = false;
+    }
+    var masked = function(x, y) {return maskGrid[y * gridWidth + x]}
+    var mask = function(x, y) {maskGrid[y * gridWidth + x] = true;}
+    
+    var j = 0;
+    for(var i = 0 ; i < data.length ; ++i) {
+      var bBox = getSymbolBoundingBox(symShapes[i], symSizes[i]);
+      var xMin = Math.max(0, Math.floor((symXs[i] + bBox.left) / cellSize)+1);
+      var xMax = Math.min(gridWidth-1, Math.floor((symXs[i] + bBox.right) / cellSize)-1);
+      var yMin = Math.max(0, Math.floor((symYs[i] + bBox.top) / cellSize)+1);
+      var yMax = Math.min(gridHeight-1, Math.floor((symYs[i] + bBox.bottom) / cellSize)-1);
+      
+      var remove = true;
+      for(var x = xMin ; x <= xMax ; ++x) {
+        for(var y = yMin ; y <= yMax ; ++y) {
+          if(!masked(x,y)) {
+            remove = false;
+          }
+          mask(x,y);
+        }
+      }
+      
+      if(!remove) {
+        data[j++] = data[i];
+      }
+    }
+    /*
+    for(var y = 0 ; y < gridHeight ; ++y) {
+      var str = '';
+      for(var x = 0 ; x < gridWidth ; ++x) {
+        str += masked(x,y)?'1':'0';
+      }
+      console.log(str);
+    }
+    //*/
+    console.log('Filter before:',data.length);
+    //data.splice(j);
+    data.length = j;
+    console.log('Filter after:',data.length);
   }
   
   // Draw a 'box' (Rectangle or Arc depending on the coordinate system)

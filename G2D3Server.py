@@ -59,7 +59,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
   def do_PUT(self):
     """Serve a PUT request."""
     if self.path[-1] == '/':
-      self.send_error(400)
+      self.send_error(400, 'Can PUT a directory')
       return None
     
     content_length = self.getContentLength()
@@ -133,15 +133,15 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         f = open(full_path, 'rb')
         content_length = os.fstat(f.fileno())[6]
       except OSError:
-        self.send_error(404, "File not found")
+        self.send_error(404, 'File "' + self.path + '" not found')
         return None
       except:
         f.close()
         raise
     
     self.send_response(200)
-    self.send_header("Content-type", ctype)
-    self.send_header("Content-Length", str(content_length))
+    self.send_header('Content-type', ctype)
+    self.send_header('Content-Length', str(content_length))
     self.end_headers()
     return f
       
@@ -169,7 +169,7 @@ class G2D3HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         if name not in list:
           list.append(name)
     elif not directory_found:
-      self.send_error(404, 'Directory Not Found')
+      self.send_error(404, 'Directory "' + self.path + '" Not Found')
       return None
     
     if extensions != None:

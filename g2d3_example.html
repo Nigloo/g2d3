@@ -41,56 +41,6 @@
             
             "use strict";
             
-            function createNamedFunction(name, f) {
-                return (new Function('f', "return function "+name+"(){return f.apply(this, arguments)}"))(f);
-            }
-            
-            
-            function extend(parent, name, init) {
-                var child = createNamedFunction(name, init);
-                
-                /* From: http://blog.xebia.fr/2013/06/10/javascript-retour-aux-bases-constructeur-prototype-et-heritage/ */
-                var Surrogate = function() {};
-                Surrogate.prototype = parent.prototype;
-                child.prototype = new Surrogate;
-                
-                Object.defineProperty(child.prototype, 'constructor', {
-                    value: child,
-                    writable: true
-                });
-                // Read only
-                Object.defineProperty(child.prototype, 'super', {
-                    value:parent,
-                    writable: false
-                });
-                
-                return child;
-            }
-            
-            function A(a) {
-                this.a = a;
-            }
-            
-            var B = extend(A, 'B', function(b) {
-                this.super(1337);
-                this.b = b;
-            })
-            
-            var C = extend(B, 'C', function(c) {
-                this.super('yolo');
-                this.c = c;
-            })
-            
-            console.log('A.prototype.isPrototypeOf(C.prototype) :',A.prototype.isPrototypeOf(C.prototype));
-            
-            var b = new B(42);
-            console.log('b :',b);
-            console.log('b.constructor.name :', b.constructor.name);
-            console.log('b instanceof B :', b instanceof B);
-            console.log('b instanceof A :', b instanceof A);
-            
-            //throw 'stop';
-            
             var gender_string = ['', 'Male', 'Female'];
             function genderName(d) {
                 return gender_string[d.sex];
@@ -336,31 +286,6 @@
             
 /////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
-            /*
-            g2d3.graphic()
-            .hack({drawBackground:false, bar_padding:0})
-            .data({data:g2d3.loadFromFile({file:'ACLS_survey.csv'})})
-            .dataView({name:'default_data', func:g2d3.groupBy({col:'Gender'}).proportion({col:'Response'})})
-            .coord(g2d3.rect({subSys:g2d3.polar()}))
-            .axis({axis:'theta', display:false})
-            .axis({axis:'x', display_label:false, display_axis:false})
-            .bar({  x:g2d3.cat('data:Gender'),
-                    theta:g2d3.interval.stack('data:proportion'),
-                    color:g2d3.cat('data:Response'),
-                    label:'data:Response'})
-            .plot({selector:'#graph10', width:960, height:500, margin:20});
-            */
-            g2d3.graphic()
-            .hack({drawBackground:false, bar_padding:0})
-            .data({data:[{col1:1, col2:2, col3:8},
-                        {col1:11, col2:12, col3:13},
-                        {col1:21, col2:22, col3:18},
-                        {col1:31, col2:32, col3:23}]})
-            .axis({axis:'all', display_label:false, min:0})
-            .symbol({x:'data:col1',
-                     y:'data:col2',
-                     size:function(d){return d.col3*d.col3/3.1415}})
-            .plot({selector:'#graph10', width:400, height:400});
             
         </script>
     </head>
@@ -401,9 +326,6 @@
         
         <div id="graph9">
             <h2>Couches terrestres et atmospheriques</h2>
-        </div>
-        <div id="graph10">
-            <h2>Pies</h2>
         </div>
         
     </body>

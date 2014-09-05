@@ -4581,19 +4581,8 @@
         data[j++] = data[i];
       }
     }
-    /*
-    for(var y = 0 ; y < gridHeight ; ++y) {
-      var str = '';
-      for(var x = 0 ; x < gridWidth ; ++x) {
-        str += masked(x,y)?'1':'0';
-      }
-      console.log(str);
-    }
-    //*/
-    console.log('Filter before:',data.length);
-    //data.splice(j);
-    data.length = j;
-    console.log('Filter after:',data.length);
+
+    data.splice(j);
   }
   
   // Draw a 'box' (Rectangle or Arc depending on the coordinate system)

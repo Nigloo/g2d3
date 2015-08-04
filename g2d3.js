@@ -1,5 +1,9 @@
 !function() {
 'use strict';
+
+  if(typeof d3 === 'undefined') {
+    throw "G2D3 requires D3. Please import it before G3D3."
+  }
   
   var lib_name = 'g2d3';
   var plugin_name = lib_name+'.plugin';
@@ -623,14 +627,15 @@
   Graphic.prototype.plot = function(param) {
     var g = this;
     
-    window.addEventListener("load",
-      function() {
-        initGraphic.call(g, param)
-        if(loadData.call(g)) {
-          updateGraphic.call(g);
-        }
-      }, true);
+    var initialize_graphic = function() {
+      initGraphic.call(g, param)
+      if(loadData.call(g)) {
+        updateGraphic.call(g);
+      }
+    }
     
+    initialize_graphic()
+
     return this;
   };
   
@@ -661,7 +666,10 @@
     // Reserve some space for the graphic while loading
     // Add Canvas
     
-    this.svg = d3.select(this.selector)
+    var parent_div = d3.select(this.selector)
+    parent_div.select('svg').remove()
+    
+    this.svg = parent_div
                  .append("svg")
                  .attr("width", this.width)
                  .attr("height", this.height);
@@ -1020,9 +1028,10 @@
     node.attr('d', symbol);
     
     // Event
+    /*************************** TODO: PASS THE THIS TOO (THE SVG ELEMENT THAT HAS BEEN CLICKED) */
     if(isDefined(elt.attrs.label)){
       node.on('mouseover',  getOnMouseOver(g, eltClass, elt.attrs.label.func));
-      node.on('mouseout',   getOnMouseOut(g));
+      node.on('mouseout',   getOnMouseOut(g, eltClass, elt.attrs.label.func));
       node.on('click',      getOnClick(g, eltClass, elt.attrs.label.func));
     }
     var listeners = elt.listeners;
@@ -1191,7 +1200,7 @@
     // Event
     if(isDefined(elt.attrs.label)){
       node.enter.on('mouseover',  getOnMouseOver(g, eltClass, elt.attrs.label.func));
-      node.enter.on('mouseout',   getOnMouseOut(g));
+      node.enter.on('mouseout',   getOnMouseOut(g, eltClass, elt.attrs.label.func));
       node.enter.on('click',      getOnClick(g, eltClass, elt.attrs.label.func));
     }
     var listeners = elt.listeners;
@@ -1441,7 +1450,7 @@
     nodeQ1.enter.style('visibility', 'hidden');
     nodeQ1.enter.style('pointer-events', 'all');
     nodeQ1.enter.on('mouseover',  getOnMouseOver(g, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
-    nodeQ1.enter.on('mouseout',   getOnMouseOut(g));
+    nodeQ1.enter.on('mouseout',   getOnMouseOut(g, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
     nodeQ1.enter.on('click',      getOnClick(g, eltClass+'q1', applyToString(boxplotStat.quartile1.aes.func)));
     nodeQ1.exit.remove();
     
@@ -1463,7 +1472,7 @@
     nodeQ3.enter.style('visibility', 'hidden');
     nodeQ3.enter.style('pointer-events', 'all');
     nodeQ3.enter.on('mouseover',  getOnMouseOver(g, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
-    nodeQ3.enter.on('mouseout',   getOnMouseOut(g));
+    nodeQ3.enter.on('mouseout',   getOnMouseOut(g, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
     nodeQ3.enter.on('click',      getOnClick(g, eltClass+'q3', applyToString(boxplotStat.quartile3.aes.func)));
     nodeQ3.exit.remove();
     
@@ -1504,7 +1513,7 @@
     nodeMedianMask.enter.style('visibility', 'hidden');
     nodeMedianMask.enter.style('pointer-events', 'all');
     nodeMedianMask.enter.on('mouseover',  getOnMouseOver(g, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
-    nodeMedianMask.enter.on('mouseout',   getOnMouseOut(g));
+    nodeMedianMask.enter.on('mouseout',   getOnMouseOut(g, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
     nodeMedianMask.enter.on('click',      getOnClick(g, eltClass+'median', applyToString(boxplotStat.quartile2.aes.func)));
     nodeMedianMask.exit.remove();
     
@@ -1589,7 +1598,7 @@
     nodeW1Mask.enter.style('visibility', 'hidden');
     nodeW1Mask.enter.style('pointer-events', 'all');
     nodeW1Mask.enter.on('mouseover',  getOnMouseOver(g, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
-    nodeW1Mask.enter.on('mouseout',   getOnMouseOut(g));
+    nodeW1Mask.enter.on('mouseout',   getOnMouseOut(g, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
     nodeW1Mask.enter.on('click',      getOnClick(g, eltClass+'w1', applyToString(boxplotStat.whisker1.aes.func)));
     nodeW1Mask.exit.remove();
     
@@ -1631,7 +1640,7 @@
     nodeW2Mask.enter.style('visibility', 'hidden');
     nodeW2Mask.enter.style('pointer-events', 'all');
     nodeW2Mask.enter.on('mouseover',  getOnMouseOver(g, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
-    nodeW2Mask.enter.on('mouseout',   getOnMouseOut(g));
+    nodeW2Mask.enter.on('mouseout',   getOnMouseOut(g, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
     nodeW2Mask.enter.on('click',      getOnClick(g, eltClass+'w2', applyToString(boxplotStat.whisker2.aes.func)));
     nodeW2Mask.exit.remove();
   }
@@ -1869,8 +1878,8 @@
         this.nbCalcultedValues[datasetName] = 0;
       }
       for(var attr in this.elements[i].attrs) {
-        var attr_type = this.elements[i].attrs[attr].type;
-        var attr_val = this.elements[i].attrs[attr].value;
+        var attr_type  = this.elements[i].attrs[attr].type;
+        var attr_val   = this.elements[i].attrs[attr].value;
         var originFunc = this.elements[i].attrs[attr].originFunc;
         
         
@@ -1979,8 +1988,11 @@
           var aes_ret_val = aes[aesId].func(dataset[0], 0);
           
           // Check data type return by this aesthetic
-          checkAesType(attr_type, aes[aesId], aes_ret_val, attr, originFunc);
-          
+          try {
+            checkAesType(attr_type, aes[aesId], aes_ret_val, attr, originFunc);
+          } catch(e) {
+            throw new Error('Unable to check the type of aestetic ' + aes[aesId])
+          }
           
           if(attr_type === 'dimension') {
             this.dim[attr].aes.push(aes[aesId]);
@@ -5561,39 +5573,89 @@
     updateElementsFunc[ELT][CS] = func;
   }
   
-  // Get default events
-  function getOnMouseOver(g, eltClass, getText) {
-    return function(d, i) {
-      var eltId = eltClass+'-'+i;
-      var timeId = getTimeId(g.currentTime);
-      var pos = main_object.mouse(g);
-      
-      if(!main_object.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-          main_object.showPopup({id:'hover', graphic:g, position:pos, text:getText(d)});
-      }
-    };
-  };
   
-  function getOnMouseOut(g) {
-    return function(d, i) {
-      main_object.hidePopup({id:'hover', graphic:g, duration:500});
-    };
-  };
+  // # Mouse events
+  // Add your own callback with g.onData(event, callback)
+  // - event: 'click', 'mousemove'
+  // - callback(g2d3_options, d, i)
+  //     - g2d3 contains the following fields:
+  //         - graphic: the graph object
+  //         - eltement_class
+  //         - element_id
+  //         - get_text
+  //         - mouse_pos
+  //     - d: the data line
+  //     - i: the row numer
+  var g2d3_data_events_callbacks = {}
+
+  var known_events = ['click', 'mousemove', 'mouseover', 'mouseout']
+  
+  Graphic.prototype.onData = function(event_name_or_hash, callback_or_null) {
+    if(typeof event_name_or_hash === 'string') {
+      var event_name = event_name_or_hash
+      var callback = callback_or_null
+      if(known_events.indexOf(event_name)<0) { throw Error("Unkown event: " + event_name + " (expected: one of " + known_event.join("/") + ")") }
+      if(!g2d3_data_events_callbacks[event_name]) { g2d3_data_events_callbacks[event_name] = [] }
+      g2d3_data_events_callbacks[event_name].push(callback)
+    } else {
+      var events_hash = event_name_or_hash
+      for(var event_name in events_hash) {
+        Graphic.prototype.onData(event_name, events_hash[event_name])
+      }
+    }
+  }
+  
+  function getOn(event_name, g, eltClass, getText) {
+    if(known_events.indexOf(event_name)<0) { throw Error("Unkown event: " + event_name + " (expected: one of " + known_event.join("/") + ")") }
+    var callbacks = g2d3_data_events_callbacks[event_name] || []
+    return function(d,i) {
+      var g2d3_options = {
+        graphic: g,
+        mouse_pos: main_object.mouse(g),
+        element_class: eltClass,
+        element_id: eltClass+'-'+i,
+        get_text: getText
+      }
+      for(var cid=0; cid<callbacks.length; cid++) {
+        var callback = callbacks[cid]
+        callback(g2d3_options, d, i)
+      }
+    } 
+  }
   
   function getOnClick(g, eltClass, getText) {
-    return function(d, i) {
-      var eltId = eltClass+'-'+i;
-      var timeId = getTimeId(g.currentTime);
+    return getOn('click', g, eltClass, getText)
+  };
+  
+  function getOnMouseOver(g, eltClass, getText) {
+    return getOn('mouseover', g, eltClass, getText)
+  };
+  
+  function getOnMouseOut(g, eltClass, getText) {
+    return getOn('mouseout', g, eltClass, getText)
+  };
+  
+  var label_callbacks = {
+    'mouseout': function(g2d3_options, d, i) { main_object.hidePopup({id:'hover', graphic:g2d3_options.graphic, duration:500}); },
+    'mouseover': function(g2d3_options, d, i) {
+      var timeId = getTimeId(g2d3_options.graphic.currentTime);
+      if(!main_object.popupExist({id:['bound-to-time', g2d3_options.element_id, timeId], graphic:g2d3_options.graphic})) {
+        main_object.showPopup({id:'hover', graphic:g2d3_options.graphic, position:g2d3_options.mouse_pos, text:g2d3_options.get_text(d)});
+      }
+    },
+    'click': function(g2d3_options, d, i) {
+      var timeId = getTimeId(g2d3_options.graphic.currentTime);
       
-      if(main_object.popupExist({id:['bound-to-time', eltId, timeId], graphic:g})) {
-        main_object.hidePopup({id:['bound-to-time', eltId, timeId], graphic:g});
+      if(main_object.popupExist({id:['bound-to-time', g2d3_options.element_id, timeId], graphic:g2d3_options.graphic})) {
+        main_object.hidePopup({id:['bound-to-time', g2d3_options.element_id, timeId], graphic:g2d3_options.graphic});
       }
       else {
-        main_object.showPopup({id:['bound-to-time', eltId, timeId], graphic:g, position:main_object.mouse(g), text:getText(d)});
-        main_object.hidePopup({id:'hover', graphic:g});
+        main_object.showPopup({id:['bound-to-time', g2d3_options.element_id, timeId], graphic:g2d3_options.graphic, position:g2d3_options.mouse_pos, text:g2d3_options.get_text(d)});
+        main_object.hidePopup({id:'hover', graphic:g2d3_options.graphic});
       }
-    };
+    }
   };
+  // Graphic.prototype.onData(label_callbacks)
   
   // Utility functions
   function getMin(f1, f2) {
@@ -5637,7 +5699,6 @@
     }
     return formatted;
   }
-  
   
   ////////////
   // Plugin //
